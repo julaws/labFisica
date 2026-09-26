@@ -13,7 +13,7 @@ export default tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        project: ['./tsconfig.json', './tsconfig.node.json'],
         tsconfigRootDir: import.meta.dirname,
       },
       globals: { ...globals.browser },
@@ -29,6 +29,14 @@ export default tseslint.config(
   },
   {
     files: ['vite.config.ts', 'vite.config.single.ts', 'playwright.config.ts', 'e2e/**/*.ts', 'scripts/**/*.ts'],
+    languageOptions: { globals: { ...globals.node } },
+  },
+  {
+    files: ['**/*.js'],
+    ...tseslint.configs.disableTypeChecked,
+  },
+  {
+    files: ['**/*.js'],
     languageOptions: { globals: { ...globals.node } },
   },
   {

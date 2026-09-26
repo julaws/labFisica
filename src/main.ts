@@ -20,7 +20,8 @@ function boot(): void {
   if (!canvas || !app) throw new Error('Canvas #scene ou container #app não encontrado');
 
   const renderer = createRenderer({ canvas, maxPixelRatio: MAX_PIXEL_RATIO });
-  const { camera, controls, update: updateCamera } = createCameraRig({ canvas });
+  const rig = createCameraRig({ canvas });
+  const { camera, controls } = rig;
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0b0f1a);
@@ -61,7 +62,7 @@ function boot(): void {
   const loop = createLoop({
     onFrame: (dt) => {
       resizeToDisplaySize(renderer, camera, MAX_PIXEL_RATIO);
-      updateCamera(dt);
+      rig.update(dt);
       cube.rotation.y += dt * 0.4;
       renderer.render(scene, camera);
       stats.update();

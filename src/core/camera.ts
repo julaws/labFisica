@@ -3,7 +3,7 @@ import CameraControls from 'camera-controls';
 
 // camera-controls só precisa de um subconjunto do three.js.
 CameraControls.install({
-  subsetOfTHREE: {
+  THREE: {
     Vector2: THREE.Vector2,
     Vector3: THREE.Vector3,
     Vector4: THREE.Vector4,
@@ -49,7 +49,7 @@ export function createCameraRig({
   camera.position.set(position.x, position.y, position.z);
 
   const controls = new CameraControls(camera, canvas);
-  controls.setTarget(target.x, target.y, target.z, false);
+  void controls.setTarget(target.x, target.y, target.z, false);
   controls.dollyToCursor = true;
   controls.minDistance = 0.3;
   controls.maxDistance = 14;
