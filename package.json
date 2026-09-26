@@ -1,0 +1,26 @@
+{
+  "name": "optics-lab",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Laboratório de óptica interativo em 3D no navegador",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "build:single": "vite build --config vite.config.single.ts",
+    "preview": "vite preview --port 4173 --strictPort",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "shots": "playwright test --config playwright.config.ts",
+    "shots:install": "playwright install chromium",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write ."
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0B0F1A" />
+    <title>Laboratório de Óptica</title>
+    <meta
+      name="description"
+      content="Um laboratório de óptica interativo em 3D: veja o plano de foco, o círculo de confusão e os raios atravessarem a lente."
+    />
+    <link rel="stylesheet" href="/src/ui/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene" aria-label="Cena 3D do laboratório de óptica" role="img"></canvas>
+
+      <div id="loading" class="loading" role="status" aria-live="polite">
+        <div class="loading__card">
+          <p class="loading__title">Laboratório de Óptica</p>
+          <p class="loading__step">Polindo o vidro…</p>
+          <div class="loading__bar"><div class="loading__fill" style="width: 0%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

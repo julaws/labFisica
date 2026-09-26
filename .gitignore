@@ -1,0 +1,23 @@
+node_modules/
+dist/
+dist-single/
+.vite/
+coverage/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+.playwright/
+
+# Capturas geradas (mantemos apenas o diretório)
+screenshots/*.png
+screenshots/*.jpg
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+.env
+.env.local

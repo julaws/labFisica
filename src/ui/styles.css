@@ -1,0 +1,132 @@
+/* Tokens de design — SPEC §3.2 */
+:root {
+  --ink: #0b0f1a;
+  --panel: rgba(16, 22, 36, 0.72);
+  --line: rgba(170, 200, 255, 0.14);
+  --text: #e6eaf2;
+  --muted: #8a94a8;
+  --focus: #7fe3ff;
+  --brass: #c8923a;
+  --warm: #ffb45c;
+  --cool: #9c8cff;
+
+  --radius: 14px;
+  --blur: 12px;
+
+  --font-sans:
+    'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+#app {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+#scene {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+/* Tela de carregamento */
+.loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(120% 90% at 50% 40%, #121a2b 0%, var(--ink) 70%);
+  transition: opacity 400ms ease;
+}
+
+.loading[hidden] {
+  display: none;
+}
+
+.loading--done {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loading__card {
+  min-width: min(360px, 82vw);
+  padding: 22px 24px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(var(--blur));
+}
+
+.loading__title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
+.loading__step {
+  margin: 0 0 14px;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.loading__bar {
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(127, 227, 255, 0.14);
+  overflow: hidden;
+}
+
+.loading__fill {
+  height: 100%;
+  background: var(--focus);
+  transition: width 220ms ease;
+}
+
+/* Painel de estatísticas (tecla P, só em dev) */
+.stats {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  backdrop-filter: blur(var(--blur));
+  white-space: pre;
+  pointer-events: none;
+}
+
+.stats[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading,
+  .loading__fill {
+    transition: none;
+  }
+}
