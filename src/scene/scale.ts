@@ -20,13 +20,17 @@ export const sceneToMm = (units: number): number => units / SCENE_UNITS_PER_MM;
 
 /**
  * Fator de ampliação da lente e do plano da imagem (SPEC §6.2).
- * Uma objetiva de 50 mm com 30 mm de diâmetro fica pequena demais para mostrar
- * os elementos de vidro e o diafragma; ela é desenhada ampliada por este fator.
  *
- * O valor definitivo é fixado na F3, quando a geometria da lente existir.
- * Até lá, 1 significa "sem exagero".
+ * Uma objetiva de 50 mm tem cerca de 3 cm de diâmetro. Na bancada, do outro
+ * lado da sala, o vidro sumiria e o diafragma seria invisível. A objetiva é
+ * desenhada **6× maior** que o tamanho real.
+ *
+ * O que NÃO muda com isso: as curvaturas, as espessuras e o curso de foco
+ * mantêm as proporções corretas entre si, porque a ampliação é um fator único
+ * aplicado ao conjunto. Nenhuma distância óptica é calculada nesta escala — o
+ * motor continua em milímetros reais.
  */
-export const LENS_EXAGGERATION = 1;
+export const LENS_EXAGGERATION: number = 6;
 
 /** Registro dos exageros ativos, lido pelo modal "Sobre as escalas". */
 export interface ScaleDisclosure {
@@ -45,8 +49,11 @@ export function activeScaleDisclosures(): ScaleDisclosure[] {
       label: 'Lente e plano da imagem',
       factor: LENS_EXAGGERATION,
       explanation:
-        'A objetiva e a placa de vidro são desenhadas ampliadas para que os elementos ' +
-        'e o diafragma fiquem visíveis. As distâncias ópticas continuam vindo do motor em mm.',
+        `A objetiva e a placa de vidro são desenhadas ${LENS_EXAGGERATION}× maiores que o ` +
+        'tamanho real, para que os elementos de vidro e as lâminas do diafragma fiquem ' +
+        'visíveis. É um fator único aplicado ao conjunto: as curvaturas, as espessuras e o ' +
+        'curso do foco guardam as proporções corretas entre si. As distâncias ópticas ' +
+        'continuam vindo do motor, em milímetros reais.',
     });
   }
 

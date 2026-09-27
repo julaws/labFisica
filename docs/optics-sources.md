@@ -183,10 +183,19 @@ deixar de ser o mínimo.
 | Plano principal dianteiro | +16,7597 mm do primeiro vértice |
 | Pupila de entrada | z = 15,0158 mm, D = 28,4441 mm |
 | Pupila de saída | z = 22,1842 mm, D = 28,4441 mm |
-| Abertura máxima | f/1,76 (o stop fecha para f/2 com semidiâmetro 10,99 mm) |
+| Abertura máxima | **f/1,76** (o stop fecha para f/2 com semidiâmetro 10,99 mm) |
 | Comprimento do grupo óptico | 37,20 mm |
 | Aberração esférica longitudinal em f/2 | −1,8848 mm (marginal em 31,36 mm, paraxial em 33,24 mm) |
 | Aberração cromática longitudinal F–C | < 0,01 mm (nula por construção) |
+
+### Abertura máxima: f/1,76, não f/1.4
+
+A SPEC §5.1 lista a escala de stops de f/1.4 a f/22. Esta objetiva **não alcança
+f/1.4**: seria preciso uma pupila de entrada de 35,7 mm num conjunto de 30 mm de
+diâmetro livre. O limite sai do cálculo, não de uma constante — `widestFNumber()`
+o obtém da própria prescrição, e `withFNumber()` limita pedidos abaixo dele. A
+escala oferecida na interface começa em f/2. Decisão registrada no
+[ADR 0003](adr/0003-limite-de-abertura-e-escala-da-lente.md).
 
 ### Limitação, declarada na interface
 
@@ -208,4 +217,6 @@ uma objetiva de mercado.**
 | Matriz paraxial (ABCD), EFL, BFL, pupilas | documentado e testado (§4) | F1 ✔ |
 | Traçador sequencial, Snell, TIR, vinhetagem | documentado e testado (§5) | F1 ✔ |
 | Prescrição da objetiva | alternativa da SPEC §5.3, documentada (§6 e §7) | F1 ✔ |
-| Fatores de exagero de escala da cena | pendente | F4 |
+| Ampliação de desenho da objetiva | 8×, declarada em `src/scene/scale.ts` e no modal "?" | F3 ✔ |
+| Limite real de abertura (f/1,76) | documentado (§7) e no ADR 0003 | F3 ✔ |
+| Mapa logarítmico de profundidade do diorama | pendente | F4 |

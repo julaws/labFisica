@@ -24,6 +24,12 @@ export interface QualitySettings {
   readonly sensorTargetSize: number;
   /** Quantidade de grama/vegetação instanciada no diorama (F4). */
   readonly instanceBudget: number;
+  /**
+   * Escala do render target de transmissão. O three re-renderiza a cena para
+   * cada malha com `transmission`, então o vidro da objetiva é o item mais caro
+   * da cena inteira. Meia resolução é imperceptível atrás do vidro.
+   */
+  readonly transmissionScale: number;
 }
 
 export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
@@ -37,6 +43,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     antialias: true,
     sensorTargetSize: 1024,
     instanceBudget: 4000,
+    transmissionScale: 0.5,
   },
   medium: {
     level: 'medium',
@@ -48,6 +55,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     antialias: true,
     sensorTargetSize: 768,
     instanceBudget: 2000,
+    transmissionScale: 0.35,
   },
   low: {
     level: 'low',
@@ -59,6 +67,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     antialias: false,
     sensorTargetSize: 512,
     instanceBudget: 700,
+    transmissionScale: 0.2,
   },
 };
 

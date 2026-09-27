@@ -11,6 +11,9 @@ import { createMaterialLibrary } from './scene/materials';
 import { createLabRoom } from './scene/lab-room';
 import { createBench } from './scene/bench';
 import { disposeProceduralTextures } from './scene/textures/procedural';
+import { createInputSystem } from './core/input';
+import { createExperimentRegistry, experimentIdFromHash } from './core/experiment';
+import { createLensFocusExperiment } from './experiments/lens-focus';
 
 declare global {
   interface Window {
@@ -83,11 +86,6 @@ async function boot(): Promise<void> {
   const bench = createBench(materials);
   scene.add(bench.group);
 
-  // Três carrinhos de demonstração nas marcas que o experimento vai usar:
-  // diorama, lente e plano da imagem (as posições finais vêm na F3 e F4).
-  for (const millimeters of [200, 620, 900]) {
-    bench.mountAt(millimeters);
-  }
   loading.complete('room');
 
   // --- Pós-processamento ----------------------------------------------------
@@ -101,6 +99,7 @@ async function boot(): Promise<void> {
     const settings = quality.settings;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, settings.maxPixelRatio));
     renderer.shadowMap.enabled = settings.shadows;
+    renderer.transmissionResolutionScale = settings.transmissionScale;
     room.applyShadowQuality(settings.shadows, settings.shadowMapSize);
     post.applyQuality(settings);
     post.setSize(canvas.clientWidth, canvas.clientHeight);
@@ -110,12 +109,13 @@ async function boot(): Promise<void> {
 
   // --- Loop -----------------------------------------------------------------
   const loop = createLoop({
-    onFrame: (dt) => {
+    onFrame: (dt, elapsed) => {
       renderer.info.reset();
       if (resizeToDisplaySize(renderer, camera, quality.settings.maxPixelRatio)) {
         post.setSize(canvas.clientWidth, canvas.clientHeight);
       }
       rig.update(dt);
+      experiment?.update(dt, elapsed);
       post.render(dt);
       quality.sample(loop.frameMs);
       stats.update();
@@ -130,6 +130,43 @@ async function boot(): Promise<void> {
   });
 
   const stats = createStatsPanel(app, renderer, loop);
+
+  // --- Entrada e experimento ------------------------------------------------
+  const input = createInputSystem({
+    canvas,
+    camera,
+    setCameraEnabled: (value) => {
+      controls.enabled = value;
+    },
+  });
+
+  const registry = createExperimentRegistry();
+  registry.register({
+    id: 'lens-focus',
+    title: { 'pt-BR': 'Lente e plano de foco', en: 'Lens and plane of focus' },
+    create: createLensFocusExperiment,
+  });
+
+  const params = new URLSearchParams(window.location.search);
+  const requestedId = experimentIdFromHash();
+  const experiment =
+    (requestedId ? registry.create(requestedId) : null) ?? registry.createDefault();
+
+  if (experiment) {
+    await experiment.setup({
+      renderer,
+      scene,
+      camera,
+      materials,
+      room,
+      bench,
+      quality,
+      addGlow: (object) => post.bloom.selection.add(object),
+      registerDraggable: (handle) => input.registerDraggable(handle),
+      onKey: (key, action) => input.onKey(key, action),
+      invalidate: () => loop.invalidate(),
+    });
+  }
 
   if (import.meta.env.DEV) {
     // Handles de depuração: só existem no servidor de desenvolvimento.
@@ -152,8 +189,46 @@ async function boot(): Promise<void> {
     }
   });
 
+  // ?lens=exploded&f=16&focus=2000 deixam a cena num estado conhecido sem
+  // depender de atalhos de teclado, que dependem de foco e de tempo.
+  if (experiment) {
+    const lens = params.get('lens');
+    if (lens) experiment.set('lensMode', lens);
+
+    const fNumber = params.get('f');
+    if (fNumber) experiment.set('fNumber', Number(fNumber));
+
+    const focus = params.get('focus');
+    if (focus) experiment.set('focusDistance', Number(focus));
+  }
+
+  // ?shot=<id> leva a câmera direto a um enquadramento cinematográfico do
+  // experimento. É o que o script de capturas usa para fotografar a objetiva
+  // de perto sem depender de interação.
+  const requestedShot = params.get('shot');
+  if (experiment && requestedShot) {
+    const shot = experiment.cameras().find((candidate) => candidate.id === requestedShot);
+    if (shot) {
+      if (shot.fov !== undefined) {
+        camera.fov = shot.fov;
+        camera.updateProjectionMatrix();
+      }
+      void controls.setLookAt(
+        shot.position.x,
+        shot.position.y,
+        shot.position.z,
+        shot.target.x,
+        shot.target.y,
+        shot.target.z,
+        false,
+      );
+    }
+  }
+
   window.addEventListener('beforeunload', () => {
     loop.stop();
+    experiment?.dispose();
+    input.dispose();
     post.dispose();
     bench.dispose();
     room.dispose();

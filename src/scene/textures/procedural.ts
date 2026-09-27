@@ -363,6 +363,80 @@ export function wallPosterTexture(blurPx: number, label: string, size = 512): TH
   });
 }
 
+
+export interface RingScaleMark {
+  /** Posicao normalizada ao longo da circunferencia, 0 a 1. */
+  readonly fraction: number;
+  readonly label: string;
+  readonly unit: 'm' | 'ft';
+}
+
+/**
+ * Escala de distancia gravada no anel de foco (SPEC §6.4).
+ *
+ * As marcas chegam prontas de `focus-ring.ts`, calculadas pelo **mesmo** mapa
+ * que o arraste usa. E por isso que a marca gravada coincide com o valor
+ * mostrado no HUD, em vez de ser um desenho decorativo.
+ *
+ * `sweep` e a fracao da circunferencia ocupada pelo curso do anel.
+ */
+export function focusRingScale(
+  marks: readonly RingScaleMark[],
+  sweep: number,
+  width = 2048,
+): THREE.Texture {
+  const key = `focus-scale-${width}-${sweep.toFixed(4)}-${marks.map((m) => m.label + m.unit).join(',')}`;
+
+  return memo(key, () => {
+    const height = Math.round(width / 8);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D indisponivel para gerar a escala do anel');
+
+    ctx.clearRect(0, 0, width, height);
+
+    const metersY = height * 0.3;
+    const feetY = height * 0.72;
+
+    for (const mark of marks) {
+      const x = Math.round(mark.fraction * sweep * width) + 0.5;
+      const isMeters = mark.unit === 'm';
+      const y = isMeters ? metersY : feetY;
+
+      ctx.strokeStyle = isMeters ? 'rgba(232, 240, 255, 0.95)' : 'rgba(200, 146, 58, 0.95)';
+      ctx.fillStyle = ctx.strokeStyle;
+      ctx.lineWidth = 3;
+
+      ctx.beginPath();
+      ctx.moveTo(x, isMeters ? y + height * 0.1 : y - height * 0.1);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+
+      ctx.font = `700 ${Math.round(height * 0.2)}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = isMeters ? 'bottom' : 'top';
+      ctx.fillText(mark.label, x, isMeters ? y - height * 0.02 : y + height * 0.04);
+    }
+
+    // Indice de leitura: a marca fixa do barril fica em fraction 0.
+    ctx.strokeStyle = 'rgba(127, 227, 255, 0.9)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(1.5, height * 0.44);
+    ctx.lineTo(1.5, height * 0.56);
+    ctx.stroke();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 16;
+    return texture;
+  });
+}
+
 /** Libera todas as texturas geradas. Chamado no dispose do laboratório. */
 export function disposeProceduralTextures(): void {
   for (const texture of cache.values()) texture.dispose();

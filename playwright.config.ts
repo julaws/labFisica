@@ -8,7 +8,9 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   retries: 0,
-  timeout: 90_000,
+  // O Chromium do Playwright roda em SwiftShader (CPU): a cena com vidro
+  // transmissivo e pós-processamento leva dezenas de segundos por captura.
+  timeout: 240_000,
   expect: { timeout: 20_000 },
   reporter: [['list']],
   use: {
