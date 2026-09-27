@@ -30,6 +30,10 @@ export function createRenderer({ canvas, maxPixelRatio = 2 }: RendererOptions): 
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.VSMShadowMap;
 
+  // Com pós-processamento, cada passe chama render() e zeraria os contadores.
+  // Somamos o quadro inteiro e zeramos manualmente no loop.
+  renderer.info.autoReset = false;
+
   return renderer;
 }
 

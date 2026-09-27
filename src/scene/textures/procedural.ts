@@ -1,0 +1,370 @@
+import * as THREE from 'three';
+
+/**
+ * Geradores de textura procedurais (SPEC §4 e §7).
+ *
+ * Tudo desenhado em canvas 2D e convertido em textura: nada de arquivo de
+ * imagem externo, o que mantém o build pequeno e o primeiro quadro rápido
+ * (SPEC §8). As texturas geradas aqui são cacheadas por chave, porque a mesma
+ * superfície aparece em várias peças da bancada.
+ */
+
+const cache = new Map<string, THREE.Texture>();
+
+function createCanvas(size: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D indisponível para gerar texturas');
+  return { canvas, ctx };
+}
+
+function finish(
+  canvas: HTMLCanvasElement,
+  { repeat = 1, colorSpace = THREE.NoColorSpace }: { repeat?: number; colorSpace?: THREE.ColorSpace } = {},
+): THREE.CanvasTexture {
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(repeat, repeat);
+  texture.colorSpace = colorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
+function memo(key: string, create: () => THREE.Texture): THREE.Texture {
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const texture = create();
+  cache.set(key, texture);
+  return texture;
+}
+
+/** Ruído de valor com interpolação suave, determinístico. */
+function valueNoise(width: number, height: number, cells: number, seed: number): Float32Array {
+  const grid = new Float32Array((cells + 1) * (cells + 1));
+  let state = seed >>> 0;
+  const random = (): number => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 0xffffffff;
+  };
+  for (let i = 0; i < grid.length; i += 1) grid[i] = random();
+
+  const out = new Float32Array(width * height);
+  const smooth = (t: number): number => t * t * (3 - 2 * t);
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const fx = (x / width) * cells;
+      const fy = (y / height) * cells;
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const tx = smooth(fx - x0);
+      const ty = smooth(fy - y0);
+
+      const at = (gx: number, gy: number): number => grid[(gy % (cells + 1)) * (cells + 1) + (gx % (cells + 1))]!;
+      const top = at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx;
+      const bottom = at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx;
+      out[y * width + x] = top * (1 - ty) + bottom * ty;
+    }
+  }
+
+  return out;
+}
+
+/** Soma de oitavas de ruído de valor, normalizada em [0, 1]. */
+function fbm(size: number, octaves: number, baseCells: number, seed: number): Float32Array {
+  const out = new Float32Array(size * size);
+  let amplitude = 1;
+  let total = 0;
+
+  for (let o = 0; o < octaves; o += 1) {
+    const layer = valueNoise(size, size, baseCells * 2 ** o, seed + o * 977);
+    for (let i = 0; i < out.length; i += 1) out[i]! += layer[i]! * amplitude;
+    total += amplitude;
+    amplitude *= 0.5;
+  }
+
+  for (let i = 0; i < out.length; i += 1) out[i]! /= total;
+  return out;
+}
+
+/** Converte um campo de altura em normal map tangente. */
+function heightToNormal(height: Float32Array, size: number, strength: number): THREE.CanvasTexture {
+  const { canvas, ctx } = createCanvas(size);
+  const image = ctx.createImageData(size, size);
+
+  const at = (x: number, y: number): number =>
+    height[((y + size) % size) * size + ((x + size) % size)]!;
+
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const dx = (at(x + 1, y) - at(x - 1, y)) * strength;
+      const dy = (at(x, y + 1) - at(x, y - 1)) * strength;
+
+      const length = Math.hypot(dx, dy, 1);
+      const index = (y * size + x) * 4;
+      image.data[index] = ((-dx / length) * 0.5 + 0.5) * 255;
+      image.data[index + 1] = ((-dy / length) * 0.5 + 0.5) * 255;
+      image.data[index + 2] = (1 / length) * 255;
+      image.data[index + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(image, 0, 0);
+  return finish(canvas);
+}
+
+/** Campo de altura em escala de cinza, como mapa de rugosidade ou AO. */
+function heightToGray(height: Float32Array, size: number, low: number, high: number): THREE.CanvasTexture {
+  const { canvas, ctx } = createCanvas(size);
+  const image = ctx.createImageData(size, size);
+
+  for (let i = 0; i < height.length; i += 1) {
+    const value = (low + (high - low) * height[i]!) * 255;
+    image.data[i * 4] = value;
+    image.data[i * 4 + 1] = value;
+    image.data[i * 4 + 2] = value;
+    image.data[i * 4 + 3] = 255;
+  }
+
+  ctx.putImageData(image, 0, 0);
+  return finish(canvas);
+}
+
+/** Concreto polido: rugosidade manchada e microrrelevo suave. */
+export function concreteRoughness(size = 512): THREE.Texture {
+  return memo('concrete-roughness', () => heightToGray(fbm(size, 4, 5, 11), size, 0.42, 0.62));
+}
+
+export function concreteNormal(size = 512): THREE.Texture {
+  return memo('concrete-normal', () => heightToNormal(fbm(size, 5, 8, 11), size, 0.8));
+}
+
+/**
+ * Latão escovado: riscos finos numa direção. O anisotrópico de verdade vem do
+ * material (`anisotropy` do MeshPhysicalMaterial); a textura dá a variação.
+ */
+export function brushedMetalRoughness(size = 512): THREE.Texture {
+  return memo('brushed-roughness', () => {
+    const { canvas, ctx } = createCanvas(size);
+    ctx.fillStyle = '#6a6a6a';
+    ctx.fillRect(0, 0, size, size);
+
+    let state = 20260927;
+    const random = (): number => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 0xffffffff;
+    };
+
+    for (let i = 0; i < size * 9; i += 1) {
+      const y = random() * size;
+      const alpha = 0.03 + random() * 0.1;
+      const bright = random() > 0.5;
+      ctx.strokeStyle = bright ? `rgba(255,255,255,${alpha})` : `rgba(0,0,0,${alpha})`;
+      ctx.lineWidth = random() * 1.6 + 0.2;
+      ctx.beginPath();
+      ctx.moveTo(-10, y);
+      ctx.lineTo(size + 10, y + (random() - 0.5) * 2);
+      ctx.stroke();
+    }
+
+    return finish(canvas);
+  });
+}
+
+/** Alumínio anodizado preto: microtextura fosca, quase uniforme. */
+export function anodizedRoughness(size = 256): THREE.Texture {
+  return memo('anodized-roughness', () => heightToGray(fbm(size, 3, 24, 77), size, 0.42, 0.58));
+}
+
+/**
+ * Borracha serrilhada do anel de foco (SPEC §3.1): normal map de estrias
+ * verticais com topo arredondado. `grooves` é a contagem ao redor do anel.
+ */
+export function knurledNormal(grooves = 96, size = 512): THREE.Texture {
+  return memo(`knurled-${grooves}`, () => {
+    const height = new Float32Array(size * size);
+
+    for (let x = 0; x < size; x += 1) {
+      // Onda triangular suavizada: crista arredondada, vale marcado.
+      const phase = ((x / size) * grooves) % 1;
+      const triangle = 1 - Math.abs(phase * 2 - 1);
+      const value = Math.sin((triangle * Math.PI) / 2) ** 1.5;
+      for (let y = 0; y < size; y += 1) height[y * size + x] = value;
+    }
+
+    // Quebra a regularidade com um ruído fraco, senão parece plástico.
+    const grain = fbm(size, 2, 32, 5);
+    for (let i = 0; i < height.length; i += 1) height[i] = height[i]! * 0.92 + grain[i]! * 0.08;
+
+    return heightToNormal(height, size, 3.2);
+  });
+}
+
+/** Madeira da bandeja do diorama: veios alongados. */
+export function woodColor(size = 512): THREE.Texture {
+  return memo('wood-color', () => {
+    const { canvas, ctx } = createCanvas(size);
+    const rings = fbm(size, 4, 3, 303);
+
+    const image = ctx.createImageData(size, size);
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        const i = y * size + x;
+        // Veios: anéis distorcidos ao longo de x, comprimidos em y.
+        const distorted = (x / size) * 9 + rings[i]! * 2.2;
+        const ring = Math.abs(Math.sin(distorted * Math.PI));
+        const tone = 0.42 + ring * 0.34 + rings[i]! * 0.12;
+
+        image.data[i * 4] = Math.min(255, tone * 168);
+        image.data[i * 4 + 1] = Math.min(255, tone * 116);
+        image.data[i * 4 + 2] = Math.min(255, tone * 72);
+        image.data[i * 4 + 3] = 255;
+      }
+    }
+
+    ctx.putImageData(image, 0, 0);
+    return finish(canvas, { colorSpace: THREE.SRGBColorSpace });
+  });
+}
+
+export interface RulerOptions {
+  /** Comprimento representado pela textura, em mm. */
+  lengthMm: number;
+  /** Espaçamento das marcas menores, em mm. */
+  minorStepMm?: number;
+  /** A cada quantas marcas menores vem uma marca numerada. */
+  majorEvery?: number;
+  /** Largura da textura em pixels; a altura é 1/16 dela. */
+  width?: number;
+}
+
+/**
+ * Régua gravada do trilho óptico (SPEC §3.1), com marcações em mm e números.
+ * Desenhada clara sobre transparente para entrar como mapa de emissão/alpha
+ * por cima do alumínio anodizado.
+ */
+export function engravedRuler({
+  lengthMm,
+  minorStepMm = 10,
+  majorEvery = 10,
+  width = 2048,
+}: RulerOptions): THREE.Texture {
+  return memo(`ruler-${lengthMm}-${minorStepMm}-${majorEvery}-${width}`, () => {
+    const height = Math.round(width / 32);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D indisponível para gerar a régua');
+
+    ctx.clearRect(0, 0, width, height);
+
+    const steps = Math.floor(lengthMm / minorStepMm);
+    const pxPerStep = width / steps;
+
+    ctx.strokeStyle = 'rgba(224, 236, 255, 0.95)';
+    ctx.fillStyle = 'rgba(224, 236, 255, 0.88)';
+    ctx.font = `700 ${Math.round(height * 0.34)}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+
+    for (let i = 0; i <= steps; i += 1) {
+      const x = Math.round(i * pxPerStep) + 0.5;
+      const isMajor = i % majorEvery === 0;
+
+      ctx.lineWidth = isMajor ? 4.5 : 2.0;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, isMajor ? height * 0.46 : height * 0.26);
+      ctx.stroke();
+
+      if (isMajor) {
+        const millimeters = i * minorStepMm;
+        ctx.fillText(String(millimeters), x, height * 0.52);
+      }
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 16;
+    return texture;
+  });
+}
+
+/**
+ * Cartaz retroiluminado da parede (SPEC §3.1): o mesmo pinheiro fora de foco,
+ * no limite e nítido, com raios desenhados. `blur` em pixels controla o estado.
+ */
+export function wallPosterTexture(blurPx: number, label: string, size = 512): THREE.Texture {
+  return memo(`poster-${blurPx}-${label}`, () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = Math.round(size * 1.4);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D indisponível para gerar o cartaz');
+
+    const h = canvas.height;
+    const background = ctx.createLinearGradient(0, 0, 0, h);
+    background.addColorStop(0, '#0d1524');
+    background.addColorStop(1, '#0a0f1b');
+    ctx.fillStyle = background;
+    ctx.fillRect(0, 0, size, h);
+
+    // Raios de luz convergindo, desenhados atrás da árvore.
+    ctx.strokeStyle = 'rgba(127, 227, 255, 0.22)';
+    ctx.lineWidth = 1.5;
+    for (let i = -4; i <= 4; i += 1) {
+      ctx.beginPath();
+      ctx.moveTo(size * 0.08, h * 0.5 + i * 16);
+      ctx.lineTo(size * 0.92, h * 0.5 + i * 3);
+      ctx.stroke();
+    }
+
+    ctx.save();
+    ctx.filter = `blur(${blurPx}px)`;
+
+    // Pinheiro estilizado.
+    ctx.fillStyle = '#25543f';
+    const cx = size * 0.5;
+    const baseY = h * 0.72;
+    for (let tier = 0; tier < 3; tier += 1) {
+      const width = size * (0.34 - tier * 0.07);
+      const top = baseY - h * (0.12 + tier * 0.11);
+      ctx.beginPath();
+      ctx.moveTo(cx, top);
+      ctx.lineTo(cx - width / 2, baseY - h * tier * 0.09);
+      ctx.lineTo(cx + width / 2, baseY - h * tier * 0.09);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.fillStyle = '#4a3423';
+    ctx.fillRect(cx - size * 0.022, baseY, size * 0.044, h * 0.08);
+    ctx.restore();
+
+    // Moldura e legenda.
+    ctx.strokeStyle = 'rgba(127, 227, 255, 0.45)';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(6, 6, size - 12, h - 12);
+
+    ctx.fillStyle = 'rgba(230, 234, 242, 0.85)';
+    ctx.font = `700 ${Math.round(size * 0.062)}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(label, size / 2, h * 0.9);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
+    return texture;
+  });
+}
+
+/** Libera todas as texturas geradas. Chamado no dispose do laboratório. */
+export function disposeProceduralTextures(): void {
+  for (const texture of cache.values()) texture.dispose();
+  cache.clear();
+}

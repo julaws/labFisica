@@ -8,7 +8,11 @@ de obtenção, antes de entrar no repositório.
 
 | Asset | Tipo | Fonte | Licença | Obtido em | Onde é usado |
 |---|---|---|---|---|---|
-| _(nenhum até agora)_ | | | | | |
+| `studio_small_09_1k.hdr` (Studio Small 09, 1k) | HDRI de estúdio | [Poly Haven](https://polyhaven.com/a/studio_small_09) — autoria de Sergej Majboroda | **CC0 1.0** | 27/09/2026 | `public/env/`, carregado por `src/core/environment.ts` como ambiente e reflexo |
+
+A licença CC0 do Poly Haven permite uso comercial, redistribuição e inclusão em
+produto pago, sem exigência de atribuição — o crédito acima é por cortesia.
+Todo o resto da aparência é procedural, gerado em código em `src/scene/textures/`.
 
 ## Fontes tipográficas
 
