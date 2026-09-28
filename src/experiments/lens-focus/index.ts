@@ -10,9 +10,9 @@ import { LENS_50MM_F2, withFNumber } from '../../optics/prescriptions/symmetric-
 import { analyze } from '../../optics/paraxial';
 import { focusExtension } from '../../optics/thin-lens';
 import { opticalLength } from '../../optics/prescription';
-import { F_STOP_PRESETS } from '../../optics/constants';
+import { DEFAULT_SUBJECT_DISTANCES_MM, F_STOP_PRESETS } from '../../optics/constants';
 import { focusRingScale } from '../../scene/textures/procedural';
-import { LENS_EXAGGERATION } from '../../scene/scale';
+import { LENS_EXAGGERATION, distanceToDioramaOffset } from '../../scene/scale';
 import {
   RING_SWEEP,
   distanceToRingAngle,
@@ -29,6 +29,7 @@ import {
   lensMm,
 } from './lens-model';
 import { type LensFocusStore, createLensFocusStore, stepFNumber } from './state';
+import { type Diorama, createDiorama } from './diorama';
 
 /**
  * Experimento 1: Lente e plano de foco (SPEC §6).
@@ -63,6 +64,7 @@ export function createLensFocusExperiment(): Experiment {
   root.name = 'lens-focus';
 
   let elements: LensElementMesh[] = [];
+  let diorama: Diorama | null = null;
   let iris: ReturnType<typeof createIris> | null = null;
   let barrel: ReturnType<typeof createBarrel> | null = null;
   let opticsGroup: THREE.Group | null = null;
@@ -164,6 +166,18 @@ export function createLensFocusExperiment(): Experiment {
       root.position.y = axisHeight;
       root.position.x = -lensMm(lengthMm / 2);
       carriage.group.add(root);
+
+      // --- Diorama ----------------------------------------------------------
+      // Fica no mesmo grupo da objetiva, com origem no primeiro vértice: é o
+      // que faz o mapa de profundidade medir a partir da lente.
+      diorama = createDiorama({
+        materials: ctx.materials,
+        instanceBudget: ctx.quality.settings.instanceBudget,
+      });
+      // O vale apoia no tampo, não no eixo óptico: desce o que a lente subiu.
+      diorama.group.position.y = -axisHeight + 0.002;
+      root.add(diorama.group);
+      for (const object of diorama.glowing) ctx.addGlow(object);
 
       // --- Arraste do anel de foco -----------------------------------------
       let dragDistance = store.get().focusDistance;
@@ -406,7 +420,36 @@ export function createLensFocusExperiment(): Experiment {
       // do barril domina o comprimento, então é ele que dá a régua.
       const reach = Math.max(lensMm(lengthMm), lensMm(barrelDiameterMm()));
 
+      // Fundo do vale: o pico está na posição mapeada de 2 m.
+      const valleyDepth = distanceToDioramaOffset(DEFAULT_SUBJECT_DISTANCES_MM.background);
+
       return [
+        {
+          id: 'overview',
+          label: { 'pt-BR': 'Vale e objetiva', en: 'Valley and lens' },
+          position: {
+            x: origin.x + reach * 1.2,
+            y: origin.y + reach * 1.3,
+            z: origin.z + reach * 2.9,
+          },
+          target: { x: origin.x - valleyDepth * 0.55, y: origin.y - axisHeight * 0.45, z: origin.z },
+          fov: 38,
+        },
+        {
+          id: 'valley',
+          label: { 'pt-BR': 'Diorama de perto', en: 'Diorama close-up' },
+          position: {
+            x: origin.x - valleyDepth * 0.45,
+            y: origin.y - axisHeight + 0.42,
+            z: origin.z + 0.95,
+          },
+          target: {
+            x: origin.x - valleyDepth * 0.55,
+            y: origin.y - axisHeight + 0.04,
+            z: origin.z,
+          },
+          fov: 32,
+        },
         {
           id: 'lens-three-quarter',
           label: { 'pt-BR': 'Objetiva, três quartos', en: 'Lens, three-quarter' },
@@ -443,6 +486,9 @@ export function createLensFocusExperiment(): Experiment {
     },
 
     dispose(): void {
+      diorama?.dispose();
+      diorama = null;
+
       for (const dispose of disposers) dispose();
       disposers.length = 0;
 

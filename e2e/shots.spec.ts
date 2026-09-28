@@ -25,6 +25,16 @@ test('vista padrão', async ({ page }, testInfo) => {
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-01-default.png` });
 });
 
+test('vale e objetiva', async ({ page }, testInfo) => {
+  await openLab(page, '?shot=overview');
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-06-overview.png` });
+});
+
+test('diorama de perto', async ({ page }, testInfo) => {
+  await openLab(page, '?shot=valley');
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-07-valley.png` });
+});
+
 test('objetiva de perto', async ({ page }, testInfo) => {
   await openLab(page, '?shot=lens-three-quarter');
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-02-lens.png` });

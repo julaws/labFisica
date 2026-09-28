@@ -219,4 +219,4 @@ uma objetiva de mercado.**
 | Prescrição da objetiva | alternativa da SPEC §5.3, documentada (§6 e §7) | F1 ✔ |
 | Ampliação de desenho da objetiva | 8×, declarada em `src/scene/scale.ts` e no modal "?" | F3 ✔ |
 | Limite real de abertura (f/1,76) | documentado (§7) e no ADR 0003 | F3 ✔ |
-| Mapa logarítmico de profundidade do diorama | pendente | F4 |
+| Mapa logarítmico de profundidade do diorama | `offset(d) = k·ln(d/300 mm)`, k = 0,328 un/ln, declarado em `src/scene/scale.ts` e no modal "?" | F4 ✔ |

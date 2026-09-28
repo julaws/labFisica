@@ -32,6 +32,60 @@ export const sceneToMm = (units: number): number => units / SCENE_UNITS_PER_MM;
  */
 export const LENS_EXAGGERATION: number = 6;
 
+/**
+ * Mapa de profundidade do diorama (SPEC §6.2).
+ *
+ *     offset(d) = k · ln(d / d_min)
+ *
+ * Monotônico e inversível. É o que permite representar de 30 cm a 10 m numa
+ * bandeja de pouco mais de um metro de cena sem quebrar a ordem das coisas.
+ *
+ * A regra que faz isso valer a pena: **o plano de foco é desenhado na posição
+ * mapeada da distância de foco, e cada objeto na posição mapeada da sua
+ * distância física**. Então o plano corta o pinheiro na cena se e somente se a
+ * física disser que o pinheiro está em foco. A compressão é forte, mas não
+ * mente sobre quem está em foco.
+ */
+export const DIORAMA_DEPTH = {
+  /** Distância física representada pela borda próxima da bandeja, mm. */
+  minMm: 300,
+  /** Distância física representada pela borda distante, mm. */
+  maxMm: 10_000,
+  /** Comprimento da bandeja em unidades de cena. */
+  spanScene: 1.15,
+  /** Folga entre o elemento frontal da objetiva e a borda próxima, em unidades. */
+  gapScene: 0.14,
+} as const;
+
+const LOG_SPAN = Math.log(DIORAMA_DEPTH.maxMm / DIORAMA_DEPTH.minMm);
+
+/** Unidades de cena por unidade de logaritmo natural da distância. */
+export const DIORAMA_K = DIORAMA_DEPTH.spanScene / LOG_SPAN;
+
+/**
+ * Distância física (mm) → afastamento em unidades de cena, medido da objetiva
+ * para o lado do objeto. Sempre crescente: mais longe na física é mais longe
+ * na cena.
+ */
+export function distanceToDioramaOffset(millimeters: number): number {
+  const clamped = Math.min(
+    Math.max(millimeters, DIORAMA_DEPTH.minMm),
+    DIORAMA_DEPTH.maxMm,
+  );
+  return DIORAMA_DEPTH.gapScene + DIORAMA_K * Math.log(clamped / DIORAMA_DEPTH.minMm);
+}
+
+/** Inverso exato de `distanceToDioramaOffset`. */
+export function dioramaOffsetToDistance(offsetScene: number): number {
+  const raw = (offsetScene - DIORAMA_DEPTH.gapScene) / DIORAMA_K;
+  return DIORAMA_DEPTH.minMm * Math.exp(raw);
+}
+
+/** True quando a distância cabe na faixa representada pela bandeja. */
+export function isWithinDiorama(millimeters: number): boolean {
+  return millimeters >= DIORAMA_DEPTH.minMm && millimeters <= DIORAMA_DEPTH.maxMm;
+}
+
 /** Registro dos exageros ativos, lido pelo modal "Sobre as escalas". */
 export interface ScaleDisclosure {
   readonly id: string;
@@ -56,6 +110,20 @@ export function activeScaleDisclosures(): ScaleDisclosure[] {
         'continuam vindo do motor, em milímetros reais.',
     });
   }
+
+  disclosures.push({
+    id: 'diorama-depth',
+    label: 'Profundidade do diorama',
+    factor: DIORAMA_K,
+    explanation:
+      `De ${DIORAMA_DEPTH.minMm / 10} cm a ${DIORAMA_DEPTH.maxMm / 1000} m em linha reta não ` +
+      'caberia na bancada. A profundidade do diorama é comprimida em escala ' +
+      'logarítmica: cada vez que a distância dobra, o objeto anda a mesma coisa na cena, ' +
+      `${(DIORAMA_K * Math.LN2 * 100).toFixed(1)} cm. A compressão preserva a ordem e, o que ` +
+      'importa de verdade, preserva quem está em foco: o plano de foco é desenhado pelo ' +
+      'mesmo mapa, então ele corta um objeto na cena exatamente quando a física diz que ' +
+      'aquele objeto está nítido.',
+  });
 
   return disclosures;
 }
