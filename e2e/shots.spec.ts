@@ -55,8 +55,24 @@ test('diafragma em f/16', async ({ page }, testInfo) => {
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-04-f16.png` });
 });
 
+test('caminho da luz, foco no meio', async ({ page }, testInfo) => {
+  await openLab(page, '?shot=optical-path&focus=600');
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-08-rays-600.png` });
+});
+
+test('caminho da luz, foco no primeiro plano', async ({ page }, testInfo) => {
+  await openLab(page, '?shot=optical-path&focus=370');
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-09-rays-370.png` });
+});
+
+test('plano da imagem com os anéis de confusão', async ({ page }, testInfo) => {
+  await openLab(page, '?shot=plate&focus=600');
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-10-plate.png` });
+});
+
 test('foco no fundo', async ({ page }, testInfo) => {
-  await openLab(page, '?shot=lens-profile&focus=2000');
-  await settle(page);
+  // No pico a linha de corte fica isolada, longe do bosque: é a captura que
+  // mostra se a faixa acende onde a física manda.
+  await openLab(page, '?shot=optical-path&focus=2000');
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-05-focus-background.png` });
 });

@@ -30,6 +30,11 @@ import {
 } from './lens-model';
 import { type LensFocusStore, createLensFocusStore, stepFNumber } from './state';
 import { type Diorama, createDiorama } from './diorama';
+import { type RayBundle, createRayBundle } from '../../scene/rays';
+import { type FocusPlane, type IntersectionPatch, attachIntersectionPatch, createFocusPlane } from './focus-plane';
+import { type ImagePlane, createImagePlane } from './image-plane';
+import { buildRayFans } from './ray-fans';
+import { dofLimits } from '../../optics/thin-lens';
 
 /**
  * Experimento 1: Lente e plano de foco (SPEC §6).
@@ -52,6 +57,13 @@ const EXPLODE_SECONDS = 0.8;
  */
 const EXPLODE_SPREAD_MM = 72;
 
+/**
+ * Quanto a bandeja do diorama fica **abaixo** do eixo óptico, em unidades de
+ * cena. Pequeno de propósito: o vale precisa estar na altura da objetiva para
+ * que a imagem dos objetos caia dentro do sensor.
+ */
+const DIORAMA_DROP = 0.055;
+
 export function createLensFocusExperiment(): Experiment {
   const store: LensFocusStore = createLensFocusStore();
 
@@ -65,6 +77,10 @@ export function createLensFocusExperiment(): Experiment {
 
   let elements: LensElementMesh[] = [];
   let diorama: Diorama | null = null;
+  let focusPlane: FocusPlane | null = null;
+  let imagePlane: ImagePlane | null = null;
+  let rays: RayBundle | null = null;
+  let intersection: IntersectionPatch | null = null;
   let iris: ReturnType<typeof createIris> | null = null;
   let barrel: ReturnType<typeof createBarrel> | null = null;
   let opticsGroup: THREE.Group | null = null;
@@ -83,6 +99,19 @@ export function createLensFocusExperiment(): Experiment {
 
   /** Altura do eixo óptico acima do topo do carrinho, em unidades de cena. */
   let axisHeight = 0;
+
+  /**
+   * Posição fixa da placa de vidro, em unidades de cena.
+   *
+   * No foco infinito o grupo óptico está em casa e o plano principal traseiro
+   * fica em `lengthMm + rearPrincipal`; a placa então precisa estar a `f` dali.
+   * Como a placa não se mexe, focar mais perto empurra a óptica para a frente
+   * e a distância H'→placa vira exatamente `v` — que é como uma câmera real
+   * funciona, com o sensor parado e a objetiva estendendo.
+   */
+  const imagePlaneX = lensMm(
+    opticalLength(LENS_50MM_F2.surfaces) + analyze(LENS_50MM_F2).rearPrincipal + 50,
+  );
 
   /** Diâmetro externo do barril, em mm de física. */
   function barrelDiameterMm(): number {
@@ -116,6 +145,51 @@ export function createLensFocusExperiment(): Experiment {
     if (barrel) barrel.focusRing.rotation.x = distanceToRingAngle(state.focusDistance);
 
     explodeTarget = state.lensMode === 'exploded' ? 1 : 0;
+
+    // --- Zona nítida: tudo vem do motor -------------------------------------
+    const dof = dofLimits(state.focalLength, state.fNumber, state.coc, state.focusDistance);
+    focusPlane?.setZone(state.focusDistance, dof.near, dof.far);
+    intersection?.setZone(state.focusDistance, dof.near, dof.far);
+
+    // --- Leques de raios e anéis de círculo de confusão ---------------------
+    if (diorama && rays && imagePlane && opticsGroup) {
+      const opticsOffset = opticsGroup.position.x;
+      const analysis = analyze(LENS_50MM_F2);
+
+      // Os pontos do diorama estão no espaço do próprio diorama; os raios
+      // vivem no espaço do experimento, então sobem pelo deslocamento da
+      // bandeja antes de entrar na conta.
+      const subjects = diorama.subjects.map((subject) => ({
+        ...subject,
+        samplePoint: subject.samplePoint.clone().setY(subject.samplePoint.y - DIORAMA_DROP),
+      }));
+
+      const { paths, images } = buildRayFans(
+        subjects,
+        {
+          focalLength: state.focalLength,
+          fNumber: state.fNumber,
+          focusDistance: state.focusDistance,
+        },
+        {
+          entrancePupilX: opticsOffset + lensMm(analysis.entrancePupil.z),
+          exitPupilX: opticsOffset + lensMm(analysis.exitPupil.z),
+          rearPrincipalX:
+            opticsOffset + lensMm(opticalLength(LENS_50MM_F2.surfaces) + analysis.rearPrincipal),
+          imagePlaneX,
+        },
+      );
+
+      rays.setPaths(paths);
+      imagePlane.setRings(
+        images.map((image) => ({
+          id: image.id,
+          diameterMm: image.blurMm,
+          color: image.color,
+          heightMm: image.heightMm,
+        })),
+      );
+    }
 
     context?.invalidate();
   }
@@ -173,11 +247,48 @@ export function createLensFocusExperiment(): Experiment {
       diorama = createDiorama({
         materials: ctx.materials,
         instanceBudget: ctx.quality.settings.instanceBudget,
+        standHeight: axisHeight - DIORAMA_DROP,
       });
-      // O vale apoia no tampo, não no eixo óptico: desce o que a lente subiu.
-      diorama.group.position.y = -axisHeight + 0.002;
+      diorama.group.position.y = -DIORAMA_DROP;
       root.add(diorama.group);
       for (const object of diorama.glowing) ctx.addGlow(object);
+
+      // --- Plano de foco, placa de vidro e raios ----------------------------
+      focusPlane = createFocusPlane();
+      focusPlane.group.position.y = -DIORAMA_DROP + 0.03;
+      root.add(focusPlane.group);
+      ctx.addGlow(focusPlane.group);
+
+      imagePlane = createImagePlane({
+        materials: ctx.materials,
+        x: imagePlaneX,
+        sensor: store.get().sensor,
+      });
+      root.add(imagePlane.group);
+      ctx.addGlow(imagePlane.group);
+
+      rays = createRayBundle({ lineWidth: 1.6, particlesPerPath: 2 });
+      root.add(rays.group);
+      ctx.addGlow(rays.group);
+
+      const applyResolution = (): void =>
+        rays?.setResolution(window.innerWidth, window.innerHeight);
+      applyResolution();
+      window.addEventListener('resize', applyResolution);
+      disposers.push(() => window.removeEventListener('resize', applyResolution));
+
+      // A faixa acesa entra nos materiais do diorama, não num objeto separado.
+      intersection = attachIntersectionPatch(diorama.terrainMaterials, diorama.group);
+
+      // prefers-reduced-motion desliga partículas e varredura (SPEC §9).
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      const applyMotion = (): void => {
+        rays?.setParticlesEnabled(!reducedMotion.matches);
+        focusPlane?.setAnimated(!reducedMotion.matches);
+      };
+      applyMotion();
+      reducedMotion.addEventListener('change', applyMotion);
+      disposers.push(() => reducedMotion.removeEventListener('change', applyMotion));
 
       // --- Arraste do anel de foco -----------------------------------------
       let dragDistance = store.get().focusDistance;
@@ -227,7 +338,10 @@ export function createLensFocusExperiment(): Experiment {
       return Promise.resolve();
     },
 
-    update(dt: number): void {
+    update(dt: number, elapsed: number): void {
+      rays?.update(dt);
+      focusPlane?.update(elapsed);
+
       if (explodeProgress === explodeTarget) return;
 
       const step = dt / EXPLODE_SECONDS;
@@ -436,6 +550,30 @@ export function createLensFocusExperiment(): Experiment {
           fov: 38,
         },
         {
+          id: 'optical-path',
+          label: { 'pt-BR': 'Caminho da luz', en: 'Light path' },
+          // Perfil puro: é o enquadramento em que o cone de raios, o plano de
+          // foco e a placa de vidro aparecem juntos e legíveis.
+          position: {
+            x: origin.x - valleyDepth * 0.42,
+            y: origin.y + reach * 0.35,
+            z: origin.z + valleyDepth * 1.35,
+          },
+          target: { x: origin.x - valleyDepth * 0.42, y: origin.y - 0.02, z: origin.z },
+          fov: 34,
+        },
+        {
+          id: 'plate',
+          label: { 'pt-BR': 'Plano da imagem', en: 'Image plane' },
+          position: {
+            x: origin.x + reach * 2.4,
+            y: origin.y + reach * 0.5,
+            z: origin.z + reach * 1.5,
+          },
+          target: { x: origin.x + reach * 1.5, y: origin.y, z: origin.z },
+          fov: 26,
+        },
+        {
           id: 'valley',
           label: { 'pt-BR': 'Diorama de perto', en: 'Diorama close-up' },
           position: {
@@ -486,7 +624,15 @@ export function createLensFocusExperiment(): Experiment {
     },
 
     dispose(): void {
+      intersection?.dispose();
+      rays?.dispose();
+      imagePlane?.dispose();
+      focusPlane?.dispose();
       diorama?.dispose();
+      intersection = null;
+      rays = null;
+      imagePlane = null;
+      focusPlane = null;
       diorama = null;
 
       for (const dispose of disposers) dispose();

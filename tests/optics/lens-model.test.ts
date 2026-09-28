@@ -15,6 +15,8 @@ import {
   maxApertureRadius,
   minApertureRadius,
 } from '../../src/experiments/lens-focus/iris';
+import { blurAtPlate } from '../../src/experiments/lens-focus/ray-fans';
+import { blurDiameter, imageDistance } from '../../src/optics/thin-lens';
 import {
   RING_SWEEP,
   distanceToRingFraction,
@@ -181,5 +183,28 @@ describe('anel de foco', () => {
       expect(mark.fraction).toBeGreaterThanOrEqual(0);
       expect(mark.fraction).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('desenho dos raios versus o motor (critério 4 da SPEC §10)', () => {
+  it('o cone desenhado cruza a placa com o diâmetro do círculo de confusão', () => {
+    // O desenho produz b geometricamente, como D·|v_d − v_s|/v_d. O motor
+    // produz b algebricamente, como f²/(N(s−f))·|d−s|/d. Precisam coincidir,
+    // senão o anel de CoC e o borrão do cone discordam na tela.
+    const f = 50;
+    for (const N of [2, 5.6, 16]) {
+      for (const s of [370, 600, 2000]) {
+        const vs = imageDistance(f, s);
+        for (const d of [300, 370, 600, 2000, 10_000]) {
+          const vd = imageDistance(f, d);
+          expect(blurAtPlate(f, N, vs, vd)).toBeCloseTo(blurDiameter(f, N, s, d), 9);
+        }
+      }
+    }
+  });
+
+  it('o objeto em foco fecha o cone exatamente sobre a placa', () => {
+    const vs = imageDistance(50, 600);
+    expect(blurAtPlate(50, 2, vs, vs)).toBe(0);
   });
 });

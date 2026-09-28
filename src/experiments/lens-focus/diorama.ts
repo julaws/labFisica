@@ -30,6 +30,8 @@ export interface DioramaSubject {
   readonly distanceMm: number;
   /** Objeto da cena, já na posição mapeada. */
   readonly object: THREE.Object3D;
+  /** Ponto de onde partem os raios: o alto do objeto, em coordenadas locais. */
+  readonly samplePoint: THREE.Vector3;
   /** Cor do objeto nos raios e anéis de CoC (SPEC §6.5). */
   readonly color: number;
   readonly label: Record<'pt-BR' | 'en', string>;
@@ -49,6 +51,12 @@ export interface DioramaOptions {
   readonly materials: MaterialLibrary;
   /** Teto de instâncias de vegetação, vindo da qualidade adaptativa. */
   readonly instanceBudget: number;
+  /**
+   * Altura do pedestal, em unidades de cena: quanto a bandeja está acima do
+   * tampo da bancada. O vale precisa subir até a altura do eixo óptico, senão
+   * a imagem dos objetos cai fora do sensor.
+   */
+  readonly standHeight: number;
 }
 
 /** Ponto mais baixo que o relevo alcança, em unidades de cena. */
@@ -86,7 +94,11 @@ function terrainHeight(offset: number, lateral: number): number {
   return ridge + cross + rise;
 }
 
-export function createDiorama({ materials, instanceBudget }: DioramaOptions): Diorama {
+export function createDiorama({
+  materials,
+  instanceBudget,
+  standHeight,
+}: DioramaOptions): Diorama {
   const group = new THREE.Group();
   group.name = 'diorama';
 
@@ -110,6 +122,24 @@ export function createDiorama({ materials, instanceBudget }: DioramaOptions): Di
   tray.castShadow = true;
   tray.receiveShadow = true;
   group.add(tray);
+
+  // --- Pedestal -------------------------------------------------------------
+  if (standHeight > 0.01) {
+    const postGeometry = new THREE.CylinderGeometry(0.016, 0.02, standHeight, 14);
+    geometries.push(postGeometry);
+    const post = new THREE.Mesh(postGeometry, materials.anodizedAluminum);
+    post.position.set(-centerOffset, -TRAY_THICKNESS - TERRAIN_MIN - standHeight / 2, 0);
+    post.castShadow = true;
+    group.add(post);
+
+    const baseGeometry = new THREE.BoxGeometry(0.1, 0.018, 0.12);
+    geometries.push(baseGeometry);
+    const base = new THREE.Mesh(baseGeometry, materials.anodizedAluminum);
+    base.position.set(-centerOffset, -TRAY_THICKNESS - TERRAIN_MIN - standHeight + 0.009, 0);
+    base.castShadow = true;
+    base.receiveShadow = true;
+    group.add(base);
+  }
 
   // --- Terreno --------------------------------------------------------------
   const segmentsX = 96;
@@ -288,6 +318,7 @@ export function createDiorama({ materials, instanceBudget }: DioramaOptions): Di
     {
       id: 'foreground',
       distanceMm: pineDistance,
+      samplePoint: new THREE.Vector3(heroPine.position.x, heroPine.position.y + 0.06, heroPine.position.z),
       object: heroPine,
       color: PALETTE.focus,
       label: { 'pt-BR': 'Pinheiro', en: 'Pine' },
@@ -295,6 +326,7 @@ export function createDiorama({ materials, instanceBudget }: DioramaOptions): Di
     {
       id: 'midground',
       distanceMm: cabinDistance,
+      samplePoint: new THREE.Vector3(cabin.position.x, cabin.position.y + 0.028, cabin.position.z),
       object: cabin,
       color: PALETTE.warm,
       label: { 'pt-BR': 'Cabana', en: 'Cabin' },
@@ -302,6 +334,11 @@ export function createDiorama({ materials, instanceBudget }: DioramaOptions): Di
     {
       id: 'background',
       distanceMm: peakDistance,
+      samplePoint: new THREE.Vector3(
+        mountain.position.x,
+        mountain.position.y + 0.02,
+        mountain.position.z,
+      ),
       object: mountain,
       color: PALETTE.cool,
       label: { 'pt-BR': 'Pico', en: 'Peak' },
