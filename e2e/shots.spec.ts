@@ -70,6 +70,25 @@ test('plano da imagem com os anéis de confusão', async ({ page }, testInfo) =>
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-10-plate.png` });
 });
 
+test('imagem no sensor, foco no meio', async ({ page }, testInfo) => {
+  await openLab(page, '?shot=sensor&focus=600');
+  await settle(page);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-11-sensor-600.png` });
+});
+
+test('imagem no sensor em f/16', async ({ page }, testInfo) => {
+  await openLab(page, '?shot=sensor&focus=600&f=16');
+  await settle(page);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-12-sensor-f16.png` });
+});
+
+test('console com miniaturas', async ({ page }, testInfo) => {
+  await openLab(page, '?shot=console&focus=600');
+  // As miniaturas renderizam uma por quadro: dá tempo às cinco.
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-13-console.png` });
+});
+
 test('foco no fundo', async ({ page }, testInfo) => {
   // No pico a linha de corte fica isolada, longe do bosque: é a captura que
   // mostra se a faixa acende onde a física manda.

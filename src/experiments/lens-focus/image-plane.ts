@@ -30,6 +30,11 @@ export interface ImagePlane {
   /** Superfície onde a imagem da F6 será projetada. */
   readonly screen: THREE.Mesh;
   setRings(rings: readonly ConfusionRing[]): void;
+  /**
+   * Liga a imagem projetada ao vidro fosco. Ela entra **girada 180°**, que é
+   * como a luz de fato a deposita ali (SPEC §6.6).
+   */
+  setProjectedImage(texture: THREE.Texture): void;
   setVisible(visible: boolean): void;
   dispose(): void;
 }
@@ -49,6 +54,7 @@ export function createImagePlane({ materials, x, sensor }: ImagePlaneOptions): I
 
   const geometries: THREE.BufferGeometry[] = [];
   const ownedMaterials: THREE.Material[] = [];
+  const ownedTextures: THREE.Texture[] = [];
 
   const width = lensMm(sensor.w);
   const height = lensMm(sensor.h);
@@ -117,6 +123,29 @@ export function createImagePlane({ materials, x, sensor }: ImagePlaneOptions): I
     x,
     screen,
 
+    setProjectedImage(texture: THREE.Texture): void {
+      // A inversão de 180° vai nas UVs da placa, não na textura. Clonar a
+      // textura de um render target para girá-la não funciona: o clone
+      // compartilha a imagem mas perde o vínculo com o framebuffer, e a placa
+      // passa a mostrar uma textura vazia.
+      const uv = screenGeometry.attributes.uv!;
+      if (!screenGeometry.userData.inverted) {
+        for (let i = 0; i < uv.count; i += 1) {
+          uv.setXY(i, 1 - uv.getX(i), 1 - uv.getY(i));
+        }
+        uv.needsUpdate = true;
+        screenGeometry.userData.inverted = true;
+      }
+
+      screenMaterial.map = texture;
+      screenMaterial.emissiveMap = texture;
+      screenMaterial.emissive = new THREE.Color(0xffffff);
+      screenMaterial.emissiveIntensity = 0.85;
+      screenMaterial.transmission = 0;
+      screenMaterial.color.setHex(0x101418);
+      screenMaterial.needsUpdate = true;
+    },
+
     setRings(rings: readonly ConfusionRing[]): void {
       clearRings();
 
@@ -155,8 +184,10 @@ export function createImagePlane({ materials, x, sensor }: ImagePlaneOptions): I
       clearRings();
       for (const geometry of geometries) geometry.dispose();
       for (const material of ownedMaterials) material.dispose();
+      for (const texture of ownedTextures) texture.dispose();
       geometries.length = 0;
       ownedMaterials.length = 0;
+      ownedTextures.length = 0;
       group.clear();
     },
   };

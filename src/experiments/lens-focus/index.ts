@@ -35,6 +35,14 @@ import { type FocusPlane, type IntersectionPatch, attachIntersectionPatch, creat
 import { type ImagePlane, createImagePlane } from './image-plane';
 import { buildRayFans } from './ray-fans';
 import { dofLimits } from '../../optics/thin-lens';
+import {
+  SENSOR_LAYER,
+  type SensorRender,
+  createSensorRender,
+  markVisibleToSensor,
+} from './sensor-render';
+import { SCENE_UNITS_PER_MM } from '../../scene/scale';
+import { type ConsoleScreens, createConsoleScreens } from './console-screens';
 
 /**
  * Experimento 1: Lente e plano de foco (SPEC §6).
@@ -81,6 +89,8 @@ export function createLensFocusExperiment(): Experiment {
   let imagePlane: ImagePlane | null = null;
   let rays: RayBundle | null = null;
   let intersection: IntersectionPatch | null = null;
+  let sensor: SensorRender | null = null;
+  let consoleScreens: ConsoleScreens | null = null;
   let iris: ReturnType<typeof createIris> | null = null;
   let barrel: ReturnType<typeof createBarrel> | null = null;
   let opticsGroup: THREE.Group | null = null;
@@ -181,6 +191,13 @@ export function createLensFocusExperiment(): Experiment {
       );
 
       rays.setPaths(paths);
+
+      consoleScreens?.setState({
+        focalLength: state.focalLength,
+        fNumber: state.fNumber,
+        focusDistance: state.focusDistance,
+        sensor: state.sensor,
+      });
       imagePlane.setRings(
         images.map((image) => ({
           id: image.id,
@@ -290,6 +307,56 @@ export function createLensFocusExperiment(): Experiment {
       reducedMotion.addEventListener('change', applyMotion);
       disposers.push(() => reducedMotion.removeEventListener('change', applyMotion));
 
+      // --- Imagem no sensor -------------------------------------------------
+      // A câmera virtual mora no centro óptico e só enxerga o diorama, por
+      // camada: ela não deve ver os raios, o plano de foco nem a própria placa.
+      markVisibleToSensor(diorama.group);
+
+      // Luzes também são filtradas por camada: sem isto a câmera virtual
+      // renderiza o diorama no escuro, só com as janelas acesas.
+      ctx.room.group.traverse((object) => {
+        if ((object as THREE.Light).isLight) object.layers.enable(SENSOR_LAYER);
+      });
+
+      const quality = ctx.quality.settings;
+      sensor = createSensorRender({
+        layer: SENSOR_LAYER,
+        size: quality.sensorTargetSize,
+        samples: quality.level === 'low' ? 16 : 32,
+        blades: 9,
+        cameraX: lensMm(analyze(LENS_50MM_F2).entrancePupil.z),
+        sceneUnitsPerMm: SCENE_UNITS_PER_MM,
+      });
+      // A câmera virtual entra no grupo do experimento, não na cena: assim a
+      // distância que ela mede é medida a partir da objetiva.
+      root.add(sensor.camera);
+      imagePlane.setProjectedImage(sensor.texture);
+
+      // Telas do console embutidas na bancada: imagem direita e miniaturas.
+      consoleScreens = createConsoleScreens({
+        main: sensor,
+        layer: SENSOR_LAYER,
+        cameraX: lensMm(analyze(LENS_50MM_F2).entrancePupil.z),
+        sceneUnitsPerMm: SCENE_UNITS_PER_MM,
+        thumbnailSize: Math.max(160, Math.round(quality.sensorTargetSize / 4)),
+        samples: 16,
+        onPickFocus: (millimeters) => store.set({ focusDistance: millimeters }),
+      });
+      // Deitadas no tampo, na frente da placa, inclinadas para quem está diante
+      // da bancada ler.
+      // Quase deitadas: com inclinação maior, a borda da frente afunda no
+      // tampo e corta a tira de miniaturas ao meio.
+      consoleScreens.group.position.set(imagePlaneX + 0.02, -axisHeight + 0.028, 0.34);
+      consoleScreens.group.rotation.set(-Math.PI / 2 + 0.12, 0, 0);
+      root.add(consoleScreens.group);
+      disposers.push(ctx.registerDraggable(consoleScreens.clickHandle));
+
+      disposers.push(
+        ctx.quality.onChange((settings) => {
+          sensor?.setSize(settings.sensorTargetSize);
+        }),
+      );
+
       // --- Arraste do anel de foco -----------------------------------------
       let dragDistance = store.get().focusDistance;
 
@@ -341,6 +408,10 @@ export function createLensFocusExperiment(): Experiment {
     update(dt: number, elapsed: number): void {
       rays?.update(dt);
       focusPlane?.update(elapsed);
+
+      // A imagem no sensor só é recalculada quando algo muda: é um render da
+      // cena inteira a mais por vez, o item mais caro desta fase.
+      if (context) consoleScreens?.render(context.renderer, context.scene);
 
       if (explodeProgress === explodeTarget) return;
 
@@ -563,6 +634,30 @@ export function createLensFocusExperiment(): Experiment {
           fov: 34,
         },
         {
+          id: 'sensor',
+          label: { 'pt-BR': 'Imagem no sensor', en: 'Sensor image' },
+          // De frente para o vidro fosco: é onde a imagem invertida aparece.
+          position: {
+            x: origin.x + reach * 3.4,
+            y: origin.y + reach * 0.12,
+            z: origin.z + reach * 0.35,
+          },
+          target: { x: origin.x + reach * 1.42, y: origin.y, z: origin.z },
+          fov: 18,
+        },
+        {
+          id: 'console',
+          label: { 'pt-BR': 'Console', en: 'Console' },
+          // De cima e da frente: é como alguém diante da bancada lê as telas.
+          position: {
+            x: origin.x + reach * 1.55,
+            y: origin.y - axisHeight + 0.55,
+            z: origin.z + 0.95,
+          },
+          target: { x: origin.x + reach * 1.55, y: origin.y - axisHeight, z: origin.z + 0.3 },
+          fov: 32,
+        },
+        {
           id: 'plate',
           label: { 'pt-BR': 'Plano da imagem', en: 'Image plane' },
           position: {
@@ -624,6 +719,10 @@ export function createLensFocusExperiment(): Experiment {
     },
 
     dispose(): void {
+      consoleScreens?.dispose();
+      consoleScreens = null;
+      sensor?.dispose();
+      sensor = null;
       intersection?.dispose();
       rays?.dispose();
       imagePlane?.dispose();
