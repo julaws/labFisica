@@ -111,9 +111,17 @@ export function dofLimits(f: number, N: number, c: number, s: number): DofLimits
  * Para `d = Infinity` o segundo fator tende a 1.
  */
 export function blurDiameter(f: number, N: number, s: number, d: number): number {
+  if (d === 0) return Infinity;
+
+  // Foco no infinito: a forma geral vira 0 · ∞. O limite é
+  //   b = D · |v_d − f| / v_d = (f/N) · (f/d) = f² / (N·d)
+  // e é ele que dá os "3,4 mm" do pinheiro na frase da SPEC §6.7.
+  if (!Number.isFinite(s)) {
+    return Number.isFinite(d) ? (f * f) / (N * d) : 0;
+  }
+
   const scale = (f * f) / (N * (s - f));
   if (!Number.isFinite(d)) return scale;
-  if (d === 0) return Infinity;
   return (scale * Math.abs(d - s)) / d;
 }
 

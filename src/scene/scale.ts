@@ -94,29 +94,40 @@ export interface ScaleDisclosure {
   readonly explanation: string;
 }
 
-export function activeScaleDisclosures(): ScaleDisclosure[] {
+export function activeScaleDisclosures(locale: 'pt-BR' | 'en' = 'pt-BR'): ScaleDisclosure[] {
+  const en = locale === 'en';
   const disclosures: ScaleDisclosure[] = [];
 
   if (LENS_EXAGGERATION !== 1) {
     disclosures.push({
       id: 'lens',
-      label: 'Lente e plano da imagem',
+      label: en ? 'Lens and image plane' : 'Lente e plano da imagem',
       factor: LENS_EXAGGERATION,
-      explanation:
-        `A objetiva e a placa de vidro são desenhadas ${LENS_EXAGGERATION}× maiores que o ` +
-        'tamanho real, para que os elementos de vidro e as lâminas do diafragma fiquem ' +
-        'visíveis. É um fator único aplicado ao conjunto: as curvaturas, as espessuras e o ' +
-        'curso do foco guardam as proporções corretas entre si. As distâncias ópticas ' +
-        'continuam vindo do motor, em milímetros reais.',
+      explanation: en
+        ? `The lens and the glass plate are drawn ${LENS_EXAGGERATION}× larger than life so the glass ` +
+          'elements and the diaphragm blades are visible. It is a single factor applied to the whole ' +
+          'assembly: curvatures, thicknesses and focus travel keep their correct proportions. Optical ' +
+          'distances still come from the engine, in real millimetres.'
+        : `A objetiva e a placa de vidro são desenhadas ${LENS_EXAGGERATION}× maiores que o ` +
+          'tamanho real, para que os elementos de vidro e as lâminas do diafragma fiquem ' +
+          'visíveis. É um fator único aplicado ao conjunto: as curvaturas, as espessuras e o ' +
+          'curso do foco guardam as proporções corretas entre si. As distâncias ópticas ' +
+          'continuam vindo do motor, em milímetros reais.',
     });
   }
 
   disclosures.push({
     id: 'diorama-depth',
-    label: 'Profundidade do diorama',
+    label: en ? 'Diorama depth' : 'Profundidade do diorama',
     factor: DIORAMA_K,
-    explanation:
-      `De ${DIORAMA_DEPTH.minMm / 10} cm a ${DIORAMA_DEPTH.maxMm / 1000} m em linha reta não ` +
+    explanation: en
+      ? `From ${DIORAMA_DEPTH.minMm / 10} cm to ${DIORAMA_DEPTH.maxMm / 1000} m in a straight line would not ` +
+        'fit on the bench. The diorama depth is compressed on a logarithmic scale: each time the ' +
+        `distance doubles, the object moves the same amount in the scene, ${(DIORAMA_K * Math.LN2 * 100).toFixed(1)} cm. ` +
+        'The compression keeps the order and, what really matters, keeps who is in focus: the focus plane ' +
+        'is drawn through the same map, so it cuts an object in the scene exactly when physics says that ' +
+        'object is sharp.'
+      : `De ${DIORAMA_DEPTH.minMm / 10} cm a ${DIORAMA_DEPTH.maxMm / 1000} m em linha reta não ` +
       'caberia na bancada. A profundidade do diorama é comprimida em escala ' +
       'logarítmica: cada vez que a distância dobra, o objeto anda a mesma coisa na cena, ' +
       `${(DIORAMA_K * Math.LN2 * 100).toFixed(1)} cm. A compressão preserva a ordem e, o que ` +

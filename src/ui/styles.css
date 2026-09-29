@@ -130,3 +130,465 @@ body {
     transition: none;
   }
 }
+
+/* ==========================================================================
+   Interface (SPEC §3.2 e §3.3)
+   ========================================================================== */
+
+.ui {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  display: grid;
+  grid-template-columns: minmax(0, 420px) 1fr minmax(0, 320px);
+  align-items: start;
+  gap: 16px;
+  padding: 20px;
+}
+
+.ui > * {
+  pointer-events: auto;
+}
+
+.ui--hidden {
+  display: none;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  color: var(--text);
+}
+
+/* --- HUD ------------------------------------------------------------------ */
+
+.hud {
+  grid-column: 1;
+  padding: 20px 22px;
+}
+
+.hud__title {
+  margin: 0 0 8px;
+  font-size: 34px;
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.hud__subtitle {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.hud__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 88px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(11, 15, 26, 0.5);
+}
+
+.chip__label {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.chip__value {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.chip[data-id='zone'] .chip__value {
+  color: var(--focus);
+}
+
+.hud__sentence {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* --- Painel de controles --------------------------------------------------- */
+
+.control-panel {
+  grid-column: 3;
+  justify-self: end;
+  width: 100%;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.drawer-handle {
+  display: none;
+}
+
+.control-group + .control-group {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.control-group__title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.control + .control {
+  margin-top: 10px;
+}
+
+.control__label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.segmented {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(11, 15, 26, 0.6);
+  border: 1px solid var(--line);
+}
+
+.segmented__option {
+  flex: 1;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.segmented__option:hover {
+  background: rgba(170, 200, 255, 0.08);
+}
+
+.segmented__option--active {
+  background: var(--brass);
+  color: #1a1206;
+  font-weight: 700;
+}
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.slider-row input[type='range'] {
+  flex: 1;
+  accent-color: var(--focus);
+  min-height: 28px;
+}
+
+.slider-row__value {
+  min-width: 64px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.control-panel__footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(11, 15, 26, 0.6);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.button:hover {
+  border-color: rgba(170, 200, 255, 0.3);
+}
+
+.button[aria-pressed='true'] {
+  border-color: var(--brass);
+  color: var(--brass);
+}
+
+.button--round {
+  width: 36px;
+  padding: 0;
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.numbers {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+  margin: 14px 0 0;
+  font-size: 12px;
+}
+
+.numbers dt {
+  color: var(--muted);
+}
+
+.numbers dd {
+  margin: 0;
+  text-align: right;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Foco visível (SPEC §9) ------------------------------------------------ */
+
+.ui :focus-visible,
+.modal :focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* --- Modal ------------------------------------------------------------------ */
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(5, 8, 14, 0.6);
+  pointer-events: auto;
+  z-index: 10;
+}
+
+.modal-backdrop[hidden] {
+  display: none;
+}
+
+.modal {
+  width: min(680px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: 22px 26px;
+}
+
+.modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.modal__title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+}
+
+.modal__section h3 {
+  margin: 18px 0 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--focus);
+}
+
+.modal__section p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.shortcuts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.shortcuts dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+kbd {
+  display: inline-block;
+  min-width: 22px;
+  margin-right: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: rgba(11, 15, 26, 0.7);
+  font: inherit;
+  font-size: 12px;
+  text-align: center;
+}
+
+/* --- Etiquetas 3D ----------------------------------------------------------- */
+
+.labels {
+  position: absolute;
+  inset: 0;
+  /* Abaixo do HUD e da gaveta: a etiqueta não pode cobrir um controle. */
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.labels[hidden] {
+  display: none;
+}
+
+.label {
+  --accent: var(--focus);
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  will-change: transform;
+}
+
+.label--hidden {
+  display: none;
+}
+
+.label__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+
+/* --- Celular: painel vira gaveta, HUD compacto (SPEC §3.3) ---------------- */
+
+@media (max-width: 760px) {
+  .ui {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr auto;
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .hud {
+    grid-column: 1;
+    padding: 14px 16px;
+  }
+
+  .hud__title {
+    font-size: 24px;
+  }
+
+  .hud__subtitle {
+    display: none;
+  }
+
+  .chip {
+    min-width: 0;
+    flex: 1;
+    padding: 6px 8px;
+  }
+
+  .chip__value {
+    font-size: 15px;
+  }
+
+  .hud__sentence {
+    font-size: 13px;
+  }
+
+  .control-panel {
+    grid-column: 1;
+    grid-row: 3;
+    align-self: end;
+    max-height: 60vh;
+    padding: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .drawer-handle {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .control-panel__body {
+    display: none;
+    padding: 0 16px 16px;
+  }
+
+  .control-panel--open .control-panel__body {
+    display: block;
+  }
+
+  /* Alvos de toque de pelo menos 44 px (SPEC §9). */
+  .segmented__option,
+  .button {
+    min-height: 44px;
+  }
+
+  .button--round {
+    width: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .label {
+    will-change: auto;
+  }
+}

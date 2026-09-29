@@ -6,11 +6,28 @@ import type {
   LabContext,
   PanelSchema,
 } from '../../core/experiment';
-import { LENS_50MM_F2, withFNumber } from '../../optics/prescriptions/symmetric-double-doublet';
+import {
+  LENS_50MM_F2,
+  widestFNumber,
+  withFNumber,
+} from '../../optics/prescriptions/symmetric-double-doublet';
 import { analyze } from '../../optics/paraxial';
 import { focusExtension } from '../../optics/thin-lens';
 import { opticalLength } from '../../optics/prescription';
-import { DEFAULT_SUBJECT_DISTANCES_MM, F_STOP_PRESETS } from '../../optics/constants';
+import {
+  COC_MM,
+  DEFAULT_SUBJECT_DISTANCES_MM,
+  FOCUS_RANGE_MM,
+  F_STOPS,
+  F_STOP_PRESETS,
+} from '../../optics/constants';
+
+/** Os três objetos de referência, na forma que a frase dinâmica espera. */
+const SUBJECT_DISTANCES = [
+  { id: 'foreground', distanceMm: DEFAULT_SUBJECT_DISTANCES_MM.foreground },
+  { id: 'midground', distanceMm: DEFAULT_SUBJECT_DISTANCES_MM.midground },
+  { id: 'background', distanceMm: DEFAULT_SUBJECT_DISTANCES_MM.background },
+] as const;
 import { focusRingScale } from '../../scene/textures/procedural';
 import { LENS_EXAGGERATION, distanceToDioramaOffset } from '../../scene/scale';
 import {
@@ -34,7 +51,25 @@ import { type RayBundle, createRayBundle } from '../../scene/rays';
 import { type FocusPlane, type IntersectionPatch, attachIntersectionPatch, createFocusPlane } from './focus-plane';
 import { type ImagePlane, createImagePlane } from './image-plane';
 import { buildRayFans } from './ray-fans';
-import { dofLimits } from '../../optics/thin-lens';
+import {
+  blurDiameter,
+  dofLimits,
+  hyperfocal,
+  imageDistance,
+  magnification,
+  pupilDiameter,
+} from '../../optics/thin-lens';
+import { type Facts, buildCopy } from './copy';
+import { describeState } from './describe';
+import {
+  type Locale,
+  formatCentimeters,
+  formatDistance,
+  formatFNumber,
+  formatMillimeters,
+  formatNumber,
+} from '../../ui/i18n';
+import type { HudModel, NumberRow } from '../../core/experiment';
 import {
   SENSOR_LAYER,
   type SensorRender,
@@ -91,6 +126,7 @@ export function createLensFocusExperiment(): Experiment {
   let intersection: IntersectionPatch | null = null;
   let sensor: SensorRender | null = null;
   let consoleScreens: ConsoleScreens | null = null;
+  let locale: Locale = 'pt-BR';
   let iris: ReturnType<typeof createIris> | null = null;
   let barrel: ReturnType<typeof createBarrel> | null = null;
   let opticsGroup: THREE.Group | null = null;
@@ -128,6 +164,53 @@ export function createLensFocusExperiment(): Experiment {
     return 2 * Math.max(LENS_50MM_F2.surfaces[0]!.semiDiameter + 3.2, bladeSweepRadius(DEFAULT_IRIS) + 2);
   }
 
+  /**
+   * Textos das etiquetas 3D (SPEC §3.3). Os números saem do motor, como no
+   * HUD, e a etiqueta da zona nítida mostra o mesmo valor que o chip.
+   */
+  function updateLabels(): void {
+    if (!context) return;
+    const state = store.get();
+    const dof = dofLimits(state.focalLength, state.fNumber, state.coc, state.focusDistance);
+    const zone = Number.isFinite(dof.total) ? formatCentimeters(dof.total, locale) : '∞';
+    const en = locale === 'en';
+
+    context.labels.setText('image-plane', en ? 'Image plane' : 'Plano da imagem');
+    context.labels.setText('focus-ring', en ? 'Focus ring · drag' : 'Anel de foco · arraste');
+    context.labels.setText(
+      'focus-plane',
+      `${en ? 'Plane of focus' : 'Plano de foco'} · ${formatDistance(state.focusDistance, locale)}`,
+    );
+    context.labels.setText('zone', `${en ? 'Sharp zone' : 'Zona nítida'} · ${zone}`);
+  }
+
+  /** Números atuais para os textos do modal, todos vindos do motor. */
+  function facts(): Facts {
+    const state = store.get();
+    const f = state.focalLength;
+    const s = state.focusDistance;
+    const dof = dofLimits(f, state.fNumber, state.coc, s);
+    const { foreground, midground, background } = DEFAULT_SUBJECT_DISTANCES_MM;
+
+    return {
+      focalLength: f,
+      fNumber: state.fNumber,
+      widestFNumber: widestFNumber(LENS_50MM_F2),
+      focusDistance: s,
+      dofTotal: dof.total,
+      dofNear: dof.near,
+      dofFar: dof.far,
+      coc: state.coc,
+      extension: focusExtension(f, s),
+      pupilDiameter: pupilDiameter(f, state.fNumber),
+      blurPine: blurDiameter(f, state.fNumber, s, foreground),
+      blurCabin: blurDiameter(f, state.fNumber, s, midground),
+      blurPeak: blurDiameter(f, state.fNumber, s, background),
+      eflPrescription: analysis.efl,
+      lensExaggeration: LENS_EXAGGERATION,
+    };
+  }
+
   /** Ajuste fino do foco: 2% do curso do anel por toque (teclas [ e ]). */
   function nudgeFocus(direction: 1 | -1): void {
     const current = store.get().focusDistance;
@@ -155,6 +238,8 @@ export function createLensFocusExperiment(): Experiment {
     if (barrel) barrel.focusRing.rotation.x = distanceToRingAngle(state.focusDistance);
 
     explodeTarget = state.lensMode === 'exploded' ? 1 : 0;
+
+    updateLabels();
 
     // --- Zona nítida: tudo vem do motor -------------------------------------
     const dof = dofLimits(state.focalLength, state.fNumber, state.coc, state.focusDistance);
@@ -357,6 +442,36 @@ export function createLensFocusExperiment(): Experiment {
         }),
       );
 
+      // --- Etiquetas 3D -----------------------------------------------------
+      ctx.labels.add({
+        id: 'image-plane',
+        anchor: imagePlane.group,
+        offset: { x: 0, y: lensMm(24) * 0.62, z: 0 },
+        text: '',
+      });
+      ctx.labels.add({
+        id: 'focus-ring',
+        anchor: barrel.focusRing,
+        offset: { x: 0, y: lensMm(barrelDiameterMm() / 2) * 1.2, z: 0 },
+        text: '',
+        accent: '#C8923A',
+      });
+      ctx.labels.add({
+        id: 'focus-plane',
+        anchor: focusPlane.blade,
+        offset: { x: 0, y: 0.1, z: 0 },
+        text: '',
+      });
+      ctx.labels.add({
+        id: 'zone',
+        anchor: focusPlane.blade,
+        offset: { x: 0, y: -0.07, z: 0.27 },
+        text: '',
+      });
+      disposers.push(() => {
+        for (const id of ['image-plane', 'focus-ring', 'focus-plane', 'zone']) ctx.labels.remove(id);
+      });
+
       // --- Arraste do anel de foco -----------------------------------------
       let dragDistance = store.get().focusDistance;
 
@@ -480,9 +595,133 @@ export function createLensFocusExperiment(): Experiment {
         case 'showNumbers':
           store.set({ showNumbers: Boolean(value) });
           break;
+        case 'coc':
+          store.set({ coc: Number(value) });
+          break;
         default:
           throw new Error(`Controle desconhecido: ${id}`);
       }
+    },
+
+    get(id: string): string | number | boolean {
+      const state = store.get();
+      switch (id) {
+        case 'focusPreset':
+        case 'focusDistance':
+          return state.focusDistance;
+        case 'fNumber':
+          return state.fNumber;
+        case 'lensMode':
+          return state.lensMode;
+        case 'opticsMode':
+          return state.opticsMode;
+        case 'showNumbers':
+          return state.showNumbers;
+        case 'coc':
+          return state.coc;
+        default:
+          throw new Error(`Controle desconhecido: ${id}`);
+      }
+    },
+
+    subscribe(listener: () => void): () => void {
+      return store.subscribe(() => listener());
+    },
+
+    hud(locale: Locale): HudModel {
+      const state = store.get();
+      const copy = buildCopy(facts());
+      const dof = dofLimits(state.focalLength, state.fNumber, state.coc, state.focusDistance);
+      const zone = Number.isFinite(dof.total) ? formatCentimeters(dof.total, locale) : '∞';
+
+      return {
+        title: copy.title[locale],
+        subtitle: copy.subtitle[locale],
+        chips: [
+          {
+            id: 'focus',
+            label: locale === 'en' ? 'Focus' : 'Foco',
+            value: formatDistance(state.focusDistance, locale),
+          },
+          {
+            id: 'aperture',
+            label: locale === 'en' ? 'Aperture' : 'Abertura',
+            value: formatFNumber(state.fNumber, locale),
+          },
+          { id: 'zone', label: locale === 'en' ? 'Sharp zone' : 'Zona nítida', value: zone },
+        ],
+        sentence: describeState(
+          {
+            focalLength: state.focalLength,
+            fNumber: state.fNumber,
+            focusDistance: state.focusDistance,
+            coc: state.coc,
+          },
+          SUBJECT_DISTANCES,
+          locale,
+        ),
+      };
+    },
+
+    numbers(locale: Locale): NumberRow[] {
+      const state = store.get();
+      const f = state.focalLength;
+      const s = state.focusDistance;
+      const dof = dofLimits(f, state.fNumber, state.coc, s);
+      const en = locale === 'en';
+
+      return [
+        {
+          id: 'v',
+          label: en ? 'Image distance v' : 'Distância da imagem v',
+          value: formatMillimeters(imageDistance(f, s), locale),
+          hint: 'v = f·u / (u − f)',
+        },
+        {
+          id: 'extension',
+          label: en ? 'Focus extension' : 'Extensão do foco',
+          value: formatMillimeters(focusExtension(f, s), locale),
+          hint: 'e = v − f',
+        },
+        {
+          id: 'hyperfocal',
+          label: en ? 'Hyperfocal' : 'Hiperfocal',
+          value: formatDistance(hyperfocal(f, state.fNumber, state.coc), locale),
+          hint: 'H = f² / (N·c) + f',
+        },
+        {
+          id: 'near',
+          label: en ? 'Near limit' : 'Limite próximo',
+          value: formatDistance(dof.near, locale),
+        },
+        {
+          id: 'far',
+          label: en ? 'Far limit' : 'Limite distante',
+          value: formatDistance(dof.far, locale),
+        },
+        {
+          id: 'magnification',
+          label: en ? 'Magnification' : 'Magnificação',
+          value: `${formatNumber(magnification(f, s), 4, locale)}×`,
+          hint: 'm = −v / u',
+        },
+        {
+          id: 'pupil',
+          label: en ? 'Pupil diameter D' : 'Diâmetro da pupila D',
+          value: formatMillimeters(pupilDiameter(f, state.fNumber), locale),
+          hint: 'D = f / N',
+        },
+        {
+          id: 'coc',
+          label: en ? 'Acceptable circle c' : 'Círculo admissível c',
+          value: formatMillimeters(state.coc, locale),
+        },
+        {
+          id: 'widest',
+          label: en ? 'Widest aperture' : 'Abertura máxima',
+          value: `f/${formatNumber(widestFNumber(LENS_50MM_F2), 2, locale)}`,
+        },
+      ];
     },
 
     ui(): PanelSchema {
@@ -497,17 +736,17 @@ export function createLensFocusExperiment(): Experiment {
                 id: 'focusPreset',
                 label: { 'pt-BR': 'Plano', en: 'Plane' },
                 options: [
-                  { value: 370, label: 'Primeiro plano' },
-                  { value: 600, label: 'Meio' },
-                  { value: 2000, label: 'Fundo' },
+                  { value: 370, label: '1 · Frente' },
+                  { value: 600, label: '2 · Meio' },
+                  { value: 2000, label: '3 · Fundo' },
                 ],
               },
               {
                 kind: 'slider',
                 id: 'focusDistance',
                 label: { 'pt-BR': 'Distância', en: 'Distance' },
-                min: 300,
-                max: 10_000,
+                min: FOCUS_RANGE_MM.min,
+                max: FOCUS_RANGE_MM.max,
                 step: 1,
                 logarithmic: true,
                 unit: 'mm',
@@ -521,11 +760,18 @@ export function createLensFocusExperiment(): Experiment {
               {
                 kind: 'segmented',
                 id: 'fNumber',
-                label: { 'pt-BR': 'Número f', en: 'f-number' },
+                label: { 'pt-BR': 'Atalhos', en: 'Presets' },
                 options: F_STOP_PRESETS.map((stop) => ({
                   value: stop,
                   label: `f/${String(stop).replace('.', ',')}`,
                 })),
+              },
+              {
+                kind: 'stops',
+                id: 'fNumber',
+                label: { 'pt-BR': 'Stops completos', en: 'Full stops' },
+                // Só os stops que esta objetiva alcança (ADR 0003).
+                values: F_STOPS.filter((stop) => stop >= widestFNumber(LENS_50MM_F2) - 1e-6),
               },
             ],
           },
@@ -542,6 +788,15 @@ export function createLensFocusExperiment(): Experiment {
                   { value: 'exploded', label: 'Explodida' },
                 ],
               },
+              {
+                kind: 'segmented',
+                id: 'coc',
+                label: { 'pt-BR': 'Círculo admissível', en: 'Acceptable circle' },
+                options: [
+                  { value: COC_MM.reference, label: '0,036 mm' },
+                  { value: COC_MM.strict, label: '0,030 mm' },
+                ],
+              },
             ],
           },
         ],
@@ -549,49 +804,12 @@ export function createLensFocusExperiment(): Experiment {
     },
 
     copy(): ExperimentCopy {
-      return {
-        title: { 'pt-BR': 'O plano de foco', en: 'The plane of focus' },
-        subtitle: {
-          'pt-BR':
-            'Todo mundo percebe quando uma foto sai tremida. Quase ninguém viu o plano exato onde ela fica nítida. Gire o anel de foco e veja o plano se mover.',
-          en: 'Everyone notices a blurry photo. Almost nobody has seen the exact plane where it comes into focus. Turn the focus ring and watch the plane move.',
-        },
-        sections: [
-          {
-            id: 'scales',
-            heading: { 'pt-BR': 'Sobre as escalas', en: 'About the scales' },
-            body: {
-              'pt-BR':
-                `A física roda toda em milímetros reais. A objetiva, porém, é desenhada ` +
-                `${LENS_EXAGGERATION}× maior que o tamanho real: uma 50 mm de verdade tem ` +
-                `3 cm de diâmetro e, na bancada, o vidro sumiria. As curvaturas, as espessuras ` +
-                `e o deslocamento de foco mantêm as proporções corretas entre si — só o ` +
-                `conjunto inteiro foi ampliado.`,
-              en:
-                `All physics runs in real millimetres. The lens, however, is drawn ` +
-                `${LENS_EXAGGERATION}× larger than life: a real 50 mm is 3 cm across and its ` +
-                `glass would vanish on the bench. Curvatures, thicknesses and focus travel keep ` +
-                `their correct proportions — only the whole assembly is scaled up.`,
-            },
-          },
-          {
-            id: 'lens-model',
-            heading: { 'pt-BR': 'Que lente é esta', en: 'Which lens is this' },
-            body: {
-              'pt-BR':
-                `Um par simétrico de dubletos acromáticos de ${analysis.efl.toFixed(1)} mm, ` +
-                `projetado aqui a partir de vidros de catálogo. Não é cópia de uma objetiva ` +
-                `comercial: com 4 elementos, a aberração esférica em f/2 é maior que a de uma ` +
-                `lente de 6 elementos, o que o modo "Aberrações" deixa bem visível.`,
-              en:
-                `A symmetric pair of achromatic doublets of ${analysis.efl.toFixed(1)} mm, ` +
-                `designed here from catalogue glasses. It is not a copy of a commercial lens: ` +
-                `with 4 elements, spherical aberration at f/2 is larger than in a 6-element ` +
-                `design, which the "Aberrations" mode makes plain.`,
-            },
-          },
-        ],
-      };
+      return buildCopy(facts());
+    },
+
+    setLocale(next: Locale): void {
+      locale = next;
+      updateLabels();
     },
 
     cameras(): CinematicShot[] {
@@ -612,12 +830,14 @@ export function createLensFocusExperiment(): Experiment {
         {
           id: 'overview',
           label: { 'pt-BR': 'Vale e objetiva', en: 'Valley and lens' },
+          // Afastada o bastante para a objetiva não ficar sob o painel da
+          // direita: com HUD e painel abertos, sobra o centro da tela.
           position: {
-            x: origin.x + reach * 1.2,
-            y: origin.y + reach * 1.3,
-            z: origin.z + reach * 2.9,
+            x: origin.x + reach * 1.5,
+            y: origin.y + reach * 1.62,
+            z: origin.z + reach * 3.62,
           },
-          target: { x: origin.x - valleyDepth * 0.55, y: origin.y - axisHeight * 0.45, z: origin.z },
+          target: { x: origin.x - valleyDepth * 0.48, y: origin.y - axisHeight * 0.45, z: origin.z },
           fov: 38,
         },
         {

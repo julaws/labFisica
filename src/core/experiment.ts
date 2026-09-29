@@ -3,6 +3,7 @@ import type { MaterialLibrary } from '../scene/materials';
 import type { Bench } from '../scene/bench';
 import type { LabRoom } from '../scene/lab-room';
 import type { QualityManager } from './quality';
+import type { LabelLayer } from '../scene/labels';
 
 /**
  * Interface de experimento e registro (SPEC §7).
@@ -34,6 +35,8 @@ export interface LabContext {
   readonly onKey: (key: string, action: (event: KeyboardEvent) => void) => () => void;
   /** Pede um quadro quando o loop está em modo sob demanda. */
   readonly invalidate: () => void;
+  /** Etiquetas 3D projetadas na tela (SPEC §3.3). */
+  readonly labels: LabelLayer;
 }
 
 /** Objeto 3D que responde a arraste (anel de foco, carrinhos). */
@@ -72,13 +75,47 @@ export interface PanelGroup {
 export type PanelControl =
   | { kind: 'segmented'; id: string; label: Record<Locale, string>; options: readonly { value: string | number; label: string }[] }
   | { kind: 'slider'; id: string; label: Record<Locale, string>; min: number; max: number; step: number; logarithmic?: boolean; unit?: string }
-  | { kind: 'toggle'; id: string; label: Record<Locale, string> };
+  | { kind: 'toggle'; id: string; label: Record<Locale, string> }
+  | {
+      kind: 'stops';
+      id: string;
+      label: Record<Locale, string>;
+      /** Valores discretos percorridos pelo slider, em ordem. */
+      values: readonly number[];
+    };
 
 export interface ExperimentCopy {
   readonly title: Record<Locale, string>;
   readonly subtitle: Record<Locale, string>;
   /** Seções do modal "?" (SPEC §6.7). */
   readonly sections: readonly { id: string; heading: Record<Locale, string>; body: Record<Locale, string> }[];
+}
+
+/** Um valor do HUD: rótulo e texto já formatados no idioma pedido. */
+export interface HudChip {
+  readonly id: string;
+  readonly label: string;
+  readonly value: string;
+}
+
+/**
+ * O que o HUD mostra. Chega **pronto**: a UI não calcula nada, só desenha.
+ * Os números vêm do motor óptico pelo experimento (CLAUDE.md §3).
+ */
+export interface HudModel {
+  readonly title: string;
+  readonly subtitle: string;
+  readonly chips: readonly HudChip[];
+  readonly sentence: string;
+}
+
+/** Linha do painel "Números" (SPEC §2). */
+export interface NumberRow {
+  readonly id: string;
+  readonly label: string;
+  readonly value: string;
+  /** Explicação curta, mostrada como dica. */
+  readonly hint?: string;
 }
 
 export interface CinematicShot {
@@ -100,6 +137,14 @@ export interface Experiment {
    * atalhos de teclado nem conhecer a store do experimento.
    */
   set(id: string, value: string | number | boolean): void;
+  /** Valor atual de um controle declarado em `ui()`. */
+  get(id: string): string | number | boolean;
+  /** Avisa quando o estado muda. Devolve a função de remoção. */
+  subscribe(listener: () => void): () => void;
+  hud(locale: Locale): HudModel;
+  numbers(locale: Locale): NumberRow[];
+  /** Troca o idioma dos textos que o experimento desenha na cena. */
+  setLocale(locale: Locale): void;
   ui(): PanelSchema;
   copy(): ExperimentCopy;
   cameras(): CinematicShot[];

@@ -17,6 +17,8 @@ import { distanceToSceneX } from './diorama';
 
 export interface FocusPlane {
   readonly group: THREE.Group;
+  /** A lâmina do plano exato; é onde as etiquetas 3D se prendem. */
+  readonly blade: THREE.Object3D;
   /**
    * Reposiciona a lâmina. Recebe as distâncias **físicas** em mm; o mapeamento
    * para a cena acontece aqui, com a mesma função que posiciona os objetos.
@@ -103,6 +105,7 @@ export function createFocusPlane(): FocusPlane {
 
   return {
     group,
+    blade,
 
     setZone(focusMm: number, nearMm: number, farMm: number): void {
       const focusX = distanceToSceneX(focusMm);

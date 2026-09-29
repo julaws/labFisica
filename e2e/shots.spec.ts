@@ -89,6 +89,39 @@ test('console com miniaturas', async ({ page }, testInfo) => {
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-13-console.png` });
 });
 
+test('critério 2: o HUD mostra a zona nítida calculada pelo motor', async ({ page }) => {
+  await openLab(page, '?focus=600&f=2');
+  await expect(page.locator('.chip[data-id="zone"] .chip__value')).toHaveText('1,9 cm');
+  await expect(page.locator('.chip[data-id="aperture"] .chip__value')).toHaveText('f/2');
+
+  await openLab(page, '?focus=370&f=2');
+  await expect(page.locator('.chip[data-id="zone"] .chip__value')).toHaveText('0,7 cm');
+  await expect(page.locator('.hud__sentence')).toContainText('Só o pinheiro está no plano');
+});
+
+test('critério 5: em f/16 a zona nítida cresce', async ({ page }) => {
+  await openLab(page, '?focus=600&f=16');
+  await expect(page.locator('.chip[data-id="zone"] .chip__value')).toHaveText('15,5 cm');
+  await expect(page.locator('.hud__sentence')).toContainText('Em f/16 o cone de luz afina');
+});
+
+test('modal de ajuda', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'mobile', 'no celular o botão fica dentro da gaveta');
+  await openLab(page, '?focus=600');
+  await page.getByRole('button', { name: 'Ajuda' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sobre as escalas' })).toBeVisible();
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-14-modal.png` });
+});
+
+test('gaveta de controles no celular', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile', 'a gaveta só existe em telas estreitas');
+  await openLab(page, '?focus=600');
+  await page.getByRole('button', { name: 'Controles' }).click();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-15-drawer.png` });
+});
+
 test('foco no fundo', async ({ page }, testInfo) => {
   // No pico a linha de corte fica isolada, longe do bosque: é a captura que
   // mostra se a faixa acende onde a física manda.

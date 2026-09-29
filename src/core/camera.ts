@@ -68,3 +68,116 @@ export function createCameraRig({
     },
   };
 }
+
+export interface ShotLike {
+  readonly position: THREE.Vector3Like;
+  readonly target: THREE.Vector3Like;
+  readonly fov?: number;
+}
+
+export interface CinematicCycle {
+  /** Vai para o próximo enquadramento da lista. */
+  next(): void;
+  /** Volta à vista padrão. */
+  reset(): void;
+  /** Troca a lista de enquadramentos (outro experimento, por exemplo). */
+  setShots(shots: readonly ShotLike[]): void;
+  /** Troca a vista padrão, para onde R volta. */
+  setHome(shot: ShotLike): void;
+}
+
+/**
+ * Câmeras cinematográficas da tecla C (SPEC §6.3): percorre os enquadramentos
+ * do experimento com transição suave. Com `prefers-reduced-motion`, a
+ * transição vira corte seco (SPEC §9).
+ */
+export function createCinematicCycle(
+  rig: CameraRig,
+  home: ShotLike,
+  reducedMotion: () => boolean,
+): CinematicCycle {
+  let shots: readonly ShotLike[] = [];
+  let index = -1;
+  let homeShot = home;
+
+  const go = (shot: ShotLike): void => {
+    const smooth = !reducedMotion();
+    if (shot.fov !== undefined && rig.camera.fov !== shot.fov) {
+      rig.camera.fov = shot.fov;
+      rig.camera.updateProjectionMatrix();
+    }
+    const { position: p, target: t } = shot;
+    void rig.controls.setLookAt(p.x, p.y, p.z, t.x, t.y, t.z, smooth);
+  };
+
+  return {
+    next(): void {
+      if (shots.length === 0) return;
+      index = (index + 1) % shots.length;
+      go(shots[index]!);
+    },
+    reset(): void {
+      index = -1;
+      go(homeShot);
+    },
+    setShots(next: readonly ShotLike[]): void {
+      shots = next;
+      index = -1;
+    },
+    setHome(shot: ShotLike): void {
+      homeShot = shot;
+    },
+  };
+}
+
+export interface KeyboardFlight {
+  /** Aplica o movimento das teclas pressionadas. Chamado a cada quadro. */
+  update(dt: number): void;
+  dispose(): void;
+}
+
+/**
+ * W A S D movem a câmera no plano, Q E giram em torno do alvo (SPEC §2).
+ * As teclas são lidas por estado (pressionada ou não), então segurar anda de
+ * forma contínua, e a velocidade não depende da taxa de quadros.
+ */
+export function createKeyboardFlight(rig: CameraRig, speed = 0.9, turnSpeed = 1.2): KeyboardFlight {
+  const pressed = new Set<string>();
+
+  const isTyping = (target: EventTarget | null): boolean =>
+    target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+
+  const onDown = (event: KeyboardEvent): void => {
+    if (isTyping(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
+    pressed.add(event.key.toLowerCase());
+  };
+  const onUp = (event: KeyboardEvent): void => {
+    pressed.delete(event.key.toLowerCase());
+  };
+  const onBlur = (): void => pressed.clear();
+
+  window.addEventListener('keydown', onDown);
+  window.addEventListener('keyup', onUp);
+  window.addEventListener('blur', onBlur);
+
+  return {
+    update(dt: number): void {
+      if (pressed.size === 0) return;
+      const step = speed * dt;
+      const turn = turnSpeed * dt;
+
+      if (pressed.has('w')) void rig.controls.forward(step, true);
+      if (pressed.has('s')) void rig.controls.forward(-step, true);
+      if (pressed.has('a')) void rig.controls.truck(-step, 0, true);
+      if (pressed.has('d')) void rig.controls.truck(step, 0, true);
+      if (pressed.has('q')) void rig.controls.rotate(turn, 0, true);
+      if (pressed.has('e')) void rig.controls.rotate(-turn, 0, true);
+    },
+    dispose(): void {
+      window.removeEventListener('keydown', onDown);
+      window.removeEventListener('keyup', onUp);
+      window.removeEventListener('blur', onBlur);
+      pressed.clear();
+    },
+  };
+}

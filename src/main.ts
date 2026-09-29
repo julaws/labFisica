@@ -14,6 +14,13 @@ import { disposeProceduralTextures } from './scene/textures/procedural';
 import { createInputSystem } from './core/input';
 import { createExperimentRegistry, experimentIdFromHash } from './core/experiment';
 import { createLensFocusExperiment } from './experiments/lens-focus';
+import { SHORTCUTS } from './experiments/lens-focus/copy';
+import { createLabelLayer } from './scene/labels';
+import { createCinematicCycle, createKeyboardFlight } from './core/camera';
+import { createHud } from './ui/hud';
+import { createPanel } from './ui/panel';
+import { createModal } from './ui/modal';
+import { type Locale, preferredLocale, rememberLocale } from './ui/i18n';
 
 declare global {
   interface Window {
@@ -107,6 +114,16 @@ async function boot(): Promise<void> {
   quality.onChange(applyQuality);
   applyQuality();
 
+  // --- Etiquetas, voo por teclado e câmeras ----------------------------------
+  const ui = document.createElement('div');
+  ui.className = 'ui';
+  app.appendChild(ui);
+
+  const labels = createLabelLayer(app);
+  const flight = createKeyboardFlight(rig);
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const cinematic = createCinematicCycle(rig, defaultView, () => reducedMotion.matches);
+
   // --- Loop -----------------------------------------------------------------
   const loop = createLoop({
     onFrame: (dt, elapsed) => {
@@ -114,9 +131,11 @@ async function boot(): Promise<void> {
       if (resizeToDisplaySize(renderer, camera, quality.settings.maxPixelRatio)) {
         post.setSize(canvas.clientWidth, canvas.clientHeight);
       }
+      flight.update(dt);
       rig.update(dt);
       experiment?.update(dt, elapsed);
       post.render(dt);
+      labels.update(camera, canvas.clientWidth, canvas.clientHeight);
       quality.sample(loop.frameMs);
       stats.update();
 
@@ -165,6 +184,79 @@ async function boot(): Promise<void> {
       registerDraggable: (handle) => input.registerDraggable(handle),
       onKey: (key, action) => input.onKey(key, action),
       invalidate: () => loop.invalidate(),
+      labels,
+    });
+  }
+
+  // --- Interface (SPEC §3.3) -------------------------------------------------
+  let locale: Locale = preferredLocale();
+  document.documentElement.lang = locale;
+
+  if (experiment) {
+    const hud = createHud(ui);
+    const modal = createModal(ui, SHORTCUTS);
+
+    const panel = createPanel({
+      parent: ui,
+      experiment,
+      locale,
+      onHelp: () => {
+        modal.render(experiment.copy(), locale);
+        modal.open();
+      },
+      onLocaleChange: (next) => {
+        locale = next;
+        rememberLocale(next);
+        document.documentElement.lang = next;
+        experiment.setLocale(next);
+        panel.setLocale(next);
+        refresh();
+      },
+    });
+
+    // Tudo o que depende do estado é redesenhado a partir do experimento: a
+    // interface não guarda cópia de nada.
+    const refresh = (): void => {
+      hud.render(experiment.hud(locale));
+      panel.sync();
+      if (modal.isOpen) modal.render(experiment.copy(), locale);
+    };
+
+    experiment.setLocale(locale);
+    experiment.subscribe(refresh);
+    refresh();
+
+    // A vista padrão passa a ser o enquadramento do experimento: é o vale e a
+    // objetiva que importam, não a bancada vazia. No retrato o campo abre mais,
+    // senão o vale sai cortado dos lados.
+    const shots = experiment.cameras();
+    cinematic.setShots(shots);
+    const overview = shots.find((shot) => shot.id === 'overview');
+    if (overview) {
+      const home = portrait ? { ...overview, fov: 58 } : overview;
+      cinematic.setHome(home);
+      // Na abertura o corte é seco: animar do plano antigo até aqui só
+      // atrasaria o primeiro quadro útil.
+      if (!params.get('shot')) {
+        if (home.fov !== undefined) {
+          camera.fov = home.fov;
+          camera.updateProjectionMatrix();
+        }
+        const { position: p, target: t } = home;
+        void controls.setLookAt(p.x, p.y, p.z, t.x, t.y, t.z, false);
+      }
+    }
+
+    input.onKey('c', () => cinematic.next());
+    input.onKey('r', () => cinematic.reset());
+    input.onKey('/', (event) => {
+      event.preventDefault();
+      const hidden = ui.classList.toggle('ui--hidden');
+      labels.setVisible(!hidden);
+    });
+    input.onKey('?', () => {
+      modal.render(experiment.copy(), locale);
+      modal.toggle();
     });
   }
 
@@ -183,10 +275,6 @@ async function boot(): Promise<void> {
 
   window.addEventListener('keydown', (event) => {
     if ((event.key === 'p' || event.key === 'P') && import.meta.env.DEV) stats.toggle();
-    if (event.key === 'r' || event.key === 'R') {
-      const { position: p, target: t } = defaultView;
-      void controls.setLookAt(p.x, p.y, p.z, t.x, t.y, t.z, true);
-    }
   });
 
   // ?lens=exploded&f=16&focus=2000 deixam a cena num estado conhecido sem
@@ -228,6 +316,8 @@ async function boot(): Promise<void> {
   window.addEventListener('beforeunload', () => {
     loop.stop();
     experiment?.dispose();
+    flight.dispose();
+    labels.dispose();
     input.dispose();
     post.dispose();
     bench.dispose();

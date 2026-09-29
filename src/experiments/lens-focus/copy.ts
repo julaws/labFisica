@@ -1,0 +1,177 @@
+import type { ExperimentCopy, Locale } from '../../core/experiment';
+import { activeScaleDisclosures } from '../../scene/scale';
+import {
+  formatCentimeters,
+  formatDistance,
+  formatFNumber,
+  formatMillimeters,
+  formatNumber,
+} from '../../ui/i18n';
+
+/**
+ * Textos do experimento (SPEC §6.7), em pt-BR e inglês.
+ *
+ * As seções do modal são **funções dos fatos atuais**: todo número que
+ * aparece aqui chega calculado pelo motor óptico no objeto `Facts`. Nenhuma
+ * frase tem número digitado — se o foco mudar, o texto muda junto.
+ */
+
+export interface Facts {
+  readonly focalLength: number;
+  readonly fNumber: number;
+  readonly widestFNumber: number;
+  readonly focusDistance: number;
+  readonly dofTotal: number;
+  readonly dofNear: number;
+  readonly dofFar: number;
+  readonly coc: number;
+  readonly extension: number;
+  readonly pupilDiameter: number;
+  readonly blurPine: number;
+  readonly blurCabin: number;
+  readonly blurPeak: number;
+  readonly eflPrescription: number;
+  readonly lensExaggeration: number;
+}
+
+const cm = formatCentimeters;
+const mm = formatMillimeters;
+
+export function buildCopy(facts: Facts): ExperimentCopy {
+  const pt = (locale: Locale): Record<string, string> => sectionsFor(facts, locale);
+  const ptTexts = pt('pt-BR');
+  const enTexts = pt('en');
+
+  const section = (id: string, headingPt: string, headingEn: string) => ({
+    id,
+    heading: { 'pt-BR': headingPt, en: headingEn },
+    body: { 'pt-BR': ptTexts[id]!, en: enTexts[id]! },
+  });
+
+  return {
+    title: { 'pt-BR': 'O plano de foco', en: 'The plane of focus' },
+    subtitle: {
+      'pt-BR':
+        'Todo mundo percebe quando uma foto sai tremida. Quase ninguém viu o plano exato onde ela fica nítida. Gire o anel de foco e veja o plano se mover.',
+      en: 'Everyone notices a blurry photo. Almost nobody has seen the exact plane where it comes into focus. Turn the focus ring and watch the plane move.',
+    },
+    sections: [
+      section('sharp', 'Onde a foto fica nítida', 'Where the photo is sharp'),
+      section('blur', 'Por que o resto desfoca', 'Why the rest blurs'),
+      section('ring', 'O anel de foco', 'The focus ring'),
+      section('aperture', 'A abertura', 'The aperture'),
+      section('upside-down', 'De cabeça para baixo?', 'Upside down?'),
+      section('scales', 'Sobre as escalas', 'About the scales'),
+      section('lens', 'Que lente é esta', 'Which lens is this'),
+    ],
+  };
+}
+
+function sectionsFor(facts: Facts, locale: Locale): Record<string, string> {
+  const n = (value: number, decimals: number): string => formatNumber(value, decimals, locale);
+  const focus = formatDistance(facts.focusDistance, locale);
+  const fN = formatFNumber(facts.fNumber, locale);
+  // Duas casas: é o número do ADR 0003, e arredondar para f/1,8 esconderia
+  // justamente a diferença que o texto explica.
+  const widest = `f/${formatNumber(facts.widestFNumber, 2, locale)}`;
+  // Um disco abaixo de um micrômetro é, para todos os efeitos, um ponto.
+  const disc = (value: number): string =>
+    value < 0.001 ? (locale === 'en' ? 'a point' : 'um ponto') : mm(value, locale);
+  const zone = Number.isFinite(facts.dofTotal) ? cm(facts.dofTotal, locale) : '∞';
+  const near = formatDistance(facts.dofNear, locale);
+  const far = formatDistance(facts.dofFar, locale);
+
+  const disclosures = activeScaleDisclosures(locale);
+
+  if (locale === 'en') {
+    return {
+      sharp:
+        `A lens brings exactly one distance to a perfect point. Right now that distance is ${focus}; ` +
+        `every point at that distance forms a plane — the plane of focus, the cyan sheet in the valley.\n\n` +
+        `Around it there is a tolerable band, the sharp zone: ${zone}, from ${near} to ${far}. ` +
+        `Anything inside it lands on the sensor as a disc smaller than ${mm(facts.coc, locale)}, ` +
+        `which the eye cannot tell from a point.`,
+      blur:
+        `A point off the plane sends a cone of light that closes before or after the glass. ` +
+        `The sensor cuts the cone and records a disc: the circle of confusion.\n\n` +
+        `With the current focus the pine becomes ${disc(facts.blurPine) === 'a point' ? 'a point' : `a ${disc(facts.blurPine)} disc`}, ` +
+        `the cabin ${disc(facts.blurCabin)} and the peak ${disc(facts.blurPeak)}. ` +
+        `The rings drawn on the ground glass have exactly these diameters.`,
+      ring:
+        `Turning the ring moves the whole glass group away from the sensor. To focus at ${focus} the lens ` +
+        `travels ${mm(facts.extension, locale)} beyond its ${n(facts.focalLength, 0)} mm focal length.\n\n` +
+        `The distance scale engraved on the ring uses the same map as the engine: the mark you read is the real distance.`,
+      aperture:
+        `The nine-blade diaphragm sets the pupil diameter, D = f/N. At ${fN}, D = ${mm(facts.pupilDiameter, locale)}. ` +
+        `Closing one full stop halves the area and shrinks every disc in the same proportion; the sharp zone grows.\n\n` +
+        `This lens opens up to ${widest}. f/1.4 would need larger glass.`,
+      'upside-down':
+        `Rays from the top of an object cross the axis at the lens and reach the bottom of the sensor. ` +
+        `Every image formed by a converging lens is inverted — your eye's included.\n\n` +
+        `A camera turns the picture right side up in software. The ground glass shows it the way light actually leaves it.`,
+      scales:
+        disclosures.map((d) => `${d.label}. ${d.explanation}`).join('\n\n') +
+        `\n\nThe rays on the object side live in the compressed space of the diorama; on the image side they live in ` +
+        `the enlarged scale of the lens. The chief-ray angle is the scene's, not the physical one. The point where ` +
+        `each cone closes, and the width of the cone at the glass, are not exaggerated at all.\n\n` +
+        `The thin line where the focus plane cuts the valley has a fixed width so it stays visible; the wide band ` +
+        `around it is the real sharp zone.`,
+      lens:
+        `A symmetric pair of achromatic doublets of ${n(facts.eflPrescription, 1)} mm, designed here from ` +
+        `catalogue glasses. It is not a copy of a commercial lens: with 4 elements, spherical aberration at f/2 ` +
+        `is larger than in a 6-element design.`,
+    };
+  }
+
+  return {
+    sharp:
+      `Uma lente leva uma única distância a um ponto perfeito. Agora essa distância é ${focus}; ` +
+      `todos os pontos a essa distância formam um plano — o plano de foco, a lâmina ciano no vale.\n\n` +
+      `Em volta dele existe uma faixa tolerável, a zona nítida: ${zone}, de ${near} a ${far}. ` +
+      `O que estiver dentro dela chega ao sensor como um disco menor que ${mm(facts.coc, locale)}, ` +
+      `que o olho não distingue de um ponto.`,
+    blur:
+      `Um ponto fora do plano manda um cone de luz que se fecha antes ou depois do vidro. ` +
+      `O sensor corta o cone e registra um disco: o círculo de confusão.\n\n` +
+      `Com o foco atual, o pinheiro vira ${disc(facts.blurPine) === 'um ponto' ? 'um ponto' : `um disco de ${disc(facts.blurPine)}`}, ` +
+      `a cabana ${disc(facts.blurCabin)} e o pico ${disc(facts.blurPeak)}. ` +
+      `Os anéis desenhados no vidro fosco têm exatamente esses diâmetros.`,
+    ring:
+      `Girar o anel afasta o conjunto de vidros do sensor. Para focar em ${focus}, a lente anda ` +
+      `${mm(facts.extension, locale)} além da distância focal de ${n(facts.focalLength, 0)} mm.\n\n` +
+      `A escala gravada no anel usa o mesmo mapa que o motor: a marca que você lê é a distância real.`,
+    aperture:
+      `O diafragma de nove lâminas define o diâmetro da pupila, D = f/N. Em ${fN}, D = ${mm(facts.pupilDiameter, locale)}. ` +
+      `Fechar um stop completo corta a área pela metade e encolhe todos os discos na mesma proporção; a zona nítida cresce.\n\n` +
+      `Esta objetiva abre até ${widest}. f/1,4 exigiria vidro maior.`,
+    'upside-down':
+      `Os raios do alto de um objeto cruzam o eixo na lente e chegam embaixo no sensor. ` +
+      `Toda imagem formada por uma lente convergente é invertida — a do seu olho também.\n\n` +
+      `A câmera desvira a imagem por software. O vidro fosco mostra como a luz de fato a deposita ali.`,
+    scales:
+      disclosures.map((d) => `${d.label}. ${d.explanation}`).join('\n\n') +
+      `\n\nDo lado do objeto os raios vivem no espaço comprimido do diorama; do lado da imagem, na escala ` +
+      `ampliada da lente. O ângulo do raio principal é o da cena, não o da física. Já o ponto onde cada cone se ` +
+      `fecha, e a largura do cone no vidro, não têm exagero nenhum.\n\n` +
+      `A linha fina onde o plano de foco corta o vale tem largura fixa, para continuar visível; a faixa larga em ` +
+      `volta dela é a zona nítida real.`,
+    lens:
+      `Um par simétrico de dubletos acromáticos de ${n(facts.eflPrescription, 1)} mm, projetado aqui a partir ` +
+      `de vidros de catálogo. Não é cópia de uma objetiva comercial: com 4 elementos, a aberração esférica em f/2 ` +
+      `é maior que a de uma lente de 6 elementos.`,
+  };
+}
+
+/** Atalhos do experimento, listados no modal (SPEC §2). */
+export const SHORTCUTS = [
+  { keys: '1 2 3', description: { 'pt-BR': 'foco em primeiro plano, meio e fundo', en: 'focus foreground, middle, background' } },
+  { keys: '[ ]', description: { 'pt-BR': 'ajuste fino do foco', en: 'fine focus' } },
+  { keys: 'F', description: { 'pt-BR': 'próxima abertura', en: 'next aperture' } },
+  { keys: 'X', description: { 'pt-BR': 'lente montada ou explodida', en: 'assembled or exploded lens' } },
+  { keys: 'C', description: { 'pt-BR': 'câmeras cinematográficas', en: 'cinematic cameras' } },
+  { keys: 'R', description: { 'pt-BR': 'resetar a vista', en: 'reset view' } },
+  { keys: '/', description: { 'pt-BR': 'esconder a interface', en: 'hide the interface' } },
+  { keys: 'W A S D', description: { 'pt-BR': 'mover a câmera', en: 'move the camera' } },
+  { keys: 'Q E', description: { 'pt-BR': 'girar a câmera', en: 'turn the camera' } },
+  { keys: '?', description: { 'pt-BR': 'esta ajuda', en: 'this help' } },
+] as const;

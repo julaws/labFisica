@@ -146,6 +146,21 @@ describe('círculo de confusão (SPEC §5.6)', () => {
     expect(blurDiameter(f, 16, 600, 370)).toBeLessThan(blurDiameter(f, 2, 600, 370));
   });
 
+  it('com foco no infinito, o pinheiro a 37 cm vira um disco de 3,4 mm (SPEC §6.7)', () => {
+    const b = blurDiameter(f, 2, Infinity, 370);
+    expect(Number.isFinite(b)).toBe(true);
+    expectRel(b, (f * f) / (2 * 370));
+    expect(b.toFixed(1)).toBe('3.4');
+  });
+
+  it('com foco no infinito, um objeto no infinito fica nítido', () => {
+    expect(blurDiameter(f, 2, Infinity, Infinity)).toBe(0);
+  });
+
+  it('o limite do foco no infinito concorda com a forma geral para s muito grande', () => {
+    expectRel(blurDiameter(f, 2, 1e9, 370), blurDiameter(f, 2, Infinity, 370), 1e-4);
+  });
+
   it('objeto no infinito tende ao valor limite f2/(N(s-f))', () => {
     expectRel(blurDiameter(f, 2, 600, Infinity), (f * f) / (2 * (600 - f)));
   });
