@@ -4,11 +4,33 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0B0F1A" />
-    <title>Laboratório de Óptica</title>
+    <meta name="color-scheme" content="dark" />
+    <title>O plano de foco · Laboratório de Óptica</title>
     <meta
       name="description"
-      content="Um laboratório de óptica interativo em 3D: veja o plano de foco, o círculo de confusão e os raios atravessarem a lente."
+      content="Gire o anel de foco de uma objetiva de 50 mm e veja o plano onde a foto fica nítida atravessar um vale em miniatura. Raios, círculo de confusão e profundidade de campo calculados de verdade, em 3D, no navegador."
     />
+
+    <!-- Compartilhamento (SPEC §12, F8). Na publicação, og:url e og:image
+         precisam virar endereços absolutos do domínio final. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="pt_BR" />
+    <meta property="og:site_name" content="Laboratório de Óptica" />
+    <meta property="og:title" content="O plano de foco · Laboratório de Óptica" />
+    <meta
+      property="og:description"
+      content="Uma objetiva aberta sobre a bancada: gire o anel e veja o plano de foco, os raios e o círculo de confusão, com a física calculada de verdade."
+    />
+    <meta property="og:image" content="og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Bancada óptica com um vale em miniatura, uma objetiva e os raios de luz convergindo no plano da imagem."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/src/ui/styles.css" />
   </head>
   <body>
@@ -22,6 +44,12 @@
           <div class="loading__bar"><div class="loading__fill" style="width: 0%"></div></div>
         </div>
       </div>
+
+      <noscript>
+        <p class="noscript">
+          Este laboratório roda em WebGL e precisa de JavaScript ligado para funcionar.
+        </p>
+      </noscript>
     </div>
 
     <script type="module" src="/src/main.ts"></script>

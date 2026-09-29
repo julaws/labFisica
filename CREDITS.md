@@ -8,7 +8,7 @@ de obtenção, antes de entrar no repositório.
 
 | Asset | Tipo | Fonte | Licença | Obtido em | Onde é usado |
 |---|---|---|---|---|---|
-| `studio_small_09_1k.hdr` (Studio Small 09, 1k) | HDRI de estúdio | [Poly Haven](https://polyhaven.com/a/studio_small_09) — autoria de Sergej Majboroda | **CC0 1.0** | 27/09/2026 | `public/env/`, carregado por `src/core/environment.ts` como ambiente e reflexo |
+| `studio_small_09_1k.hdr` (Studio Small 09, 1k) | HDRI de estúdio | [Poly Haven](https://polyhaven.com/a/studio_small_09) — autoria de Sergej Majboroda | **CC0 1.0** | 27/09/2026 | `src/assets/env/`, carregado por `src/core/environment.ts` como ambiente e reflexo |
 
 A licença CC0 do Poly Haven permite uso comercial, redistribuição e inclusão em
 produto pago, sem exigência de atribuição — o crédito acima é por cortesia.
@@ -16,9 +16,19 @@ Todo o resto da aparência é procedural, gerado em código em `src/scene/textur
 
 ## Fontes tipográficas
 
-| Família | Fonte | Licença | Situação |
-|---|---|---|---|
-| Manrope | Google Fonts / GitHub | SIL Open Font License 1.1 | a auto-hospedar na F7 |
+| Família | Arquivo | Fonte | Licença | Obtido em |
+|---|---|---|---|---|
+| Manrope (variável, peso 200–800) | `src/assets/fonts/manrope-latin.woff2` | [google/fonts, ofl/manrope](https://github.com/google/fonts/tree/main/ofl/manrope) — The Manrope Project Authors | **SIL Open Font License 1.1** | 28/09/2026 |
+
+O arquivo distribuído é um **subconjunto** (latino, pontuação e símbolos da
+interface, como `∞`, `·`, `—` e `×`) convertido para WOFF2 com `fonttools`, de
+165 KB para 23 KB. A OFL permite subconjuntos e redistribuição, inclusive em
+produto pago, desde que o texto da licença acompanhe a fonte: ele está em
+`public/fonts/OFL-Manrope.txt`. A OFL só proíbe vender a fonte **sozinha**.
+
+**Exceção à CLAUDE.md §10.** A regra do projeto pede assets CC0; a Manrope é
+OFL. A exceção foi aprovada pelo responsável do projeto em 28/09/2026, e a OFL
+é compatível com publicar o laboratório gratuitamente ou com cobrança.
 
 ## Dados físicos
 

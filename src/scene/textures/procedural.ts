@@ -267,7 +267,7 @@ export function engravedRuler({
 
     ctx.strokeStyle = 'rgba(224, 236, 255, 0.95)';
     ctx.fillStyle = 'rgba(224, 236, 255, 0.88)';
-    ctx.font = `700 ${Math.round(height * 0.34)}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.font = `700 ${Math.round(height * 0.34)}px Manrope, ui-sans-serif, system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
 
@@ -352,7 +352,7 @@ export function wallPosterTexture(blurPx: number, label: string, size = 512): TH
     ctx.strokeRect(6, 6, size - 12, h - 12);
 
     ctx.fillStyle = 'rgba(230, 234, 242, 0.85)';
-    ctx.font = `700 ${Math.round(size * 0.062)}px ui-sans-serif, system-ui, sans-serif`;
+    ctx.font = `700 ${Math.round(size * 0.062)}px Manrope, ui-sans-serif, system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillText(label, size / 2, h * 0.9);
 
@@ -414,7 +414,7 @@ export function focusRingScale(
       ctx.lineTo(x, y);
       ctx.stroke();
 
-      ctx.font = `700 ${Math.round(height * 0.2)}px ui-sans-serif, system-ui, sans-serif`;
+      ctx.font = `700 ${Math.round(height * 0.2)}px Manrope, ui-sans-serif, system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = isMeters ? 'bottom' : 'top';
       ctx.fillText(mark.label, x, isMeters ? y - height * 0.02 : y + height * 0.04);

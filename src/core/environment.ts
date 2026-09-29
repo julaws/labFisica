@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
+// Importado pelo empacotador, não servido de public/: assim o arquivo ganha
+// hash no build normal, entra embutido no build de arquivo único e o caminho
+// continua certo quando o site mora num subdiretório (GitHub Pages).
+import hdriUrl from '../assets/env/studio_small_09_1k.hdr?url';
 
 /**
  * Iluminação por HDRI (SPEC §3.1 e §4).
@@ -9,11 +13,11 @@ import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
  * prateleiras próprias. A luz principal com sombra é uma DirectionalLight
  * separada, montada em `scene/lab-room.ts`.
  *
- * Asset: `public/env/studio_small_09_1k.hdr`, Poly Haven, CC0 1.0.
+ * Asset: `src/assets/env/studio_small_09_1k.hdr`, Poly Haven, CC0 1.0.
  * Registrado em CREDITS.md.
  */
 
-export const HDRI_URL = 'env/studio_small_09_1k.hdr';
+export const HDRI_URL: string = hdriUrl;
 
 export interface EnvironmentHandle {
   readonly texture: THREE.Texture;

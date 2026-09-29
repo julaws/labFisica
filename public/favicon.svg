@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Diafragma de 9 lâminas visto de frente, nas cores da interface. -->
+  <rect width="64" height="64" rx="14" fill="#0B0F1A"/>
+  <circle cx="32" cy="32" r="22" fill="none" stroke="#C8923A" stroke-width="4"/>
+  <polygon
+    points="32,19 40.4,22.1 44.8,29.8 43.3,38.5 36.4,44.2 27.6,44.2 20.7,38.5 19.2,29.8 23.6,22.1"
+    fill="#7FE3FF"
+  />
+</svg>

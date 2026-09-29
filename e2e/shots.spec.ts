@@ -128,3 +128,60 @@ test('foco no fundo', async ({ page }, testInfo) => {
   await openLab(page, '?shot=optical-path&focus=2000');
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-05-focus-background.png` });
 });
+
+// --- Orçamento de desempenho (SPEC §8) -------------------------------------
+// Contadores do renderer não dependem da GPU: dá para verificá-los mesmo no
+// SwiftShader do Playwright. Os limites são os da SPEC.
+test('orçamento: menos de 250 draw calls e 1,5 milhão de triângulos', async ({ page }) => {
+  await openLab(page, '?focus=600');
+  const frame = await page.evaluate(() => window.__lab ?? null);
+  expect(frame).not.toBeNull();
+  // Registra os números no relatório: o orçamento é para acompanhar, não só
+  // para passar ou falhar.
+  console.info(`orçamento: ${frame!.drawCalls} draw calls, ${frame!.triangles} triângulos`);
+  expect(frame!.drawCalls).toBeLessThan(250);
+  expect(frame!.triangles).toBeLessThan(1_500_000);
+});
+
+// --- Resoluções da SPEC §9 que o projeto celular/desktop não cobre -----------
+for (const [name, width, height] of [
+  ['tablet', 768, 1024],
+  ['fullhd', 1920, 1080],
+] as const) {
+  test.describe(`layout ${width}×${height}`, () => {
+    test.use({ viewport: { width, height } });
+
+    test(`HUD e painel não se sobrepõem em ${name}`, async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name !== 'desktop', 'basta um projeto para cada resolução');
+      await openLab(page, '?focus=600');
+
+      const hud = await page.locator('.hud').boundingBox();
+      const panel = await page.locator('.control-panel').boundingBox();
+      expect(hud).not.toBeNull();
+      expect(panel).not.toBeNull();
+
+      const overlaps =
+        hud!.x < panel!.x + panel!.width &&
+        panel!.x < hud!.x + hud!.width &&
+        hud!.y < panel!.y + panel!.height &&
+        panel!.y < hud!.y + hud!.height;
+      expect(overlaps).toBe(false);
+
+      await page.screenshot({ path: `${SHOTS_DIR}/${name}-01-default.png` });
+    });
+  });
+}
+
+// --- Imagem de compartilhamento (SPEC §12, F8) ------------------------------
+test.describe('imagem OG', () => {
+  test.use({ viewport: { width: 1200, height: 630 } });
+
+  test('gera public/og.png', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'uma imagem basta');
+    await openLab(page, '?focus=600');
+    // Sem o painel de controles: no cartão de compartilhamento ele só polui.
+    await page.addStyleTag({ content: '.control-panel, .labels { display: none !important; }' });
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: 'public/og.png' });
+  });
+});

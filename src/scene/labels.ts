@@ -25,8 +25,12 @@ export interface LabelLayer {
   add(spec: LabelSpec): void;
   setText(id: string, text: string): void;
   remove(id: string): void;
-  /** Reprojeta todas as etiquetas. Chamado uma vez por quadro. */
-  update(camera: THREE.Camera, width: number, height: number): void;
+  /**
+   * Reprojeta todas as etiquetas. Chamado uma vez por quadro. `occluders` são
+   * os retângulos dos painéis da interface: uma etiqueta que cai embaixo de um
+   * deles some, em vez de vazar pelo fundo translúcido (critério 9, SPEC §10).
+   */
+  update(camera: THREE.Camera, width: number, height: number, occluders?: readonly DOMRect[]): void;
   setVisible(visible: boolean): void;
   dispose(): void;
 }
@@ -75,7 +79,12 @@ export function createLabelLayer(parent: HTMLElement): LabelLayer {
       entries.delete(id);
     },
 
-    update(camera: THREE.Camera, width: number, height: number): void {
+    update(
+      camera: THREE.Camera,
+      width: number,
+      height: number,
+      occluders: readonly DOMRect[] = [],
+    ): void {
       for (const { spec, element } of entries.values()) {
         offset.set(spec.offset?.x ?? 0, spec.offset?.y ?? 0, spec.offset?.z ?? 0);
         world.copy(offset);
@@ -86,11 +95,22 @@ export function createLabelLayer(parent: HTMLElement): LabelLayer {
         const visible =
           spec.anchor.visible && world.z < 1 && Math.abs(world.x) < 1.02 && Math.abs(world.y) < 1.02;
 
-        element.classList.toggle('label--hidden', !visible);
-        if (!visible) continue;
+        if (!visible) {
+          element.classList.add('label--hidden');
+          continue;
+        }
 
         const x = (world.x * 0.5 + 0.5) * width;
         const y = (-world.y * 0.5 + 0.5) * height;
+
+        // A etiqueta ocupa ~180 × 26 px a partir do ponto; se essa caixa
+        // encosta num painel, esconde.
+        const covered = occluders.some(
+          (rect) => x + 180 > rect.left && x < rect.right && y + 26 > rect.top && y - 4 < rect.bottom,
+        );
+        element.classList.toggle('label--hidden', covered);
+        if (covered) continue;
+
         element.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
       }
     },

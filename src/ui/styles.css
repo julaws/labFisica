@@ -1,3 +1,19 @@
+/*
+ * Manrope, auto-hospedada (SPEC §3.2): fonte variável, subconjunto latino em
+ * WOFF2 de 23 KB, com o eixo de peso 200–800 e os numerais tabulares que
+ * impedem os valores de "tremer" durante o arraste. Licença SIL OFL 1.1,
+ * registrada em CREDITS.md; o texto da licença vai em public/fonts/.
+ * O caminho é relativo para o empacotador processar o arquivo: absoluto, ele
+ * quebraria no GitHub Pages, onde o site mora num subdiretório.
+ */
+@font-face {
+  font-family: 'Manrope';
+  src: url('../assets/fonts/manrope-latin.woff2') format('woff2');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Tokens de design — SPEC §3.2 */
 :root {
   --ink: #0b0f1a;
@@ -510,7 +526,7 @@ kbd {
 
 /* --- Celular: painel vira gaveta, HUD compacto (SPEC §3.3) ---------------- */
 
-@media (max-width: 760px) {
+@media (max-width: 820px) {
   .ui {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr auto;
@@ -591,4 +607,14 @@ kbd {
   .label {
     will-change: auto;
   }
+}
+
+.noscript {
+  position: absolute;
+  inset: auto 20px 20px;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
 }

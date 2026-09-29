@@ -1,17 +1,22 @@
 import * as THREE from 'three';
-import { Line2 } from 'three/examples/jsm/lines/Line2.js';
-import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 
 /**
  * Renderizador de raios, reutilizável entre experimentos (SPEC §6.5 e §7).
  *
- * As linhas usam `Line2`, que tem espessura em **pixels**: um raio de luz
+ * As linhas têm espessura em **pixels** (`LineMaterial`): um raio de luz
  * precisa ter a mesma presença visual perto e longe da câmera. Partículas
  * percorrem o caminho para indicar o sentido de propagação.
  *
- * Este módulo não sabe óptica: ele recebe caminhos já traçados, em coordenadas
- * de cena, e desenha. Quem traça é o motor em `src/optics/`.
+ * Todos os raios vão num **único** `LineSegments2`, com cor por vértice. Antes
+ * eram um `Line2` por raio — 54 draw calls só para os leques do experimento 1,
+ * o maior item do orçamento da SPEC §8. Como o blending é aditivo, a opacidade
+ * de cada raio pode ir embutida na própria cor sem mudar o resultado.
+ *
+ * Este módulo não sabe óptica: recebe caminhos já traçados, em coordenadas de
+ * cena, e desenha. Quem traça é o motor em `src/optics/`.
  */
 
 export interface RayPath {
@@ -53,15 +58,25 @@ export function createRayBundle({
   const group = new THREE.Group();
   group.name = 'rays';
 
-  const lines: Line2[] = [];
-  const materials: LineMaterial[] = [];
-  const geometries: LineGeometry[] = [];
+  const resolution = new THREE.Vector2(window.innerWidth, window.innerHeight);
 
-  let paths: readonly RayPath[] = [];
-  let particlesEnabled = true;
-  let phase = 0;
+  // --- Linhas: um único objeto para todos os raios ---------------------------
+  let lineGeometry = new LineSegmentsGeometry();
+  const lineMaterial = new LineMaterial({
+    linewidth: lineWidth,
+    vertexColors: true,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    worldUnits: false,
+  });
+  lineMaterial.resolution.copy(resolution);
 
-  // Partículas: um único Points para todos os raios, atualizado por quadro.
+  const lines = new LineSegments2(lineGeometry, lineMaterial);
+  lines.frustumCulled = false;
+  group.add(lines);
+
+  // --- Partículas: um único Points, atualizado por quadro --------------------
   const particleGeometry = new THREE.BufferGeometry();
   const particleMaterial = new THREE.PointsMaterial({
     size: 0.012,
@@ -76,9 +91,11 @@ export function createRayBundle({
   particles.frustumCulled = false;
   group.add(particles);
 
-  const resolution = new THREE.Vector2(window.innerWidth, window.innerHeight);
+  let paths: readonly RayPath[] = [];
+  let particlesEnabled = true;
+  let phase = 0;
 
-  /** Comprimento acumulado de um caminho, para interpolar as partículas. */
+  /** Comprimento acumulado de cada caminho, para interpolar as partículas. */
   const cumulative: number[][] = [];
 
   function rebuildParticles(): void {
@@ -88,13 +105,15 @@ export function createRayBundle({
     const color = new THREE.Color();
 
     let index = 0;
-    for (const path of paths) {
-      color.setHex(path.color);
-      for (let i = 0; i < particlesPerPath; i += 1) {
-        colors[index * 3] = color.r;
-        colors[index * 3 + 1] = color.g;
-        colors[index * 3 + 2] = color.b;
-        index += 1;
+    if (particlesEnabled) {
+      for (const path of paths) {
+        color.setHex(path.color);
+        for (let i = 0; i < particlesPerPath; i += 1) {
+          colors[index * 3] = color.r;
+          colors[index * 3 + 1] = color.g;
+          colors[index * 3 + 2] = color.b;
+          index += 1;
+        }
       }
     }
 
@@ -135,63 +154,41 @@ export function createRayBundle({
     group,
 
     setPaths(next: readonly RayPath[]): void {
-      // Recicla as linhas existentes e cria só o que faltar.
-      while (lines.length > next.length) {
-        const line = lines.pop()!;
-        group.remove(line);
-        geometries.pop()?.dispose();
-        materials.pop()?.dispose();
-      }
-
       paths = next;
       cumulative.length = 0;
 
-      next.forEach((path, index) => {
-        const flat: number[] = [];
-        const lengths: number[] = [0];
+      // Cada caminho de N pontos vira N−1 segmentos soltos (pares de pontos).
+      const positions: number[] = [];
+      const colors: number[] = [];
+      const color = new THREE.Color();
 
-        for (let i = 0; i < path.points.length; i += 1) {
-          const point = path.points[i]!;
-          flat.push(point.x, point.y, point.z);
-          if (i > 0) {
-            const previous = path.points[i - 1]!;
-            const step = Math.hypot(
-              point.x - previous.x,
-              point.y - previous.y,
-              point.z - previous.z,
-            );
-            lengths.push(lengths[i - 1]! + step);
-          }
+      for (const path of next) {
+        const opacity = path.opacity ?? 0.85;
+        // Blending aditivo: escurecer a cor equivale a baixar a opacidade.
+        color.setHex(path.color).multiplyScalar(opacity);
+
+        const lengths: number[] = [0];
+        for (let i = 1; i < path.points.length; i += 1) {
+          const a = path.points[i - 1]!;
+          const b = path.points[i]!;
+          positions.push(a.x, a.y, a.z, b.x, b.y, b.z);
+          colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
+          lengths.push(lengths[i - 1]! + Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z));
         }
         cumulative.push(lengths);
+      }
 
-        let line = lines[index];
-        if (!line) {
-          const geometry = new LineGeometry();
-          const material = new LineMaterial({
-            linewidth: lineWidth,
-            transparent: true,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-            worldUnits: false,
-          });
-          material.resolution.copy(resolution);
-
-          line = new Line2(geometry, material);
-          line.frustumCulled = false;
-          geometries.push(geometry);
-          materials.push(material);
-          lines.push(line);
-          group.add(line);
-        }
-
-        line.geometry.setPositions(flat);
-        line.computeLineDistances();
-
-        const material = line.material;
-        material.color.setHex(path.color);
-        material.opacity = path.opacity ?? 0.85;
-      });
+      // O número de segmentos muda com o estado; trocar a geometria é mais
+      // simples e seguro que redimensionar os atributos instanciados.
+      lineGeometry.dispose();
+      lineGeometry = new LineSegmentsGeometry();
+      if (positions.length > 0) {
+        lineGeometry.setPositions(positions);
+        lineGeometry.setColors(colors);
+      }
+      lines.geometry = lineGeometry;
+      lines.visible = positions.length > 0;
+      if (lines.visible) lines.computeLineDistances();
 
       rebuildParticles();
     },
@@ -218,7 +215,7 @@ export function createRayBundle({
 
     setResolution(width: number, height: number): void {
       resolution.set(width, height);
-      for (const material of materials) material.resolution.copy(resolution);
+      lineMaterial.resolution.copy(resolution);
     },
 
     setVisible(visible: boolean): void {
@@ -231,13 +228,10 @@ export function createRayBundle({
     },
 
     dispose(): void {
-      for (const geometry of geometries) geometry.dispose();
-      for (const material of materials) material.dispose();
+      lineGeometry.dispose();
+      lineMaterial.dispose();
       particleGeometry.dispose();
       particleMaterial.dispose();
-      geometries.length = 0;
-      materials.length = 0;
-      lines.length = 0;
       group.clear();
     },
   };

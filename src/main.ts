@@ -27,7 +27,7 @@ declare global {
     /** Sinalizador lido pelos testes do Playwright (e2e/shots.spec.ts). */
     __labReady?: boolean;
     /** Diagnóstico exposto para as capturas e para o painel de estatísticas. */
-    __lab?: { fps: number; frameMs: number; quality: string; drawCalls: number };
+    __lab?: { fps: number; frameMs: number; quality: string; drawCalls: number; triangles: number };
   }
 }
 
@@ -73,6 +73,14 @@ async function boot(): Promise<void> {
 
   // --- Materiais e texturas procedurais ------------------------------------
   loading.begin('textures');
+
+  // As texturas gravadas (régua, escala do anel, cartazes) são desenhadas em
+  // canvas uma única vez. Se a Manrope ainda não chegou, elas saem na fonte do
+  // sistema e ficam assim. Espera a fonte, mas nunca mais que 1,5 s.
+  await Promise.race([
+    document.fonts.load('700 32px Manrope').catch(() => undefined),
+    new Promise((resolve) => window.setTimeout(resolve, 1500)),
+  ]);
   const materials = createMaterialLibrary();
   loading.complete('textures');
 
@@ -120,6 +128,20 @@ async function boot(): Promise<void> {
   app.appendChild(ui);
 
   const labels = createLabelLayer(app);
+
+  // Retângulos dos painéis visíveis, relativos ao canvas: é onde as etiquetas
+  // não podem aparecer. Dois getBoundingClientRect por quadro custam nada.
+  const uiOccluders = (): DOMRect[] => {
+    if (ui.classList.contains('ui--hidden')) return [];
+    const origin = canvas.getBoundingClientRect();
+    const rects: DOMRect[] = [];
+    for (const element of ui.querySelectorAll<HTMLElement>('.hud, .control-panel')) {
+      const r = element.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      rects.push(new DOMRect(r.left - origin.left, r.top - origin.top, r.width, r.height));
+    }
+    return rects;
+  };
   const flight = createKeyboardFlight(rig);
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const cinematic = createCinematicCycle(rig, defaultView, () => reducedMotion.matches);
@@ -135,7 +157,7 @@ async function boot(): Promise<void> {
       rig.update(dt);
       experiment?.update(dt, elapsed);
       post.render(dt);
-      labels.update(camera, canvas.clientWidth, canvas.clientHeight);
+      labels.update(camera, canvas.clientWidth, canvas.clientHeight, uiOccluders());
       quality.sample(loop.frameMs);
       stats.update();
 
@@ -144,6 +166,7 @@ async function boot(): Promise<void> {
         frameMs: loop.frameMs,
         quality: quality.settings.level,
         drawCalls: renderer.info.render.calls,
+        triangles: renderer.info.render.triangles,
       };
     },
   });
@@ -171,6 +194,7 @@ async function boot(): Promise<void> {
   const experiment =
     (requestedId ? registry.create(requestedId) : null) ?? registry.createDefault();
 
+  loading.begin('experiment');
   if (experiment) {
     await experiment.setup({
       renderer,
@@ -187,6 +211,7 @@ async function boot(): Promise<void> {
       labels,
     });
   }
+  loading.complete('experiment');
 
   // --- Interface (SPEC §3.3) -------------------------------------------------
   let locale: Locale = preferredLocale();

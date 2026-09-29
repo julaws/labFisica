@@ -218,14 +218,13 @@ export function createIris(config: IrisConfig = DEFAULT_IRIS): IrisMesh {
     side: THREE.DoubleSide,
   });
 
-  const blades: THREE.Mesh[] = [];
-  for (let i = 0; i < config.bladeCount; i += 1) {
-    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
-    // Empilhadas com uma folga mínima, como as lâminas reais se sobrepõem.
-    blade.position.x = lensMm(i * 0.11 - (config.bladeCount * 0.11) / 2);
-    blades.push(blade);
-    group.add(blade);
-  }
+  // Uma InstancedMesh para as nove lâminas: um draw call em vez de nove, em
+  // cada um dos passes (principal, sombra, transmissão). SPEC §8.
+  const blades = new THREE.InstancedMesh(bladeGeometry, bladeMaterial, config.bladeCount);
+  blades.frustumCulled = false;
+  group.add(blades);
+
+  const bladeMatrix = new THREE.Matrix4();
 
   return {
     group,
@@ -234,11 +233,14 @@ export function createIris(config: IrisConfig = DEFAULT_IRIS): IrisMesh {
       const placements = bladePlacements(config, psi);
 
       placements.forEach((placement, index) => {
-        const blade = blades[index];
-        if (!blade) return;
-        blade.position.y = lensMm(placement.centerRadius) * Math.cos(placement.centerAngle);
-        blade.position.z = lensMm(placement.centerRadius) * Math.sin(placement.centerAngle);
+        // Empilhadas com uma folga mínima, como as lâminas reais se sobrepõem.
+        const x = lensMm(index * 0.11 - (config.bladeCount * 0.11) / 2);
+        const y = lensMm(placement.centerRadius) * Math.cos(placement.centerAngle);
+        const z = lensMm(placement.centerRadius) * Math.sin(placement.centerAngle);
+        bladeMatrix.makeTranslation(x, y, z);
+        blades.setMatrixAt(index, bladeMatrix);
       });
+      blades.instanceMatrix.needsUpdate = true;
     },
     geometries: [bladeGeometry],
     materials: [bladeMaterial],

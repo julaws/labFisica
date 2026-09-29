@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from './materials';
 import { PALETTE } from './materials';
 import { wallPosterTexture } from './textures/procedural';
@@ -175,15 +176,31 @@ function createShelves(
   const uprightGeometry = new THREE.BoxGeometry(0.06, 1.95, 0.44);
   owned.push(uprightGeometry);
 
+  // Orçamento de draw calls (SPEC §8): cada malha é desenhada no passe
+  // principal, no de sombra e no de transmissão do vidro. As peças fixas da
+  // estante viram UMA geometria mesclada, e os objetos repetidos viram
+  // InstancedMesh — de ~50 malhas para 4.
+  const structure: THREE.BufferGeometry[] = [];
   for (const x of [-2.6, 0, 2.6]) {
-    const upright = new THREE.Mesh(uprightGeometry, materials.darkSteel);
-    upright.position.set(x, 0.975, 0);
-    upright.castShadow = true;
-    group.add(upright);
+    structure.push(uprightGeometry.clone().translate(x, 0.975, 0));
   }
+  const shelfHeights = [0.58, 1.08, 1.58];
+  for (const y of shelfHeights) {
+    structure.push(boardGeometry.clone().translate(0, y, 0));
+  }
+  const mergedStructure = mergeGeometries(structure);
+  for (const part of structure) part.dispose();
+  if (!mergedStructure) throw new Error('Falha ao mesclar a estrutura da estante');
+  owned.push(mergedStructure);
 
-  // Corpos e objetivas: cilindros e caixas, distribuídos de forma
-  // determinística para a cena não mudar entre capturas.
+  const frame = new THREE.Mesh(mergedStructure, materials.darkSteel);
+  frame.castShadow = true;
+  frame.receiveShadow = true;
+  group.add(frame);
+
+  // Corpos e objetivas: distribuídos de forma determinística, para a cena não
+  // mudar entre capturas. Primeiro decide-se o que vai onde; depois cada tipo
+  // vira um único InstancedMesh.
   const bodyGeometry = new THREE.BoxGeometry(0.16, 0.11, 0.09);
   const lensGeometry = new THREE.CylinderGeometry(0.045, 0.05, 0.1, 18);
   const hoodGeometry = new THREE.CylinderGeometry(0.058, 0.045, 0.05, 18);
@@ -195,33 +212,44 @@ function createShelves(
     return seed / 0x7fffffff;
   };
 
-  [0.58, 1.08, 1.58].forEach((y) => {
-    const board = new THREE.Mesh(boardGeometry, materials.darkSteel);
-    board.position.set(0, y, 0);
-    board.castShadow = true;
-    board.receiveShadow = true;
-    group.add(board);
+  const bodies: THREE.Matrix4[] = [];
+  const lenses: THREE.Matrix4[] = [];
+  const hoods: THREE.Matrix4[] = [];
+  const rotation = new THREE.Quaternion();
+  const unit = new THREE.Vector3(1, 1, 1);
 
+  for (const y of shelfHeights) {
     for (let i = 0; i < 9; i += 1) {
       const x = -2.3 + i * 0.58 + (random() - 0.5) * 0.12;
       if (random() > 0.45) {
-        const body = new THREE.Mesh(bodyGeometry, materials.anodizedAluminum);
-        body.position.set(x, y + 0.075, (random() - 0.5) * 0.06);
-        body.rotation.y = (random() - 0.5) * 0.7;
-        body.castShadow = true;
-        group.add(body);
+        const z = (random() - 0.5) * 0.06;
+        rotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), (random() - 0.5) * 0.7);
+        bodies.push(new THREE.Matrix4().compose(new THREE.Vector3(x, y + 0.075, z), rotation, unit));
       } else {
-        const lens = new THREE.Mesh(lensGeometry, materials.anodizedAluminum);
-        lens.position.set(x, y + 0.07, (random() - 0.5) * 0.06);
-        lens.castShadow = true;
-        group.add(lens);
-
-        const hood = new THREE.Mesh(hoodGeometry, materials.brushedBrass);
-        hood.position.set(x, y + 0.145, lens.position.z);
-        group.add(hood);
+        const z = (random() - 0.5) * 0.06;
+        lenses.push(new THREE.Matrix4().makeTranslation(x, y + 0.07, z));
+        hoods.push(new THREE.Matrix4().makeTranslation(x, y + 0.145, z));
       }
     }
-  });
+  }
+
+  const instanced = (
+    geometry: THREE.BufferGeometry,
+    material: THREE.Material,
+    matrices: THREE.Matrix4[],
+    castShadow: boolean,
+  ): void => {
+    if (matrices.length === 0) return;
+    const mesh = new THREE.InstancedMesh(geometry, material, matrices.length);
+    matrices.forEach((matrix, index) => mesh.setMatrixAt(index, matrix));
+    mesh.instanceMatrix.needsUpdate = true;
+    mesh.castShadow = castShadow;
+    group.add(mesh);
+  };
+
+  instanced(bodyGeometry, materials.anodizedAluminum, bodies, true);
+  instanced(lensGeometry, materials.anodizedAluminum, lenses, true);
+  instanced(hoodGeometry, materials.brushedBrass, hoods, false);
 
   return group;
 }

@@ -213,7 +213,7 @@ function createCaption(text: string): {
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = 'rgba(138, 148, 168, 0.95)';
-  ctx.font = '600 26px ui-sans-serif, system-ui, sans-serif';
+  ctx.font = '600 26px Manrope, ui-sans-serif, system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, canvas.width / 2, canvas.height / 2);
