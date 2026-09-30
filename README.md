@@ -91,5 +91,5 @@ typecheck, lint e testes e publica no GitHub Pages
 ## Créditos e licenças
 
 O código está sob a licença MIT ([`LICENSE`](LICENSE)). HDRI (CC0), dados de
-vidro (CC0) e fonte Manrope (OFL, que continua valendo para a fonte): veja
-[`CREDITS.md`](CREDITS.md).
+vidro (CC0) e fontes Outfit e DM Mono (OFL, que continua valendo para as
+fontes): veja [`CREDITS.md`](CREDITS.md).

@@ -1,36 +1,57 @@
 /*
- * Manrope, auto-hospedada (SPEC §3.2): fonte variável, subconjunto latino em
- * WOFF2 de 23 KB, com o eixo de peso 200–800 e os numerais tabulares que
- * impedem os valores de "tremer" durante o arraste. Licença SIL OFL 1.1,
- * registrada em CREDITS.md; o texto da licença vai em public/fonts/.
- * O caminho é relativo para o empacotador processar o arquivo: absoluto, ele
- * quebraria no GitHub Pages, onde o site mora num subdiretório.
+ * Fontes auto-hospedadas (SPEC §3.2), as mesmas da referência visual:
+ * Outfit, geométrica variável (300–800), para títulos e texto; DM Mono para
+ * valores, rótulos técnicos e leituras, com largura fixa que impede os números
+ * de "tremer" durante o arraste. Subconjunto latino em WOFF2, licença SIL OFL
+ * 1.1, registrada em CREDITS.md; os textos das licenças vão em public/fonts/.
+ * Os caminhos são relativos para o empacotador processar os arquivos:
+ * absolutos, eles quebrariam no GitHub Pages, onde o site mora num subdiretório.
  */
 @font-face {
-  font-family: 'Manrope';
-  src: url('../assets/fonts/manrope-latin.woff2') format('woff2');
-  font-weight: 200 800;
+  font-family: 'Outfit';
+  src: url('../assets/fonts/outfit-latin.woff2') format('woff2');
+  font-weight: 300 800;
   font-style: normal;
   font-display: swap;
 }
 
-/* Tokens de design — SPEC §3.2 */
+@font-face {
+  font-family: 'DM Mono';
+  src: url('../assets/fonts/dm-mono-400-latin.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'DM Mono';
+  src: url('../assets/fonts/dm-mono-500-latin.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Tokens de design — SPEC §3.2, refinados na direção visual da referência */
 :root {
   --ink: #0b0f1a;
   --panel: rgba(16, 22, 36, 0.72);
-  --line: rgba(170, 200, 255, 0.14);
-  --text: #e6eaf2;
-  --muted: #8a94a8;
+  --glass: linear-gradient(150deg, rgba(20, 26, 42, 0.91), rgba(13, 18, 32, 0.89));
+  --chip: rgba(13, 18, 32, 0.77);
+  --line: rgba(255, 255, 255, 0.11);
+  --text: #eef2fa;
+  --soft: #c7cee0;
+  --muted: #9ea8c2;
+  --faint: #7d87a4;
   --focus: #7fe3ff;
   --brass: #c8923a;
   --warm: #ffb45c;
-  --cool: #9c8cff;
+  --cool: #b3a8ff;
 
-  --radius: 14px;
-  --blur: 12px;
+  --radius: 16px;
+  --blur: 14px;
 
-  --font-sans:
-    'Manrope', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: 'Outfit', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'DM Mono', ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
 
   color-scheme: dark;
 }
@@ -47,15 +68,22 @@ body {
   background: var(--ink);
   color: var(--text);
   font-family: var(--font-sans);
+  font-synthesis: none;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
 }
 
 #app {
   position: fixed;
   inset: 0;
   overflow: hidden;
+  isolation: isolate;
+  user-select: none;
 }
 
 #scene {
@@ -63,12 +91,35 @@ body {
   width: 100%;
   height: 100%;
   touch-action: none;
+  cursor: grab;
+}
+
+#scene:active {
+  cursor: grabbing;
+}
+
+/*
+ * Vinheta em HTML, por cima do canvas e por baixo da interface: escurece a
+ * faixa esquerda onde o título flutua sem cartão, e as bordas da tela. Não
+ * mexe na imagem renderizada, só na leitura do texto.
+ */
+#app::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(7, 10, 19, 0.66), transparent 28%),
+    linear-gradient(180deg, rgba(7, 10, 19, 0.35), transparent 18%),
+    radial-gradient(ellipse at 55% 50%, transparent 55%, rgba(4, 6, 12, 0.62) 100%);
 }
 
 /* Tela de carregamento */
 .loading {
   position: absolute;
   inset: 0;
+  z-index: 20;
   display: grid;
   place-items: center;
   background: radial-gradient(120% 90% at 50% 40%, #121a2b 0%, var(--ink) 70%);
@@ -85,37 +136,36 @@ body {
 }
 
 .loading__card {
-  min-width: min(360px, 82vw);
-  padding: 22px 24px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  backdrop-filter: blur(var(--blur));
+  width: min(300px, 80vw);
+  text-align: center;
 }
 
 .loading__title {
-  margin: 0 0 6px;
+  margin: 0 0 14px;
   font-size: 13px;
-  letter-spacing: 0.02em;
-  color: var(--muted);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--focus);
 }
 
 .loading__step {
   margin: 0 0 14px;
-  font-size: 20px;
-  font-weight: 800;
+  font-size: 14px;
+  color: var(--muted);
 }
 
 .loading__bar {
-  height: 3px;
-  border-radius: 999px;
-  background: rgba(127, 227, 255, 0.14);
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
   overflow: hidden;
 }
 
 .loading__fill {
   height: 100%;
-  background: var(--focus);
+  background: linear-gradient(90deg, rgba(127, 227, 255, 0.25), var(--focus));
+  box-shadow: 0 0 10px rgba(127, 227, 255, 0.5);
   transition: width 220ms ease;
 }
 
@@ -124,14 +174,13 @@ body {
   position: absolute;
   left: 12px;
   bottom: 12px;
+  z-index: 5;
   padding: 8px 12px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--muted);
-  background: var(--panel);
+  font: 400 11.5px/1.5 var(--font-mono);
+  color: var(--soft);
+  background: rgba(14, 18, 32, 0.9);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  backdrop-filter: blur(var(--blur));
+  border-radius: 12px;
   white-space: pre;
   pointer-events: none;
 }
@@ -148,7 +197,7 @@ body {
 }
 
 /* ==========================================================================
-   Interface (SPEC §3.2 e §3.3)
+   Interface (SPEC §3.3)
    ========================================================================== */
 
 .ui {
@@ -156,15 +205,6 @@ body {
   inset: 0;
   z-index: 2;
   pointer-events: none;
-  display: grid;
-  grid-template-columns: minmax(0, 420px) 1fr minmax(0, 320px);
-  align-items: start;
-  gap: 16px;
-  padding: 20px;
-}
-
-.ui > * {
-  pointer-events: auto;
 }
 
 .ui--hidden {
@@ -172,63 +212,92 @@ body {
 }
 
 .panel {
-  background: var(--panel);
+  background: var(--glass);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   backdrop-filter: blur(var(--blur));
   -webkit-backdrop-filter: blur(var(--blur));
+  box-shadow: 0 18px 50px -20px rgba(0, 0, 0, 0.67);
   color: var(--text);
 }
 
-/* --- HUD ------------------------------------------------------------------ */
+/* --- HUD: título solto, valores e frase ------------------------------------ */
 
 .hud {
-  grid-column: 1;
-  padding: 20px 22px;
+  position: absolute;
+  left: 24px;
+  top: 22px;
+  width: 310px;
+  pointer-events: none;
 }
 
-.hud__title {
-  margin: 0 0 8px;
-  font-size: 34px;
-  line-height: 1.02;
+.hud > * {
+  pointer-events: auto;
+}
+
+.brand {
+  margin: 0;
+  line-height: 0.92;
+  text-transform: uppercase;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.67);
+}
+
+.brand__lead {
+  display: block;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #dfe6f5;
+}
+
+.brand__main {
+  display: block;
+  font-size: 37px;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
+  color: var(--focus);
 }
 
-.hud__subtitle {
-  margin: 0 0 16px;
-  font-size: 14px;
-  line-height: 1.45;
-  color: var(--muted);
+.brand__lede {
+  margin: 12px 0 0;
+  max-width: 28em;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--soft);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.8);
 }
 
 .hud__chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 14px;
+  gap: 6px;
+  margin-top: 14px;
 }
 
 .chip {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 88px;
-  padding: 8px 12px;
+  min-width: 78px;
+  padding: 6px 10px 6px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: rgba(11, 15, 26, 0.5);
+  background: var(--chip);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .chip__label {
-  font-size: 11px;
-  color: var(--muted);
+  display: block;
+  font: 500 9.5px/1.2 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8d97b3;
 }
 
 .chip__value {
-  font-size: 18px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  display: block;
+  margin-top: 4px;
+  font: 500 15px/1.1 var(--font-mono);
+  color: #fff;
+  white-space: nowrap;
 }
 
 .chip[data-id='zone'] .chip__value {
@@ -236,148 +305,309 @@ body {
 }
 
 .hud__sentence {
-  margin: 0;
-  font-size: 14px;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(13, 18, 32, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 12.5px;
   line-height: 1.5;
+  color: #c3cadc;
 }
 
-/* --- Painel de controles --------------------------------------------------- */
+.hud__sentence b {
+  color: #fff;
+  font-weight: 600;
+}
+
+.tone {
+  font-weight: 500;
+}
+
+.tone--focus {
+  color: var(--focus);
+}
+
+.tone--warm {
+  color: var(--warm);
+}
+
+.tone--cool {
+  color: var(--cool);
+}
+
+/* --- Painel de controles: cartão compacto no canto ------------------------- */
 
 .control-panel {
-  grid-column: 3;
-  justify-self: end;
-  width: 100%;
-  max-height: calc(100vh - 40px);
+  position: absolute;
+  right: 24px;
+  top: 22px;
+  width: 468px;
+  max-height: calc(100vh - 44px);
   overflow-y: auto;
-  padding: 16px;
+  scrollbar-width: thin;
+  padding: 10px 12px 12px;
+  pointer-events: auto;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  box-shadow: 0 18px 50px -20px rgba(0, 0, 0, 0.67);
 }
 
-.drawer-handle {
+.control-panel__more {
   display: none;
 }
 
-.control-group + .control-group {
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
+.control-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
 }
 
-.control-group__title {
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 700;
+.control-row + .control-row {
+  margin-top: 10px;
 }
 
 .control {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
+  min-width: 0;
 }
 
-.control + .control {
-  margin-top: 10px;
+.control--slider,
+.control--stops {
+  flex: 1;
+  min-width: 104px;
 }
 
 .control__label {
-  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--muted);
+  white-space: nowrap;
+}
+
+.control__label em {
+  font: 400 10.5px/1 var(--font-mono);
+  font-style: normal;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--faint);
+}
+
+.control--slider .control__label em,
+.control--stops .control__label em {
+  color: #dfe6f5;
 }
 
 .segmented {
   display: flex;
-  gap: 4px;
-  padding: 3px;
-  border-radius: 10px;
-  background: rgba(11, 15, 26, 0.6);
-  border: 1px solid var(--line);
+  gap: 2px;
+  padding: 2px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .segmented__option {
-  flex: 1;
-  min-height: 36px;
-  padding: 0 8px;
+  flex: 1 0 auto;
+  height: 30px;
+  padding: 0 11px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 9px;
   background: transparent;
-  color: var(--text);
+  color: #cfd6e8;
   font: inherit;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
 }
 
 .segmented__option:hover {
-  background: rgba(170, 200, 255, 0.08);
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.segmented__option--active {
-  background: var(--brass);
-  color: #1a1206;
-  font-weight: 700;
+.segmented__option--active,
+.segmented__option--active:hover {
+  background: #eef4ff;
+  color: #101626;
 }
 
-.slider-row {
+.control-row[data-group='aperture'] .segmented__option {
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* Slider desenhado: trilho fino, preenchimento ciano com brilho, faixa da
+   zona nítida e botão metálico. O input de verdade fica por cima, invisível. */
+.slider {
+  position: relative;
+  height: 32px;
+  margin: 0 8px;
+}
+
+.slider__track,
+.slider__fill {
+  position: absolute;
+  left: 0;
+  top: 15px;
+  height: 2px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.slider__track {
+  right: 0;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.slider__fill {
+  background: linear-gradient(90deg, rgba(127, 227, 255, 0.25), var(--focus));
+  box-shadow: 0 0 10px rgba(127, 227, 255, 0.5);
+}
+
+.slider__band {
+  position: absolute;
+  top: 11px;
+  height: 10px;
+  min-width: 4px;
+  margin-left: -1px;
+  border: 1px solid rgba(127, 227, 255, 0.45);
+  border-radius: 5px;
+  background: rgba(127, 227, 255, 0.18);
+  pointer-events: none;
+}
+
+.slider__ticks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 21px;
   display: flex;
-  align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  pointer-events: none;
 }
 
-.slider-row input[type='range'] {
-  flex: 1;
-  accent-color: var(--focus);
-  min-height: 28px;
+.slider__ticks i {
+  width: 1px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.2);
 }
 
-.slider-row__value {
-  min-width: 64px;
-  text-align: right;
-  font-size: 13px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+.slider__knob {
+  position: absolute;
+  top: 8px;
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
+  border-radius: 50%;
+  background: linear-gradient(#f4f7ff, #aab4c8);
+  box-shadow:
+    0 0 0 3px rgba(127, 227, 255, 0.2),
+    0 3px 8px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  transition: box-shadow 150ms ease;
 }
 
-.control-panel__footer {
-  display: flex;
-  gap: 8px;
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-}
-
-.button {
-  min-height: 36px;
-  padding: 0 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: rgba(11, 15, 26, 0.6);
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
+.slider__input {
+  position: absolute;
+  inset: 0 -8px;
+  width: calc(100% + 16px);
+  height: 100%;
+  margin: 0;
+  opacity: 0;
   cursor: pointer;
+  touch-action: none;
 }
 
-.button:hover {
-  border-color: rgba(170, 200, 255, 0.3);
+.slider__input:hover ~ .slider__knob,
+.slider__input:active ~ .slider__knob {
+  box-shadow:
+    0 0 0 5px rgba(127, 227, 255, 0.28),
+    0 3px 8px rgba(0, 0, 0, 0.55);
 }
 
-.button[aria-pressed='true'] {
-  border-color: var(--brass);
-  color: var(--brass);
+.slider__input:focus-visible ~ .slider__knob {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
 }
 
-.button--round {
-  width: 36px;
+/* Ferramentas: botões quadrados de 32 px na ponta da última linha. */
+.tools {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  padding-bottom: 0;
+}
+
+.tool {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
   padding: 0;
-  border-radius: 999px;
-  font-weight: 800;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #dfe4f3;
+  font: inherit;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.tool:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.tool svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.tool--text {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tool--light,
+.tool[aria-pressed='true'] {
+  background: #fff;
+  color: #141a2c;
+}
+
+.tool--light:hover,
+.tool[aria-pressed='true']:hover {
+  background: #e3e9f7;
 }
 
 .numbers {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 6px 12px;
-  margin: 14px 0 0;
+  margin: 12px 3px 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 12px;
+}
+
+.numbers[hidden] {
+  display: none;
 }
 
 .numbers dt {
@@ -387,8 +617,9 @@ body {
 .numbers dd {
   margin: 0;
   text-align: right;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: #fff;
 }
 
 /* --- Foco visível (SPEC §9) ------------------------------------------------ */
@@ -404,12 +635,14 @@ body {
 .modal-backdrop {
   position: absolute;
   inset: 0;
+  z-index: 10;
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgba(5, 8, 14, 0.6);
+  background: rgba(5, 7, 15, 0.66);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   pointer-events: auto;
-  z-index: 10;
 }
 
 .modal-backdrop[hidden] {
@@ -417,63 +650,91 @@ body {
 }
 
 .modal {
-  width: min(680px, 100%);
-  max-height: calc(100vh - 40px);
+  width: min(600px, 100%);
+  max-height: 84vh;
   overflow-y: auto;
-  padding: 22px 26px;
+  scrollbar-width: thin;
+  padding: 28px;
+  background: #101526;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 20px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.67);
+  user-select: text;
 }
 
 .modal__header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
 }
 
 .modal__title {
   margin: 0;
-  font-size: 26px;
-  font-weight: 800;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.modal__close {
+  width: 32px;
+  height: 32px;
+  margin: -6px -8px 0 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #8f98b3;
+  font: inherit;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal__close:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
 }
 
 .modal__section h3 {
-  margin: 18px 0 6px;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--focus);
+  margin: 20px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8f98b3;
 }
 
 .modal__section p {
-  margin: 0 0 8px;
-  font-size: 14px;
-  line-height: 1.55;
+  margin: 0 0 10px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: #c0c7dc;
 }
 
 .shortcuts {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 6px 14px;
+  gap: 7px 14px;
   margin: 0;
   font-size: 13px;
 }
 
 .shortcuts dd {
   margin: 0;
-  color: var(--muted);
+  color: #c0c7dc;
 }
 
 kbd {
   display: inline-block;
   min-width: 22px;
   margin-right: 4px;
-  padding: 1px 6px;
-  border: 1px solid var(--line);
+  padding: 1px 5px;
   border-radius: 5px;
-  background: rgba(11, 15, 26, 0.7);
-  font: inherit;
-  font-size: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  font: 400 12px/1.5 var(--font-mono);
   text-align: center;
+  color: #dfe4f3;
 }
 
 /* --- Etiquetas 3D ----------------------------------------------------------- */
@@ -481,7 +742,7 @@ kbd {
 .labels {
   position: absolute;
   inset: 0;
-  /* Abaixo do HUD e da gaveta: a etiqueta não pode cobrir um controle. */
+  /* Abaixo do HUD e do painel: a etiqueta não pode cobrir um controle. */
   z-index: 1;
   pointer-events: none;
   overflow: hidden;
@@ -498,17 +759,17 @@ kbd {
   left: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 9px 4px 6px;
-  border: 1px solid var(--line);
+  gap: 5px;
+  padding: 3px 8px 3px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 999px;
-  background: var(--panel);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  font-size: 12px;
+  background: rgba(11, 16, 32, 0.84);
+  font-size: 11px;
   font-weight: 600;
+  line-height: 1.2;
+  color: #eef2fa;
   white-space: nowrap;
-  font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 14px -6px rgba(0, 0, 0, 0.8);
   will-change: transform;
 }
 
@@ -517,89 +778,242 @@ kbd {
 }
 
 .label__dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 999px;
   background: var(--accent);
   box-shadow: 0 0 8px var(--accent);
 }
 
-/* --- Celular: painel vira gaveta, HUD compacto (SPEC §3.3) ---------------- */
+.label__text em {
+  margin-left: 6px;
+  font: 400 10.5px/1 var(--font-mono);
+  font-style: normal;
+  color: #9fb0cc;
+}
 
+/* --- Telas menores ---------------------------------------------------------- */
+
+/* Notebook baixo: some o que é explicação, fica o que é valor e controle. */
+@media (max-height: 760px) and (min-width: 821px) {
+  .brand__lede {
+    display: none;
+  }
+}
+
+/* Painel mais estreito: rótulos de atalho saem, botões apertam. */
+@media (max-width: 1180px) and (min-width: 821px) {
+  .control-panel {
+    width: 436px;
+  }
+
+  .control__label em {
+    display: none;
+  }
+
+  .control--slider .control__label em,
+  .control--stops .control__label em {
+    display: inline;
+  }
+
+  .segmented__option {
+    padding: 0 8px;
+  }
+}
+
+/* Celular e tablet em retrato: título compacto em cima, controles embaixo
+   (SPEC §3.3). O que é ajuste fino fica atrás de "Mais ajustes". */
 @media (max-width: 820px) {
-  .ui {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr auto;
-    padding: 12px;
-    gap: 12px;
+  #app::after {
+    background:
+      linear-gradient(180deg, rgba(7, 10, 19, 0.72), transparent 30%),
+      radial-gradient(ellipse at 50% 46%, transparent 52%, rgba(5, 6, 12, 0.6) 100%);
   }
 
   .hud {
-    grid-column: 1;
-    padding: 14px 16px;
+    left: 14px;
+    right: 14px;
+    top: 12px;
+    width: auto;
   }
 
-  .hud__title {
-    font-size: 24px;
+  .brand__lead,
+  .brand__main {
+    display: inline;
   }
 
-  .hud__subtitle {
-    display: none;
-  }
-
-  .chip {
-    min-width: 0;
-    flex: 1;
-    padding: 6px 8px;
-  }
-
-  .chip__value {
-    font-size: 15px;
-  }
-
-  .hud__sentence {
+  .brand__lead {
     font-size: 13px;
   }
 
-  .control-panel {
-    grid-column: 1;
-    grid-row: 3;
-    align-self: end;
-    max-height: 60vh;
-    padding: 0;
-    border-bottom-left-radius: 0;
-    border-bottom-right-radius: 0;
+  .brand__main {
+    margin-left: 6px;
+    font-size: 24px;
   }
 
-  .drawer-handle {
-    display: block;
-    width: 100%;
-    min-height: 44px;
-    border: 0;
-    background: transparent;
-    color: var(--text);
-    font: inherit;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  .control-panel__body {
+  .brand__lede {
     display: none;
-    padding: 0 16px 16px;
   }
 
-  .control-panel--open .control-panel__body {
-    display: block;
+  .hud__chips {
+    margin-top: 8px;
+    flex-wrap: nowrap;
+  }
+
+  .chip {
+    flex: 1;
+    min-width: 0;
+    padding: 5px 8px;
+  }
+
+  .chip__value {
+    font-size: 13.5px;
+  }
+
+  .hud__sentence {
+    margin-top: 8px;
+    padding: 7px 10px;
+    font-size: 11.5px;
+    line-height: 1.42;
+  }
+
+  /* As linhas do desktop se desfazem ("display: contents") e os controles
+     viram itens de um único fluxo, reordenados para caber em ~290 px:
+     foco, distância, abertura ao lado da lente, ajustes finos (se abertos)
+     e, por último, as ferramentas ao lado de "Mais ajustes". */
+  .control-panel {
+    top: auto;
+    left: 10px;
+    right: 10px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    width: auto;
+    max-height: 62vh;
+    padding: 8px 10px 6px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 6px 8px;
+  }
+
+  .control-panel__body,
+  .control-row {
+    display: contents;
+  }
+
+  /* Abertura e lente dividem uma linha; a base de 40% força as
+     ferramentas a quebrar para a linha seguinte em vez de espremê-las. */
+  .control {
+    order: 3;
+    flex: 1 1 40%;
+  }
+
+  .control-row[data-group='aperture'] .control--segmented {
+    flex-grow: 1.4;
+  }
+
+  .control-row[data-group='focus'] .control--segmented {
+    order: 1;
+    flex-basis: 100%;
+  }
+
+  .control--slider {
+    order: 2;
+    flex-basis: 100%;
+  }
+
+  .control--secondary {
+    order: 4;
+    display: none;
+    flex-basis: 100%;
+  }
+
+  .control-panel--expanded .control--secondary {
+    display: flex;
+  }
+
+  .tools {
+    order: 6;
+    flex: 0 0 auto;
+    margin-left: 0;
+  }
+
+  .control__label em {
+    display: none;
+  }
+
+  .control--slider .control__label em,
+  .control--stops .control__label em {
+    display: inline;
+  }
+
+  .segmented__option {
+    flex: 1 1 0;
+    padding: 0 4px;
+    font-size: 12px;
+  }
+
+  .control-row[data-group='aperture'] .segmented__option {
+    font-size: 11.5px;
   }
 
   /* Alvos de toque de pelo menos 44 px (SPEC §9). */
   .segmented__option,
-  .button {
-    min-height: 44px;
+  .tool {
+    height: 44px;
+    min-width: 44px;
   }
 
-  .button--round {
+  .tool {
     width: 44px;
+  }
+
+  .slider {
+    height: 44px;
+  }
+
+  .slider__track,
+  .slider__fill {
+    top: 21px;
+  }
+
+  .slider__band {
+    top: 17px;
+  }
+
+  .slider__ticks {
+    top: 27px;
+  }
+
+  .slider__knob {
+    top: 12px;
+    width: 20px;
+    height: 20px;
+    margin-left: -10px;
+  }
+
+  .control-panel__more {
+    order: 6;
+    display: block;
+    flex: 1 1 auto;
+    min-height: 44px;
+    border: 0;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--muted);
+    font: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .numbers {
+    order: 7;
+    flex-basis: 100%;
+    margin-top: 4px;
+    max-height: 30vh;
+    overflow-y: auto;
   }
 }
 
@@ -607,11 +1021,18 @@ kbd {
   .label {
     will-change: auto;
   }
+
+  .segmented__option,
+  .tool,
+  .slider__knob {
+    transition: none;
+  }
 }
 
 .noscript {
   position: absolute;
   inset: auto 20px 20px;
+  z-index: 3;
   padding: 16px 20px;
   border: 1px solid var(--line);
   border-radius: var(--radius);

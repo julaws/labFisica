@@ -10,8 +10,12 @@ import { type Locale, formatDistance, formatFNumber, t } from './i18n';
  * controles — anel 3D, slider, atalhos, miniaturas — mexem no mesmo estado e
  * se sincronizam sozinhos, porque todos passam pela store do experimento.
  *
- * No celular o painel vira uma gaveta inferior (SPEC §3.3); isso é CSS mais um
- * botão de abrir e fechar, não um componente separado.
+ * Cada grupo do schema vira uma linha: o primeiro controle leva o rótulo do
+ * grupo (com a dica de atalho à direita), os demais levam o próprio. É o
+ * cartão compacto da referência, com todos os controles à vista.
+ *
+ * No celular o cartão desce para a base da tela; os controles marcados como
+ * `secondary` ficam atrás de "Mais ajustes" para não cobrir a cena.
  */
 
 export interface Panel {
@@ -28,10 +32,20 @@ export interface PanelOptions {
   readonly locale: Locale;
   readonly onHelp: () => void;
   readonly onLocaleChange: (locale: Locale) => void;
+  /** Avança para a próxima câmera cinematográfica (tecla C). */
+  readonly onCinematic?: () => void;
 }
 
-/** Faixa do slider de distância, em escala logarítmica (SPEC §6.2). */
+/** Resolução do slider de distância, em escala logarítmica (SPEC §6.2). */
 const SLIDER_STEPS = 1000;
+
+/** Ícones de 14 px, desenhados aqui para não depender de fonte de ícones. */
+const ICONS = {
+  camera:
+    '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h6A1.5 1.5 0 0 1 11 4.5v1.2l2.7-1.6a.8.8 0 0 1 1.3.7v6.4a.8.8 0 0 1-1.3.7L11 10.3v1.2A1.5 1.5 0 0 1 9.5 13h-6A1.5 1.5 0 0 1 2 11.5z"/></svg>',
+  numbers:
+    '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3h10v1.6H3zm0 3.7h10v1.6H3zm0 3.7h6.5V12H3z"/></svg>',
+} as const;
 
 export function createPanel({
   parent,
@@ -39,64 +53,80 @@ export function createPanel({
   locale: initialLocale,
   onHelp,
   onLocaleChange,
+  onCinematic,
 }: PanelOptions): Panel {
   let locale = initialLocale;
+  let expanded = false;
 
   const element = document.createElement('aside');
-  element.className = 'control-panel panel';
+  element.className = 'control-panel';
   element.setAttribute('aria-label', t('controls', locale));
-
-  // Alça da gaveta no celular. No desktop o CSS a esconde.
-  const handle = document.createElement('button');
-  handle.type = 'button';
-  handle.className = 'drawer-handle';
-  handle.setAttribute('aria-expanded', 'false');
-  handle.addEventListener('click', () => {
-    const open = element.classList.toggle('control-panel--open');
-    handle.setAttribute('aria-expanded', String(open));
-  });
 
   const body = document.createElement('div');
   body.className = 'control-panel__body';
 
-  element.append(handle, body);
+  // Só aparece no celular: mostra ou esconde os controles secundários.
+  const more = document.createElement('button');
+  more.type = 'button';
+  more.className = 'control-panel__more';
+  more.addEventListener('click', () => {
+    expanded = !expanded;
+    element.classList.toggle('control-panel--expanded', expanded);
+    syncMore();
+  });
+
+  element.append(body, more);
   parent.appendChild(element);
 
   const syncers: (() => void)[] = [];
   let numbersBody: HTMLElement | null = null;
 
+  function syncMore(): void {
+    more.textContent = t(expanded ? 'fewerSettings' : 'moreSettings', locale);
+    more.setAttribute('aria-expanded', String(expanded));
+  }
+
   function build(): void {
     body.replaceChildren();
     syncers.length = 0;
-    handle.textContent = t('controls', locale);
+    syncMore();
 
     const schema: PanelSchema = experiment.ui();
 
-    for (const group of schema.groups) {
-      const section = document.createElement('section');
-      section.className = 'control-group';
+    schema.groups.forEach((group, groupIndex) => {
+      const row = document.createElement('div');
+      row.className = 'control-row';
+      row.dataset.group = group.id;
+      row.setAttribute('role', 'group');
 
-      const heading = document.createElement('h2');
-      heading.className = 'control-group__title';
-      heading.textContent = group.label[locale];
-      section.appendChild(heading);
+      group.controls.forEach((control, index) => {
+        // O primeiro controle da linha fala pelo grupo: "Foco", não "Plano".
+        const label = index === 0 ? group.label[locale] : control.label[locale];
+        const hint = index === 0 ? group.hint?.[locale] : undefined;
+        row.appendChild(buildControl(control, label, hint, `${groupIndex}-${index}`));
+      });
 
-      for (const control of group.controls) {
-        section.appendChild(buildControl(control));
-      }
+      // Ferramentas na ponta da segunda linha, como na referência: é a que
+      // tem um slider para encolher e abrir espaço para elas.
+      if (groupIndex === Math.min(1, schema.groups.length - 1)) row.appendChild(buildTools());
 
-      body.appendChild(section);
-    }
+      body.appendChild(row);
+    });
 
-    // Rodapé: Números, idioma e ajuda.
-    const footer = document.createElement('div');
-    footer.className = 'control-panel__footer';
+    numbersBody = document.createElement('dl');
+    numbersBody.className = 'numbers';
+    numbersBody.hidden = !experiment.get('showNumbers');
+    body.appendChild(numbersBody);
+    syncers.push(() => renderNumbers(experiment.numbers(locale)));
 
-    const numbersToggle = document.createElement('button');
-    numbersToggle.type = 'button';
-    numbersToggle.className = 'button';
-    numbersToggle.textContent = t('numbers', locale);
-    numbersToggle.setAttribute('aria-pressed', String(Boolean(experiment.get('showNumbers'))));
+    for (const sync of syncers) sync();
+  }
+
+  function buildTools(): HTMLElement {
+    const tools = document.createElement('div');
+    tools.className = 'tools';
+
+    const numbersToggle = toolButton(ICONS.numbers, t('numbers', locale), true);
     numbersToggle.addEventListener('click', () => {
       experiment.set('showNumbers', !experiment.get('showNumbers'));
     });
@@ -108,30 +138,33 @@ export function createPanel({
 
     const languageToggle = document.createElement('button');
     languageToggle.type = 'button';
-    languageToggle.className = 'button';
+    languageToggle.className = 'tool tool--text';
     languageToggle.textContent = locale === 'pt-BR' ? 'EN' : 'PT';
+    languageToggle.title = t('language', locale);
     languageToggle.setAttribute('aria-label', t('language', locale));
     languageToggle.addEventListener('click', () => {
       onLocaleChange(locale === 'pt-BR' ? 'en' : 'pt-BR');
     });
 
+    tools.append(numbersToggle, languageToggle);
+
+    if (onCinematic) {
+      const cinema = toolButton(ICONS.camera, `${t('cinematic', locale)} (C)`, false);
+      cinema.classList.add('tool--light');
+      cinema.addEventListener('click', onCinematic);
+      tools.appendChild(cinema);
+    }
+
     const help = document.createElement('button');
     help.type = 'button';
-    help.className = 'button button--round';
+    help.className = 'tool tool--text';
     help.textContent = '?';
+    help.title = t('help', locale);
     help.setAttribute('aria-label', t('help', locale));
     help.addEventListener('click', onHelp);
+    tools.appendChild(help);
 
-    footer.append(numbersToggle, languageToggle, help);
-    body.appendChild(footer);
-
-    numbersBody = document.createElement('dl');
-    numbersBody.className = 'numbers';
-    numbersBody.hidden = !experiment.get('showNumbers');
-    body.appendChild(numbersBody);
-    syncers.push(() => renderNumbers(experiment.numbers(locale)));
-
-    for (const sync of syncers) sync();
+    return tools;
   }
 
   function renderNumbers(rows: readonly NumberRow[]): void {
@@ -147,15 +180,29 @@ export function createPanel({
     }
   }
 
-  function buildControl(control: PanelControl): HTMLElement {
+  function buildControl(
+    control: PanelControl,
+    labelText: string,
+    hintText: string | undefined,
+    key: string,
+  ): HTMLElement {
     const wrapper = document.createElement('div');
     wrapper.className = `control control--${control.kind}`;
+    if (control.secondary) wrapper.classList.add('control--secondary');
+
+    const header = document.createElement('div');
+    header.className = 'control__label';
 
     const label = document.createElement('span');
-    label.className = 'control__label';
-    label.textContent = control.label[locale];
-    label.id = `label-${control.id}`;
-    wrapper.appendChild(label);
+    label.textContent = labelText;
+    label.id = `label-${control.id}-${key}`;
+
+    // À direita do rótulo: a dica do atalho, ou a leitura do valor do slider.
+    const aside = document.createElement('em');
+    if (hintText) aside.textContent = hintText;
+
+    header.append(label, aside);
+    wrapper.appendChild(header);
 
     switch (control.kind) {
       case 'segmented': {
@@ -189,19 +236,6 @@ export function createPanel({
       }
 
       case 'slider': {
-        const row = document.createElement('div');
-        row.className = 'slider-row';
-
-        const input = document.createElement('input');
-        input.type = 'range';
-        input.min = '0';
-        input.max = String(SLIDER_STEPS);
-        input.step = '1';
-        input.setAttribute('aria-labelledby', label.id);
-
-        const readout = document.createElement('output');
-        readout.className = 'slider-row__value';
-
         // Escala logarítmica: o curso do slider cobre razões de distância
         // iguais, como o anel de foco (SPEC §6.2).
         const toValue = (position: number): number =>
@@ -216,36 +250,38 @@ export function createPanel({
             : ((clamped - control.min) / (control.max - control.min)) * SLIDER_STEPS;
         };
 
-        input.addEventListener('input', () => experiment.set(control.id, toValue(Number(input.value))));
+        const slider = createSliderVisual(SLIDER_STEPS, label.id, 5);
+        slider.input.addEventListener('input', () =>
+          experiment.set(control.id, toValue(Number(slider.input.value))),
+        );
 
+        const band = control.band;
         syncers.push(() => {
           const value = Number(experiment.get(control.id));
-          if (document.activeElement !== input) input.value = String(Math.round(toPosition(value)));
-          readout.textContent = formatDistance(value, locale);
-          input.setAttribute('aria-valuetext', readout.textContent);
+          const position = toPosition(value);
+          if (document.activeElement !== slider.input) {
+            slider.input.value = String(Math.round(position));
+          }
+          slider.setPosition(position / SLIDER_STEPS);
+          if (band) {
+            const from = toPosition(Number(experiment.get(band.from))) / SLIDER_STEPS;
+            const to = toPosition(Number(experiment.get(band.to))) / SLIDER_STEPS;
+            slider.setBand(from, to);
+          }
+          aside.textContent = formatDistance(value, locale);
+          slider.input.setAttribute('aria-valuetext', aside.textContent);
         });
 
-        row.append(input, readout);
-        wrapper.appendChild(row);
+        wrapper.appendChild(slider.element);
         break;
       }
 
       case 'stops': {
-        const row = document.createElement('div');
-        row.className = 'slider-row';
+        const last = control.values.length - 1;
+        const slider = createSliderVisual(last, label.id, last + 1);
 
-        const input = document.createElement('input');
-        input.type = 'range';
-        input.min = '0';
-        input.max = String(control.values.length - 1);
-        input.step = '1';
-        input.setAttribute('aria-labelledby', label.id);
-
-        const readout = document.createElement('output');
-        readout.className = 'slider-row__value';
-
-        input.addEventListener('input', () => {
-          const value = control.values[Number(input.value)];
+        slider.input.addEventListener('input', () => {
+          const value = control.values[Number(slider.input.value)];
           if (value !== undefined) experiment.set(control.id, value);
         });
 
@@ -260,20 +296,20 @@ export function createPanel({
               index = i;
             }
           });
-          if (document.activeElement !== input) input.value = String(index);
-          readout.textContent = formatFNumber(current, locale);
-          input.setAttribute('aria-valuetext', readout.textContent);
+          if (document.activeElement !== slider.input) slider.input.value = String(index);
+          slider.setPosition(last > 0 ? index / last : 0);
+          aside.textContent = formatFNumber(current, locale);
+          slider.input.setAttribute('aria-valuetext', aside.textContent);
         });
 
-        row.append(input, readout);
-        wrapper.appendChild(row);
+        wrapper.appendChild(slider.element);
         break;
       }
 
       case 'toggle': {
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'button';
+        button.className = 'tool tool--text';
         button.setAttribute('aria-labelledby', label.id);
         button.addEventListener('click', () => experiment.set(control.id, !experiment.get(control.id)));
         syncers.push(() => {
@@ -306,6 +342,79 @@ export function createPanel({
       syncers.length = 0;
     },
   };
+}
+
+interface SliderVisual {
+  readonly element: HTMLElement;
+  readonly input: HTMLInputElement;
+  /** Posição do botão, de 0 a 1. */
+  setPosition(fraction: number): void;
+  /** Faixa destacada sobre o trilho, de 0 a 1 nas duas pontas. */
+  setBand(from: number, to: number): void;
+}
+
+/**
+ * Slider desenhado em HTML sobre um `<input type="range">` transparente. O
+ * input continua sendo o controle de verdade — teclado, toque, leitor de
+ * tela —; o desenho só acompanha o valor dele.
+ */
+function createSliderVisual(max: number, labelledBy: string, ticks: number): SliderVisual {
+  const element = document.createElement('div');
+  element.className = 'slider';
+
+  const track = document.createElement('div');
+  track.className = 'slider__track';
+  const band = document.createElement('div');
+  band.className = 'slider__band';
+  band.hidden = true;
+  const fill = document.createElement('div');
+  fill.className = 'slider__fill';
+  const knob = document.createElement('div');
+  knob.className = 'slider__knob';
+
+  const tickRow = document.createElement('div');
+  tickRow.className = 'slider__ticks';
+  for (let i = 0; i < ticks; i += 1) tickRow.appendChild(document.createElement('i'));
+
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.className = 'slider__input';
+  input.min = '0';
+  input.max = String(max);
+  input.step = '1';
+  input.setAttribute('aria-labelledby', labelledBy);
+
+  element.append(track, tickRow, band, fill, input, knob);
+
+  const percent = (fraction: number): string => `${(Math.min(1, Math.max(0, fraction)) * 100).toFixed(2)}%`;
+
+  return {
+    element,
+    input,
+    setPosition(fraction: number): void {
+      fill.style.width = percent(fraction);
+      knob.style.left = percent(fraction);
+    },
+    setBand(from: number, to: number): void {
+      const lo = Math.min(from, to);
+      const hi = Math.max(from, to);
+      band.hidden = !(hi > lo);
+      band.style.left = percent(lo);
+      band.style.width = `calc(${percent(hi - lo)} + 2px)`;
+    },
+  };
+}
+
+function toolButton(icon: string, label: string, pressable: boolean): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'tool';
+  button.title = label;
+  button.setAttribute('aria-label', label);
+  if (pressable) button.setAttribute('aria-pressed', 'false');
+  // Ícones são constantes deste arquivo, não entrada de usuário.
+  button.innerHTML = icon;
+  return button;
 }
 
 /** Compara valores de controle tolerando número vindo como texto. */

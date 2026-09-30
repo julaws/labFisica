@@ -6,7 +6,7 @@ import {
   formatMillimeters,
 } from '../../src/ui/i18n';
 import { dofLimits } from '../../src/optics/thin-lens';
-import { describeState } from '../../src/experiments/lens-focus/describe';
+import { describeHighlights, describeState } from '../../src/experiments/lens-focus/describe';
 
 const SUBJECTS = [
   { id: 'foreground', distanceMm: 370 },
@@ -92,5 +92,31 @@ describe('frase dinâmica do HUD', () => {
     const sentence = describeState({ ...base, fNumber: 2, focusDistance: 370 }, SUBJECTS, 'en');
     expect(sentence.startsWith('Only the pine is on the plane')).toBe(true);
     expect(sentence).toContain('Sharp zone: 0.7 cm.');
+  });
+});
+
+describe('destaques da frase do HUD', () => {
+  it('só destaca trechos que a frase realmente contém', () => {
+    for (const locale of ['pt-BR', 'en'] as const) {
+      const state = { ...base, fNumber: 2, focusDistance: 600 };
+      const sentence = describeState(state, SUBJECTS, locale).toLowerCase();
+      const highlights = describeHighlights(state, locale);
+      // Os três objetos aparecem na frase "só a cabana…".
+      for (const noun of highlights.filter((item) => item.tone !== 'strong')) {
+        expect(sentence).toContain(noun.text.toLowerCase());
+      }
+      // E a zona nítida em negrito é o mesmo número do chip.
+      expect(highlights).toContainEqual({ text: locale === 'en' ? '1.9 cm' : '1,9 cm', tone: 'strong' });
+    }
+  });
+
+  it('pinta cada objeto com a cor do seu leque de raios', () => {
+    const tones = Object.fromEntries(
+      describeHighlights({ ...base, fNumber: 2, focusDistance: 600 }, 'pt-BR').map((item) => [
+        item.text,
+        item.tone,
+      ]),
+    );
+    expect(tones).toMatchObject({ pinheiro: 'focus', cabana: 'warm', pico: 'cool' });
   });
 });

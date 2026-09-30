@@ -106,7 +106,6 @@ test('critério 5: em f/16 a zona nítida cresce', async ({ page }) => {
 });
 
 test('modal de ajuda', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name === 'mobile', 'no celular o botão fica dentro da gaveta');
   await openLab(page, '?focus=600');
   await page.getByRole('button', { name: 'Ajuda' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -114,10 +113,13 @@ test('modal de ajuda', async ({ page }, testInfo) => {
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-14-modal.png` });
 });
 
-test('gaveta de controles no celular', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'mobile', 'a gaveta só existe em telas estreitas');
+test('ajustes finos no celular', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile', 'no desktop todos os controles ficam à vista');
   await openLab(page, '?focus=600');
-  await page.getByRole('button', { name: 'Controles' }).click();
+  // Stops completos e círculo admissível ficam atrás de "Mais ajustes".
+  await expect(page.getByText('Stops completos')).toBeHidden();
+  await page.getByRole('button', { name: 'Mais ajustes' }).click();
+  await expect(page.getByText('Stops completos')).toBeVisible();
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-15-drawer.png` });
 });

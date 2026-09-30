@@ -99,7 +99,7 @@ export function createModal(parent: HTMLElement, shortcuts: readonly Shortcut[])
       title.textContent = copy.title[locale];
       const closeButton = document.createElement('button');
       closeButton.type = 'button';
-      closeButton.className = 'button button--round';
+      closeButton.className = 'modal__close';
       closeButton.textContent = '×';
       closeButton.setAttribute('aria-label', t('close', locale));
       closeButton.addEventListener('click', close);

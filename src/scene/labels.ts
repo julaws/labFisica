@@ -62,7 +62,7 @@ export function createLabelLayer(parent: HTMLElement): LabelLayer {
       dot.className = 'label__dot';
       const text = document.createElement('span');
       text.className = 'label__text';
-      text.textContent = spec.text;
+      renderLabelText(text, spec.text);
 
       element.append(dot, text);
       root.appendChild(element);
@@ -71,7 +71,7 @@ export function createLabelLayer(parent: HTMLElement): LabelLayer {
 
     setText(id: string, value: string): void {
       const entry = entries.get(id);
-      if (entry && entry.text.textContent !== value) entry.text.textContent = value;
+      if (entry && entry.text.dataset.value !== value) renderLabelText(entry.text, value);
     },
 
     remove(id: string): void {
@@ -124,4 +124,20 @@ export function createLabelLayer(parent: HTMLElement): LabelLayer {
       entries.clear();
     },
   };
+}
+
+/**
+ * "Plano de foco · 60,0 cm" vira nome + detalhe: o que vem depois do " · "
+ * sai em fonte mono e mais apagado, como as leituras da referência.
+ */
+function renderLabelText(target: HTMLElement, value: string): void {
+  target.dataset.value = value;
+  const cut = value.indexOf(' · ');
+  if (cut < 0) {
+    target.textContent = value;
+    return;
+  }
+  const detail = document.createElement('em');
+  detail.textContent = value.slice(cut + 3);
+  target.replaceChildren(document.createTextNode(value.slice(0, cut)), detail);
 }

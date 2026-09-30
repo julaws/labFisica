@@ -200,3 +200,37 @@ function capitalize(text: string): string {
 function stripZone(sentence: string): string {
   return sentence.replace(/\s*(Zona nítida|Sharp zone): [^.]+\.$/, '');
 }
+
+/** Cor de cada objeto: a mesma do leque de raios dele (SPEC §6.5). */
+const SUBJECT_TONES: Record<DescribedSubject['id'], 'focus' | 'warm' | 'cool'> = {
+  foreground: 'focus',
+  midground: 'warm',
+  background: 'cool',
+};
+
+/**
+ * Trechos da frase que o HUD destaca: o nome de cada objeto na cor do leque
+ * dele, e em negrito a zona nítida e o "ponto" onde os raios se encontram.
+ * Não calcula nada novo; só aponta palavras que `describeState` já escreveu.
+ */
+export function describeHighlights(
+  state: DescribeState,
+  locale: Locale,
+): { text: string; tone: 'focus' | 'warm' | 'cool' | 'strong' }[] {
+  const grammar = GRAMMARS[locale];
+  const { focalLength: f, fNumber: N, focusDistance: s, coc } = state;
+  const dof = dofLimits(f, N, coc, s);
+
+  const nouns = (Object.keys(SUBJECT_TONES) as DescribedSubject['id'][]).map((id) => ({
+    // Sem o artigo: "o pinheiro" e "O pinheiro" destacam só "pinheiro".
+    text: grammar.nouns[id].the.replace(/^\S+\s/, ''),
+    tone: SUBJECT_TONES[id],
+  }));
+
+  return [
+    ...nouns,
+    { text: formatCentimeters(dof.total, locale), tone: 'strong' },
+    { text: locale === 'en' ? 'a point' : 'num ponto', tone: 'strong' },
+    { text: formatFNumber(N, locale), tone: 'strong' },
+  ];
+}

@@ -83,6 +83,8 @@ const STRINGS = {
     shortcuts: 'Atalhos',
     cinematic: 'Câmeras',
     reset: 'Resetar vista',
+    moreSettings: 'Mais ajustes',
+    fewerSettings: 'Menos ajustes',
   },
   en: {
     loading: 'Polishing the glass…',
@@ -95,6 +97,8 @@ const STRINGS = {
     shortcuts: 'Shortcuts',
     cinematic: 'Cameras',
     reset: 'Reset view',
+    moreSettings: 'More settings',
+    fewerSettings: 'Fewer settings',
   },
 } as const;
 

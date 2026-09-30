@@ -18,17 +18,24 @@ Todo o resto da aparência é procedural, gerado em código em `src/scene/textur
 
 | Família | Arquivo | Fonte | Licença | Obtido em |
 |---|---|---|---|---|
-| Manrope (variável, peso 200–800) | `src/assets/fonts/manrope-latin.woff2` | [google/fonts, ofl/manrope](https://github.com/google/fonts/tree/main/ofl/manrope) — The Manrope Project Authors | **SIL Open Font License 1.1** | 28/09/2026 |
+| Outfit (variável, peso 300–800) | `src/assets/fonts/outfit-latin.woff2` | [google/fonts, ofl/outfit](https://github.com/google/fonts/tree/main/ofl/outfit) — The Outfit Project Authors | **SIL Open Font License 1.1** | 30/09/2026 |
+| DM Mono (pesos 400 e 500) | `src/assets/fonts/dm-mono-400-latin.woff2`, `dm-mono-500-latin.woff2` | [google/fonts, ofl/dmmono](https://github.com/google/fonts/tree/main/ofl/dmmono) — The DM Mono Project Authors | **SIL Open Font License 1.1** | 30/09/2026 |
 
-O arquivo distribuído é um **subconjunto** (latino, pontuação e símbolos da
-interface, como `∞`, `·`, `—` e `×`) convertido para WOFF2 com `fonttools`, de
-165 KB para 23 KB. A OFL permite subconjuntos e redistribuição, inclusive em
-produto pago, desde que o texto da licença acompanhe a fonte: ele está em
-`public/fonts/OFL-Manrope.txt`. A OFL só proíbe vender a fonte **sozinha**.
+São as mesmas famílias da referência visual (ADR 0004): Outfit para títulos e
+texto, DM Mono para valores, rótulos técnicos e leituras. Os arquivos são os
+**subconjuntos latinos em WOFF2** servidos pelo Google Fonts (32 KB e 15 KB
+cada). A OFL permite subconjuntos e redistribuição, inclusive em produto pago,
+desde que o texto da licença acompanhe a fonte: eles estão em
+`public/fonts/OFL-Outfit.txt` e `public/fonts/OFL-DMMono.txt`. A OFL só proíbe
+vender a fonte **sozinha**.
 
-**Exceção à CLAUDE.md §10.** A regra do projeto pede assets CC0; a Manrope é
-OFL. A exceção foi aprovada pelo responsável do projeto em 28/09/2026, e a OFL
-é compatível com publicar o laboratório gratuitamente ou com cobrança.
+A Manrope, usada até 29/09/2026, saiu do projeto junto com o arquivo e a
+licença dela.
+
+**Exceção à CLAUDE.md §10.** A regra do projeto pede assets CC0; estas fontes
+são OFL. A exceção para fontes OFL foi aprovada pelo responsável do projeto em
+28/09/2026, e a OFL é compatível com publicar o laboratório gratuitamente ou
+com cobrança.
 
 ## Dados físicos
 

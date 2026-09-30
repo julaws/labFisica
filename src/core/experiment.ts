@@ -69,20 +69,47 @@ export interface PanelSchema {
 export interface PanelGroup {
   readonly id: string;
   readonly label: Record<Locale, string>;
+  /** Dica curta ao lado do rótulo, como os atalhos ("arraste o anel · 1 2 3"). */
+  readonly hint?: Record<Locale, string>;
   readonly controls: readonly PanelControl[];
 }
 
-export type PanelControl =
-  | { kind: 'segmented'; id: string; label: Record<Locale, string>; options: readonly { value: string | number; label: string }[] }
-  | { kind: 'slider'; id: string; label: Record<Locale, string>; min: number; max: number; step: number; logarithmic?: boolean; unit?: string }
-  | { kind: 'toggle'; id: string; label: Record<Locale, string> }
-  | {
-      kind: 'stops';
-      id: string;
-      label: Record<Locale, string>;
-      /** Valores discretos percorridos pelo slider, em ordem. */
-      values: readonly number[];
-    };
+/** Campos que todo controle aceita, além dos do seu tipo. */
+interface PanelControlCommon {
+  /**
+   * Controle de ajuste fino. No celular fica atrás de "Mais ajustes" para a
+   * gaveta não cobrir a cena; no desktop aparece sempre.
+   */
+  readonly secondary?: boolean;
+}
+
+export type PanelControl = PanelControlCommon &
+  (
+    | { kind: 'segmented'; id: string; label: Record<Locale, string>; options: readonly { value: string | number; label: string }[] }
+    | {
+        kind: 'slider';
+        id: string;
+        label: Record<Locale, string>;
+        min: number;
+        max: number;
+        step: number;
+        logarithmic?: boolean;
+        unit?: string;
+        /**
+         * Ids lidos com `experiment.get` para desenhar uma faixa sobre o
+         * trilho do slider, como a zona nítida em volta do foco.
+         */
+        band?: { readonly from: string; readonly to: string };
+      }
+    | { kind: 'toggle'; id: string; label: Record<Locale, string> }
+    | {
+        kind: 'stops';
+        id: string;
+        label: Record<Locale, string>;
+        /** Valores discretos percorridos pelo slider, em ordem. */
+        values: readonly number[];
+      }
+  );
 
 export interface ExperimentCopy {
   readonly title: Record<Locale, string>;
@@ -107,6 +134,19 @@ export interface HudModel {
   readonly subtitle: string;
   readonly chips: readonly HudChip[];
   readonly sentence: string;
+  /**
+   * Trechos da frase que ganham destaque, como os nomes dos objetos na cor do
+   * leque de raios de cada um. Opcional: sem isto a frase sai em texto corrido.
+   */
+  readonly highlights?: readonly HudHighlight[];
+}
+
+/** Tom de destaque, mapeado para os tokens de cor da SPEC §3.2. */
+export type HudTone = 'focus' | 'warm' | 'cool' | 'strong';
+
+export interface HudHighlight {
+  readonly text: string;
+  readonly tone: HudTone;
 }
 
 /** Linha do painel "Números" (SPEC §2). */
@@ -124,6 +164,16 @@ export interface CinematicShot {
   readonly position: THREE.Vector3Like;
   readonly target: THREE.Vector3Like;
   readonly fov?: number;
+  /**
+   * Variante para telas em retrato (celular). Uma bancada larga vista de
+   * frente vira uma tira fina numa tela alta; de viés, ela recua em
+   * profundidade e ocupa a altura.
+   */
+  readonly portrait?: {
+    readonly position: THREE.Vector3Like;
+    readonly target: THREE.Vector3Like;
+    readonly fov?: number;
+  };
 }
 
 export interface Experiment {
