@@ -82,7 +82,14 @@ e2e/              Playwright
 docs/             SPEC, fontes, ADRs
 ```
 
+## Publicação
+
+No ar em **https://julaws.github.io/labOptica/**. Cada push na `main` roda
+typecheck, lint e testes e publica no GitHub Pages
+(`.github/workflows/deploy.yml`).
+
 ## Créditos e licenças
 
-HDRI (CC0), dados de vidro (CC0) e fonte Manrope (OFL): veja
+O código está sob a licença MIT ([`LICENSE`](LICENSE)). HDRI (CC0), dados de
+vidro (CC0) e fonte Manrope (OFL, que continua valendo para a fonte): veja
 [`CREDITS.md`](CREDITS.md).
