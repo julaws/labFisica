@@ -69,12 +69,18 @@ export function createMaterialLibrary(): MaterialLibrary {
 
   const brushedBrass = track(
     new THREE.MeshPhysicalMaterial({
-      color: PALETTE.brass,
+      // Um tom abaixo do token de interface: sob a luz quente e o AgX, o
+      // #C8923A puro lava para bege. Este lê como latão envelhecido.
+      color: 0xa85a16,
       metalness: 1,
-      roughness: 0.34,
+      roughness: 0.52,
       roughnessMap: brushedMetalRoughness(),
-      anisotropy: 0.7,
+      anisotropy: 0.25,
       anisotropyRotation: Math.PI / 2,
+      // As caixas de luz do HDRI de estúdio estouram o metal polido em
+      // branco. Com menos ambiente, o latão reflete a sala escura e fica
+      // cor de latão, com o brilho quente da luz principal por cima.
+      envMapIntensity: 0.45,
     }),
   );
 

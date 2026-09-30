@@ -1,6 +1,8 @@
 import * as THREE from 'three';
+import { mergeGeometries as mergeBufferGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from '../../scene/materials';
 import { PALETTE } from '../../scene/materials';
+import { skyBackdrop } from '../../scene/textures/procedural';
 import {
   DIORAMA_DEPTH,
   distanceToDioramaOffset,
@@ -124,21 +126,23 @@ export function createDiorama({
   group.add(tray);
 
   // --- Pedestal -------------------------------------------------------------
+  // Coluna e sapata: mesmo material, uma malha só.
   if (standHeight > 0.01) {
-    const postGeometry = new THREE.CylinderGeometry(0.016, 0.02, standHeight, 14);
-    geometries.push(postGeometry);
-    const post = new THREE.Mesh(postGeometry, materials.anodizedAluminum);
-    post.position.set(-centerOffset, -TRAY_THICKNESS - TERRAIN_MIN - standHeight / 2, 0);
-    post.castShadow = true;
-    group.add(post);
-
-    const baseGeometry = new THREE.BoxGeometry(0.1, 0.018, 0.12);
-    geometries.push(baseGeometry);
-    const base = new THREE.Mesh(baseGeometry, materials.anodizedAluminum);
-    base.position.set(-centerOffset, -TRAY_THICKNESS - TERRAIN_MIN - standHeight + 0.009, 0);
-    base.castShadow = true;
-    base.receiveShadow = true;
-    group.add(base);
+    const column = new THREE.CylinderGeometry(0.016, 0.02, standHeight, 14)
+      .toNonIndexed()
+      .translate(-centerOffset, -TRAY_THICKNESS - TERRAIN_MIN - standHeight / 2, 0);
+    const foot = new THREE.BoxGeometry(0.1, 0.018, 0.12)
+      .toNonIndexed()
+      .translate(-centerOffset, -TRAY_THICKNESS - TERRAIN_MIN - standHeight + 0.009, 0);
+    const standGeometry = mergeBufferGeometries([column, foot]);
+    column.dispose();
+    foot.dispose();
+    if (!standGeometry) throw new Error('Falha ao mesclar o pedestal');
+    geometries.push(standGeometry);
+    const stand = new THREE.Mesh(standGeometry, materials.anodizedAluminum);
+    stand.castShadow = true;
+    stand.receiveShadow = true;
+    group.add(stand);
   }
 
   // --- Terreno --------------------------------------------------------------
@@ -156,8 +160,10 @@ export function createDiorama({
   terrainGeometry.computeVertexNormals();
   geometries.push(terrainGeometry);
 
+  // Cores de maquete (SPEC §3.1): saturadas porém controladas, puxadas para
+  // o verde-musgo vivo da referência, não para o verde escuro de mata.
   const terrainMaterial = new THREE.MeshStandardMaterial({
-    color: 0x2f4a33,
+    color: 0x4f7f38,
     roughness: 0.92,
     metalness: 0,
   });
@@ -173,12 +179,19 @@ export function createDiorama({
   const peakDistance = DEFAULT_SUBJECT_DISTANCES_MM.background;
   const peakOffset = distanceToDioramaOffset(peakDistance);
 
-  const mountainGeometry = new THREE.ConeGeometry(0.105, 0.19, 7, 1);
+  // Rocha e neve numa geometria só, com a cor por vértice: uma malha em vez
+  // de duas em cada passe (SPEC §8). A neve fica 6,2 cm acima do centro.
+  const rock = paint(new THREE.ConeGeometry(0.105, 0.19, 7, 1), 0x7c8190);
+  const cap = paint(new THREE.ConeGeometry(0.041, 0.072, 7, 1), 0xe8eef7).translate(0, 0.062, 0);
+  const mountainGeometry = mergeBufferGeometries([rock, cap]);
+  rock.dispose();
+  cap.dispose();
+  if (!mountainGeometry) throw new Error('Falha ao mesclar a montanha');
   geometries.push(mountainGeometry);
   const mountainMaterial = new THREE.MeshStandardMaterial({
-    color: 0x38404f,
-    roughness: 0.95,
+    roughness: 0.88,
     flatShading: true,
+    vertexColors: true,
   });
   ownedMaterials.push(mountainMaterial);
   const mountain = new THREE.Mesh(mountainGeometry, mountainMaterial);
@@ -186,19 +199,6 @@ export function createDiorama({
   mountain.castShadow = true;
   mountain.receiveShadow = true;
   group.add(mountain);
-
-  const snowGeometry = new THREE.ConeGeometry(0.041, 0.072, 7, 1);
-  geometries.push(snowGeometry);
-  const snowMaterial = new THREE.MeshStandardMaterial({
-    color: 0xe8eef7,
-    roughness: 0.62,
-    flatShading: true,
-  });
-  ownedMaterials.push(snowMaterial);
-  const snow = new THREE.Mesh(snowGeometry, snowMaterial);
-  snow.position.set(mountain.position.x, mountain.position.y + 0.062, mountain.position.z);
-  snow.castShadow = true;
-  group.add(snow);
 
   // --- Pinheiros instanciados ----------------------------------------------
   const pineGeometry = createPineGeometry();
@@ -258,7 +258,7 @@ export function createDiorama({
     pines.setMatrixAt(i, matrix);
 
     // Variação em torno de 1: clareia ou escurece a cor base do vértice.
-    color.setHSL(0.3 + random() * 0.08, 0.25 + random() * 0.2, 0.44 + random() * 0.22);
+    color.setHSL(0.27 + random() * 0.08, 0.4 + random() * 0.25, 0.5 + random() * 0.22);
     instanceColors[i * 3] = color.r;
     instanceColors[i * 3 + 1] = color.g;
     instanceColors[i * 3 + 2] = color.b;
@@ -293,7 +293,7 @@ export function createDiorama({
   bladeGeometry.translate(0, 0.006, 0);
   geometries.push(bladeGeometry);
   const bladeMaterial = new THREE.MeshStandardMaterial({
-    color: 0x3c6040,
+    color: 0x6a9a44,
     roughness: 0.95,
     flatShading: true,
   });
@@ -313,6 +313,22 @@ export function createDiorama({
   grass.instanceMatrix.needsUpdate = true;
   grass.receiveShadow = true;
   group.add(grass);
+
+  // --- Céu pintado no fundo da bandeja ---------------------------------------
+  // Fecha o vale como o pano de fundo de uma maquete. Fica além da marca de
+  // 10 m do mapa, então a câmera virtual o vê como fundo distante e o desfoca
+  // pelo círculo de confusão dessa distância, como qualquer outro objeto.
+  const skyHeight = 0.36;
+  const skyGeometry = new THREE.PlaneGeometry(TRAY_WIDTH + 0.06, skyHeight);
+  geometries.push(skyGeometry);
+  const skyMaterial = new THREE.MeshBasicMaterial({ map: skyBackdrop(), fog: false });
+  ownedMaterials.push(skyMaterial);
+  const sky = new THREE.Mesh(skyGeometry, skyMaterial);
+  sky.name = 'sky';
+  // O plano nasce olhando para +z; girado, passa a olhar para a objetiva (+x).
+  sky.rotation.y = Math.PI / 2;
+  sky.position.set(-(farOffset + 0.03), skyHeight / 2 - TRAY_THICKNESS - TERRAIN_MIN, 0);
+  group.add(sky);
 
   const subjects: DioramaSubject[] = [
     {
@@ -348,7 +364,7 @@ export function createDiorama({
   return {
     group,
     subjects,
-    terrainMaterials: [terrainMaterial, pineMaterial, mountainMaterial, snowMaterial],
+    terrainMaterials: [terrainMaterial, pineMaterial, mountainMaterial],
     glowing,
     dispose(): void {
       for (const geometry of geometries) geometry.dispose();
@@ -387,9 +403,9 @@ function createPineGeometry(): THREE.BufferGeometry {
   for (let i = 0; i < count; i += 1) {
     const isTrunk = y.getY(i) < 0.23 && Math.hypot(y.getX(i), y.getZ(i)) < 0.06;
     // Cores absolutas: o instanceColor entra como variação em torno de 1.
-    colors[i * 3] = isTrunk ? 0.3 : 0.14;
-    colors[i * 3 + 1] = isTrunk ? 0.2 : 0.34;
-    colors[i * 3 + 2] = isTrunk ? 0.12 : 0.19;
+    colors[i * 3] = isTrunk ? 0.34 : 0.15;
+    colors[i * 3 + 1] = isTrunk ? 0.21 : 0.42;
+    colors[i * 3 + 2] = isTrunk ? 0.12 : 0.17;
   }
   merged.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
@@ -420,6 +436,25 @@ function mergeGeometries(parts: THREE.BufferGeometry[]): THREE.BufferGeometry {
   return result;
 }
 
+/**
+ * Tira os índices e pinta todos os vértices de uma cor, para a geometria
+ * poder ser mesclada com outras de cor diferente sob um só material.
+ */
+function paint(geometry: THREE.BufferGeometry, hex: number): THREE.BufferGeometry {
+  const flat = geometry.index ? geometry.toNonIndexed() : geometry;
+  if (flat !== geometry) geometry.dispose();
+  const color = new THREE.Color(hex);
+  const count = flat.attributes.position!.count;
+  const colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i += 1) {
+    colors[i * 3] = color.r;
+    colors[i * 3 + 1] = color.g;
+    colors[i * 3 + 2] = color.b;
+  }
+  flat.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  return flat;
+}
+
 /** Cabana com telhado e janelas emissivas quentes. */
 function createCabin(
   materials: MaterialLibrary,
@@ -430,42 +465,42 @@ function createCabin(
   const cabin = new THREE.Group();
   cabin.name = 'cabin';
 
-  const bodyGeometry = new THREE.BoxGeometry(0.06, 0.042, 0.05);
-  geometries.push(bodyGeometry);
-  const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x4a3626, roughness: 0.88 });
-  ownedMaterials.push(bodyMaterial);
-  const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-  body.position.y = 0.021;
-  body.castShadow = true;
-  body.receiveShadow = true;
-  cabin.add(body);
-
-  const roofGeometry = new THREE.ConeGeometry(0.052, 0.03, 4, 1);
-  geometries.push(roofGeometry);
-  const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x2b323d, roughness: 0.8 });
-  ownedMaterials.push(roofMaterial);
-  const roof = new THREE.Mesh(roofGeometry, roofMaterial);
-  roof.rotation.y = Math.PI / 4;
-  roof.position.y = 0.057;
-  roof.castShadow = true;
-  cabin.add(roof);
+  // Paredes e telhado numa geometria só, com a cor por vértice.
+  const walls = paint(new THREE.BoxGeometry(0.06, 0.042, 0.05), 0x8a5a34).translate(0, 0.021, 0);
+  const roofCone = paint(new THREE.ConeGeometry(0.052, 0.03, 4, 1), 0x5c3027)
+    .rotateY(Math.PI / 4)
+    .translate(0, 0.057, 0);
+  const houseGeometry = mergeBufferGeometries([walls, roofCone]);
+  walls.dispose();
+  roofCone.dispose();
+  if (!houseGeometry) throw new Error('Falha ao mesclar a cabana');
+  geometries.push(houseGeometry);
+  const houseMaterial = new THREE.MeshStandardMaterial({ roughness: 0.82, vertexColors: true });
+  ownedMaterials.push(houseMaterial);
+  const house = new THREE.Mesh(houseGeometry, houseMaterial);
+  house.castShadow = true;
+  house.receiveShadow = true;
+  cabin.add(house);
 
   // Janelas: emissivas quentes, é o ponto de luz do diorama (SPEC §3.1).
-  const windowGeometry = new THREE.PlaneGeometry(0.015, 0.012);
+  // As três vidraças são uma geometria só: uma malha no passe principal e
+  // uma no bloom, em vez de três.
+  const panes = (
+    [
+      [0.0305, 0.008, Math.PI / 2],
+      [0.0305, -0.012, Math.PI / 2],
+      [0.008, 0.0255, 0],
+    ] as const
+  ).map(([x, z, rotation]) =>
+    new THREE.PlaneGeometry(0.015, 0.012).rotateY(rotation).translate(x, 0.024, z),
+  );
+  const windowGeometry = mergeBufferGeometries(panes);
+  for (const pane of panes) pane.dispose();
+  if (!windowGeometry) throw new Error('Falha ao mesclar as janelas da cabana');
   geometries.push(windowGeometry);
-  const windowMaterial = materials.emissive(PALETTE.warm, 2.4);
-
-  for (const [x, z, rotation] of [
-    [0.0305, 0.008, Math.PI / 2],
-    [0.0305, -0.012, Math.PI / 2],
-    [0.008, 0.0255, 0],
-  ] as const) {
-    const pane = new THREE.Mesh(windowGeometry, windowMaterial);
-    pane.position.set(x, 0.024, z);
-    pane.rotation.y = rotation;
-    cabin.add(pane);
-    glowing.push(pane);
-  }
+  const windows = new THREE.Mesh(windowGeometry, materials.emissive(PALETTE.warm, 2.4));
+  cabin.add(windows);
+  glowing.push(windows);
 
   // Luz quente escapando pela janela, com alcance curto.
   const lamp = new THREE.PointLight(PALETTE.warm, 0.05, 0.28, 2);

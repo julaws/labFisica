@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from '../../scene/materials';
 import { lensMm } from './lens-model';
 
@@ -81,24 +82,31 @@ export function createImagePlane({ materials, x, sensor }: ImagePlaneOptions): I
   // --- Moldura ---------------------------------------------------------------
   const frameThickness = lensMm(3.5);
   const frameDepth = lensMm(2.5);
-  const frameGeometry = new THREE.BoxGeometry(frameDepth, height + frameThickness * 2, frameThickness);
+  // As quatro barras viram uma geometria só: é uma malha a desenhar, não
+  // quatro, em cada passe (orçamento de draw calls, SPEC §8).
+  const bars: THREE.BufferGeometry[] = [];
+  for (const side of [-1, 1]) {
+    bars.push(
+      new THREE.BoxGeometry(frameDepth, height + frameThickness * 2, frameThickness).translate(
+        0,
+        0,
+        side * (width / 2 + frameThickness / 2),
+      ),
+      new THREE.BoxGeometry(frameDepth, frameThickness, width + frameThickness * 2).translate(
+        0,
+        side * (height / 2 + frameThickness / 2),
+        0,
+      ),
+    );
+  }
+  const frameGeometry = mergeGeometries(bars);
+  for (const bar of bars) bar.dispose();
+  if (!frameGeometry) throw new Error('Falha ao mesclar a moldura da placa');
   geometries.push(frameGeometry);
 
-  for (const side of [-1, 1]) {
-    const bar = new THREE.Mesh(frameGeometry, materials.anodizedAluminum);
-    bar.position.z = side * (width / 2 + frameThickness / 2);
-    bar.castShadow = true;
-    group.add(bar);
-  }
-
-  const railGeometry = new THREE.BoxGeometry(frameDepth, frameThickness, width + frameThickness * 2);
-  geometries.push(railGeometry);
-  for (const side of [-1, 1]) {
-    const bar = new THREE.Mesh(railGeometry, materials.anodizedAluminum);
-    bar.position.y = side * (height / 2 + frameThickness / 2);
-    bar.castShadow = true;
-    group.add(bar);
-  }
+  const frame = new THREE.Mesh(frameGeometry, materials.anodizedAluminum);
+  frame.castShadow = true;
+  group.add(frame);
 
   // --- Anéis de círculo de confusão -----------------------------------------
   // Um anel por objeto, recriado a cada mudança de estado. São poucos (três),

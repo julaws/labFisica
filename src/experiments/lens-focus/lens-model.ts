@@ -3,6 +3,7 @@ import { AIR, indexD } from '../../optics/glass';
 import type { Prescription, Surface } from '../../optics/prescription';
 import { glassElements, vertexPositions } from '../../optics/prescription';
 import type { MaterialLibrary } from '../../scene/materials';
+import { PALETTE } from '../../scene/materials';
 import { LENS_EXAGGERATION, mmToScene } from '../../scene/scale';
 import {
   DEFAULT_IRIS,
@@ -89,7 +90,7 @@ export interface LensElementMesh {
  * de iridescência para sugerir o revestimento antirreflexo.
  */
 function createGlassMaterial(surface: Surface, thicknessMm: number): THREE.MeshPhysicalMaterial {
-  return new THREE.MeshPhysicalMaterial({
+  const material = new THREE.MeshPhysicalMaterial({
     transmission: 1,
     ior: indexD(surface.material),
     thickness: lensMm(thicknessMm) * 40,
@@ -106,7 +107,26 @@ function createGlassMaterial(surface: Surface, thicknessMm: number): THREE.MeshP
     envMapIntensity: 1.4,
     transparent: true,
     side: THREE.DoubleSide,
+    // Brilho ciano rasante (ver abaixo): é o que desenha o contorno de cada
+    // elemento contra o barril escuro, como na referência.
+    emissive: new THREE.Color(PALETTE.focus),
+    emissiveIntensity: 1.6,
   });
+
+  // O emissivo só vale na borda: um termo de Fresnel (1 − |n·v|)³ zera o
+  // brilho de frente e o acende quando a superfície é vista de raspão. Custa
+  // três linhas de shader e nenhuma malha a mais.
+  material.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <emissivemap_fragment>',
+      `#include <emissivemap_fragment>
+      float glassRim = 1.0 - abs(dot(normalize(normal), normalize(vViewPosition)));
+      totalEmissiveRadiance *= glassRim * glassRim * glassRim;`,
+    );
+  };
+  material.customProgramCacheKey = () => 'glass-rim-v1';
+
+  return material;
 }
 
 /** Constrói um elemento de vidro com a borda preta. */

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from './materials';
 import { PALETTE } from './materials';
 import { engravedRuler } from './textures/procedural';
@@ -113,16 +114,11 @@ export function createBench(materials: MaterialLibrary): Bench {
   function mountAt(millimeters: number): Carriage {
     const carriageGroup = new THREE.Group();
 
-    const block = new THREE.Mesh(carriageParts.block, materials.anodizedAluminum);
-    block.position.y = 0.026;
+    // Bloco e poste: mesmo material, uma malha só.
+    const block = new THREE.Mesh(carriageParts.body, materials.anodizedAluminum);
     block.castShadow = true;
     block.receiveShadow = true;
     carriageGroup.add(block);
-
-    const post = new THREE.Mesh(carriageParts.post, materials.anodizedAluminum);
-    post.position.y = 0.075;
-    post.castShadow = true;
-    carriageGroup.add(post);
 
     // Parafuso de fixação em latão, na lateral.
     const screw = new THREE.Mesh(carriageParts.screw, materials.brushedBrass);
@@ -175,23 +171,21 @@ function createRail(
   const rail = new THREE.Group();
   rail.name = 'optical-rail';
 
-  // Perfil extrudado: base larga com dois trilhos de guia.
-  const baseGeometry = new THREE.BoxGeometry(RAIL_LENGTH_SCENE, 0.026, 0.13);
-  owned.push(baseGeometry);
-  const base = new THREE.Mesh(baseGeometry, materials.anodizedAluminum);
-  base.position.y = 0.013;
+  // Perfil extrudado: base larga com dois trilhos de guia, numa geometria só
+  // (mesmo material, uma malha a menos por passe — SPEC §8).
+  const profile = [
+    new THREE.BoxGeometry(RAIL_LENGTH_SCENE, 0.026, 0.13).translate(0, 0.013, 0),
+    new THREE.BoxGeometry(RAIL_LENGTH_SCENE, 0.016, 0.022).translate(0, 0.034, -0.042),
+    new THREE.BoxGeometry(RAIL_LENGTH_SCENE, 0.016, 0.022).translate(0, 0.034, 0.042),
+  ];
+  const profileGeometry = mergeGeometries(profile);
+  for (const part of profile) part.dispose();
+  if (!profileGeometry) throw new Error('Falha ao mesclar o perfil do trilho');
+  owned.push(profileGeometry);
+  const base = new THREE.Mesh(profileGeometry, materials.anodizedAluminum);
   base.castShadow = true;
   base.receiveShadow = true;
   rail.add(base);
-
-  const guideGeometry = new THREE.BoxGeometry(RAIL_LENGTH_SCENE, 0.016, 0.022);
-  owned.push(guideGeometry);
-  for (const z of [-0.042, 0.042]) {
-    const guide = new THREE.Mesh(guideGeometry, materials.anodizedAluminum);
-    guide.position.set(0, 0.034, z);
-    guide.castShadow = true;
-    rail.add(guide);
-  }
 
   // Régua gravada: textura desenhada em canvas, aplicada na face de cima da
   // borda frontal do trilho. As marcas são de 10 em 10 mm, numeradas a cada 50.
@@ -220,12 +214,15 @@ function createRail(
   return rail;
 }
 
-function createCarriageGeometries(): Record<string, THREE.BufferGeometry> {
-  return {
-    block: new THREE.BoxGeometry(0.09, 0.052, 0.12),
-    post: new THREE.CylinderGeometry(0.009, 0.011, 0.05, 14),
-    screw: new THREE.CylinderGeometry(0.008, 0.008, 0.016, 12),
-  };
+function createCarriageGeometries(): { body: THREE.BufferGeometry; screw: THREE.BufferGeometry } {
+  const block = new THREE.BoxGeometry(0.09, 0.052, 0.12).translate(0, 0.026, 0);
+  // O poste perde os índices para casar com a caixa na mescla.
+  const post = new THREE.CylinderGeometry(0.009, 0.011, 0.05, 14).translate(0, 0.075, 0);
+  const body = mergeGeometries([block.toNonIndexed(), post.toNonIndexed()]);
+  block.dispose();
+  post.dispose();
+  if (!body) throw new Error('Falha ao mesclar o carrinho');
+  return { body, screw: new THREE.CylinderGeometry(0.008, 0.008, 0.016, 12) };
 }
 
 /**

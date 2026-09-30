@@ -30,6 +30,12 @@ export interface QualitySettings {
    * da cena inteira. Meia resolução é imperceptível atrás do vidro.
    */
   readonly transmissionScale: number;
+  /**
+   * Profundidade de campo da câmera principal (SPEC §3.1): a sala ao fundo sai
+   * desfocada e a bancada fica nítida. São passes de tela cheia a meia
+   * resolução; no nível Baixo o fundo fica nítido.
+   */
+  readonly depthOfField: boolean;
 }
 
 export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
@@ -44,6 +50,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     sensorTargetSize: 1024,
     instanceBudget: 4000,
     transmissionScale: 0.5,
+    depthOfField: true,
   },
   medium: {
     level: 'medium',
@@ -56,6 +63,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     sensorTargetSize: 768,
     instanceBudget: 2000,
     transmissionScale: 0.35,
+    depthOfField: true,
   },
   low: {
     level: 'low',
@@ -68,6 +76,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     sensorTargetSize: 512,
     instanceBudget: 700,
     transmissionScale: 0.2,
+    depthOfField: false,
   },
 };
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
   BlendFunction,
+  DepthOfFieldEffect,
   EffectComposer,
   EffectPass,
   KernelSize,
@@ -20,7 +21,13 @@ import type { QualitySettings } from './quality';
 /**
  * Pós-processamento cinematográfico (SPEC §3.1 e §4).
  *
- * Ordem: cena → AO → bloom seletivo → tone mapping AgX → vinheta → grão → SMAA.
+ * Ordem: cena → AO → profundidade de campo → bloom seletivo → tone mapping AgX
+ * → vinheta → grão → SMAA.
+ *
+ * A profundidade de campo é a da **câmera principal** (SPEC §3.1): mantém a
+ * bancada nítida e desfoca a sala ao fundo, como uma foto de estúdio. Não tem
+ * relação com o desfoque físico da imagem no sensor, que é calculado à parte
+ * a partir do círculo de confusão (SPEC §6.6).
  *
  * O bloom é **seletivo**: só o plano de foco, os raios e as fontes de luz
  * brilham. Bloom global estoura os metais da bancada e suja a imagem.
@@ -31,6 +38,11 @@ export interface PostPipeline {
   readonly composer: EffectComposer;
   /** Seleção de objetos que recebem bloom. */
   readonly bloom: SelectiveBloomEffect;
+  /**
+   * Ponto do mundo mantido em foco pela câmera principal. Quem move a câmera
+   * atualiza este vetor (o alvo da órbita), e o foco acompanha.
+   */
+  readonly focusTarget: THREE.Vector3;
   render(dt: number): void;
   setSize(width: number, height: number): void;
   applyQuality(settings: QualitySettings): void;
@@ -108,6 +120,21 @@ export function createPostPipeline({
   aoPass.enabled = quality.ambientOcclusion;
   composer.addPass(aoPass);
 
+  // Faixa nítida larga: a bancada inteira (vale, objetiva, placa e console)
+  // cabe nela a partir de qualquer enquadramento padrão; só a sala desfoca.
+  const focusTarget = new THREE.Vector3(0, 1, 0);
+  const depthOfField = new DepthOfFieldEffect(camera, {
+    focusDistance: 3,
+    focusRange: 2.2,
+    bokehScale: 3.2,
+    resolutionScale: 0.5,
+  });
+  depthOfField.target = focusTarget;
+  // Convolução própria: não pode dividir passe com o bloom.
+  const dofPass = new EffectPass(camera, depthOfField);
+  dofPass.enabled = quality.depthOfField;
+  composer.addPass(dofPass);
+
   const lookPass = new EffectPass(camera, bloom, toneMapping, vignette, grain);
   composer.addPass(lookPass);
 
@@ -121,6 +148,7 @@ export function createPostPipeline({
   return {
     composer,
     bloom,
+    focusTarget,
     render(dt: number): void {
       composer.render(dt);
     },
@@ -130,6 +158,7 @@ export function createPostPipeline({
     applyQuality(settings: QualitySettings): void {
       normalPass.enabled = settings.ambientOcclusion;
       aoPass.enabled = settings.ambientOcclusion;
+      dofPass.enabled = settings.depthOfField;
       smaa.applyPreset(settings.antialias ? SMAAPreset.HIGH : SMAAPreset.LOW);
       bloom.intensity = settings.bloom ? 0.85 : 0;
     },

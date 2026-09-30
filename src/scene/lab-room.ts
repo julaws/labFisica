@@ -56,50 +56,77 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   group.add(shelves);
 
   // --- Cartazes retroiluminados -------------------------------------------
-  const posters = new THREE.Group();
+  // Três cartazes, uma malha: as três texturas vão lado a lado numa só, e
+  // cada placa aponta para o seu terço. O mesmo para as bordas ciano. São
+  // duas malhas no passe principal e no bloom, em vez de seis (SPEC §8).
   const posterData: { blur: number; label: string }[] = [
     { blur: 9, label: 'fora de foco' },
     { blur: 3, label: 'no limite' },
     { blur: 0, label: 'nítido' },
   ];
 
-  const posterGeometry = new THREE.PlaneGeometry(0.72, 1.0);
-  owned.push(posterGeometry);
+  const sources = posterData.map((data) => wallPosterTexture(data.blur, data.label));
+  const first = sources[0]!.image as HTMLCanvasElement;
+  const atlasCanvas = document.createElement('canvas');
+  atlasCanvas.width = first.width * sources.length;
+  atlasCanvas.height = first.height;
+  const atlasContext = atlasCanvas.getContext('2d');
+  if (!atlasContext) throw new Error('Canvas 2D indisponível para os cartazes');
+  sources.forEach((source, index) => {
+    atlasContext.drawImage(source.image as HTMLCanvasElement, index * first.width, 0);
+  });
+  const atlas = new THREE.CanvasTexture(atlasCanvas);
+  atlas.colorSpace = THREE.SRGBColorSpace;
+  atlas.anisotropy = 8;
+  owned.push(atlas);
 
-  posterData.forEach((data, index) => {
-    const texture = wallPosterTexture(data.blur, data.label);
-    const material = new THREE.MeshStandardMaterial({
-      map: texture,
-      emissiveMap: texture,
-      emissive: new THREE.Color(0xffffff),
-      emissiveIntensity: 0.7,
-      roughness: 0.9,
-      metalness: 0,
-    });
-    owned.push(material);
+  const posterMaterial = new THREE.MeshStandardMaterial({
+    map: atlas,
+    emissiveMap: atlas,
+    emissive: new THREE.Color(0xffffff),
+    emissiveIntensity: 0.7,
+    roughness: 0.9,
+    metalness: 0,
+  });
+  owned.push(posterMaterial);
 
-    const poster = new THREE.Mesh(posterGeometry, material);
-    poster.position.set((index - 1) * 0.95, 2.18, -ROOM.depth / 2 + 0.02);
-    posters.add(poster);
-    glowing.push(poster);
+  const posterParts: THREE.BufferGeometry[] = [];
+  const frameParts: THREE.BufferGeometry[] = [];
+  posterData.forEach((_, index) => {
+    const x = (index - 1) * 0.95;
+    const y = 2.18;
+    const z = -ROOM.depth / 2 + 0.02;
+
+    const poster = new THREE.PlaneGeometry(0.72, 1.0);
+    // Comprime o u da placa para o terço dela no atlas.
+    const uv = poster.attributes.uv!;
+    for (let i = 0; i < uv.count; i += 1) uv.setX(i, (uv.getX(i) + index) / posterData.length);
+    posterParts.push(poster.translate(x, y, z));
 
     // Borda ciano fina, como um quadro de luz.
-    const frame = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.77, 1.05),
-      materials.emissive(PALETTE.focus, 0.65),
-    );
-    frame.position.copy(poster.position);
-    frame.position.z -= 0.006;
-    posters.add(frame);
-    glowing.push(frame);
-    owned.push(frame.geometry);
+    frameParts.push(new THREE.PlaneGeometry(0.77, 1.05).translate(x, y, z - 0.006));
   });
 
+  const postersGeometry = mergeGeometries(posterParts);
+  const framesGeometry = mergeGeometries(frameParts);
+  for (const part of [...posterParts, ...frameParts]) part.dispose();
+  if (!postersGeometry || !framesGeometry) throw new Error('Falha ao mesclar os cartazes');
+  owned.push(postersGeometry, framesGeometry);
+
+  const posters = new THREE.Mesh(postersGeometry, posterMaterial);
+  posters.name = 'posters';
   group.add(posters);
+  glowing.push(posters);
+
+  const frames = new THREE.Mesh(framesGeometry, materials.emissive(PALETTE.focus, 0.65));
+  group.add(frames);
+  glowing.push(frames);
 
   // --- Luzes ---------------------------------------------------------------
-  const keyLight = new THREE.DirectionalLight(0xdfe9ff, 2.6);
-  keyLight.position.set(1.15, 3.0, 2.7);
+  // Luz principal quente, alta e à frente: é ela que dá o dourado do latão e
+  // o verde vivo do vale, como no estúdio da referência.
+  const keyLight = new THREE.DirectionalLight(0xffe8cc, 3.4);
+  keyLight.position.set(0.6, 3.1, 2.9);
   keyLight.target.position.set(0, 0.9, 0);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.set(2048, 2048);
@@ -118,27 +145,39 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   // Faixas de teto: RectAreaLight não faz sombra, mas dá o reflexo alongado
   // característico nos metais e no vidro (SPEC §3.1).
   const ceilingStrips = new THREE.Group();
+  const housingParts: THREE.BufferGeometry[] = [];
   for (const x of [-1.9, 1.9]) {
     const strip = new THREE.RectAreaLight(0xcfe0ff, 1.9, 0.34, 5.2);
     strip.position.set(x, ROOM.height - 0.12, -0.4);
     strip.rotation.x = -Math.PI / 2;
     ceilingStrips.add(strip);
 
-    const housing = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.34, 5.2),
-      materials.emissive(0xcfe0ff, 1.1),
+    housingParts.push(
+      new THREE.PlaneGeometry(0.34, 5.2)
+        .rotateX(Math.PI / 2)
+        .translate(x, ROOM.height - 0.124, -0.4),
     );
-    owned.push(housing.geometry);
-    housing.position.copy(strip.position);
-    housing.position.y -= 0.004;
-    housing.rotation.x = Math.PI / 2;
-    ceilingStrips.add(housing);
-    glowing.push(housing);
   }
+  // As duas luminárias, uma malha só.
+  const housingGeometry = mergeGeometries(housingParts);
+  for (const part of housingParts) part.dispose();
+  if (!housingGeometry) throw new Error('Falha ao mesclar as luminárias');
+  owned.push(housingGeometry);
+  const housings = new THREE.Mesh(housingGeometry, materials.emissive(0xcfe0ff, 1.1));
+  ceilingStrips.add(housings);
+  glowing.push(housings);
   group.add(ceilingStrips);
 
-  // Preenchimento frio bem fraco, só para a sombra não ficar preta chapada.
-  const fill = new THREE.HemisphereLight(0x6f86c8, 0x04060b, 0.34);
+  // Recorte frio por trás e de cima, sem sombra: acende as arestas do barril,
+  // dos anéis e do vidro contra o fundo escuro.
+  const rimLight = new THREE.DirectionalLight(0x9cc8ff, 1.6);
+  rimLight.position.set(-1.4, 2.6, -3.2);
+  rimLight.target.position.set(0, 1, 0);
+  group.add(rimLight);
+  group.add(rimLight.target);
+
+  // Preenchimento frio fraco, só para a sombra não ficar preta chapada.
+  const fill = new THREE.HemisphereLight(0x7890cc, 0x0a0806, 0.5);
   group.add(fill);
 
   return {

@@ -37,7 +37,7 @@ export async function loadEnvironment({
   renderer,
   scene,
   url = HDRI_URL,
-  intensity = 0.38,
+  intensity = 0.55,
   onProgress,
 }: EnvironmentOptions): Promise<EnvironmentHandle> {
   const pmrem = new THREE.PMREMGenerator(renderer);

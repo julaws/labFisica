@@ -68,17 +68,20 @@ async function boot(): Promise<void> {
   const { camera, controls } = rig;
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x070a12);
-  scene.fog = new THREE.FogExp2(0x070a12, 0.055);
+  scene.background = new THREE.Color(0x080b13);
+  scene.fog = new THREE.FogExp2(0x080b13, 0.04);
 
   // --- Materiais e texturas procedurais ------------------------------------
   loading.begin('textures');
 
   // As texturas gravadas (régua, escala do anel, cartazes) são desenhadas em
-  // canvas uma única vez. Se a Manrope ainda não chegou, elas saem na fonte do
-  // sistema e ficam assim. Espera a fonte, mas nunca mais que 1,5 s.
+  // canvas uma única vez. Se as fontes ainda não chegaram, elas saem na fonte
+  // do sistema e ficam assim. Espera as fontes, mas nunca mais que 1,5 s.
   await Promise.race([
-    document.fonts.load('700 32px Manrope').catch(() => undefined),
+    Promise.all([
+      document.fonts.load('600 32px Outfit'),
+      document.fonts.load("500 32px 'DM Mono'"),
+    ]).catch(() => undefined),
     new Promise((resolve) => window.setTimeout(resolve, 1500)),
   ]);
   const materials = createMaterialLibrary();
@@ -155,6 +158,8 @@ async function boot(): Promise<void> {
       }
       flight.update(dt);
       rig.update(dt);
+      // O foco da câmera principal segue o alvo da órbita (SPEC §3.1).
+      controls.getTarget(post.focusTarget);
       experiment?.update(dt, elapsed);
       post.render(dt);
       labels.update(camera, canvas.clientWidth, canvas.clientHeight, uiOccluders());
@@ -229,6 +234,7 @@ async function boot(): Promise<void> {
         modal.render(experiment.copy(), locale);
         modal.open();
       },
+      onCinematic: () => cinematic.next(),
       onLocaleChange: (next) => {
         locale = next;
         rememberLocale(next);
@@ -252,13 +258,13 @@ async function boot(): Promise<void> {
     refresh();
 
     // A vista padrão passa a ser o enquadramento do experimento: é o vale e a
-    // objetiva que importam, não a bancada vazia. No retrato o campo abre mais,
-    // senão o vale sai cortado dos lados.
+    // objetiva que importam, não a bancada vazia. No retrato vale a variante
+    // do experimento para telas altas, quando ela existe.
     const shots = experiment.cameras();
     cinematic.setShots(shots);
     const overview = shots.find((shot) => shot.id === 'overview');
     if (overview) {
-      const home = portrait ? { ...overview, fov: 58 } : overview;
+      const home = portrait && overview.portrait ? { ...overview, ...overview.portrait } : overview;
       cinematic.setHome(home);
       // Na abertura o corte é seco: animar do plano antigo até aqui só
       // atrasaria o primeiro quadro útil.
@@ -290,6 +296,7 @@ async function boot(): Promise<void> {
     (window as unknown as { __labDebug: unknown }).__labDebug = {
       scene,
       camera,
+      rig,
       renderer,
       post,
       room,

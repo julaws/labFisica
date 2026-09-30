@@ -60,7 +60,7 @@ import {
   pupilDiameter,
 } from '../../optics/thin-lens';
 import { type Facts, buildCopy } from './copy';
-import { describeState } from './describe';
+import { describeHighlights, describeState } from './describe';
 import {
   type Locale,
   formatCentimeters,
@@ -89,6 +89,15 @@ import { type ConsoleScreens, createConsoleScreens } from './console-screens';
 
 /** Posição da lente no trilho, em marcas da régua. */
 const LENS_RAIL_MM = 620;
+
+/**
+ * Onde ficam as telas do console, relativas à origem do experimento (o
+ * elemento frontal), em unidades de cena: embutidas na face frontal da
+ * bancada, abaixo do tampo, como o console da referência. Posição visual
+ * pura: as telas mostram renders da câmera virtual, que não depende de onde
+ * elas estão. `drop` é quanto o centro das telas fica abaixo do eixo óptico.
+ */
+const CONSOLE_PLACEMENT = { x: -0.3, z: 0.532, drop: 0.6, scale: 1 } as const;
 
 /** Duração da transição montada ↔ explodida, em segundos (SPEC §6.3). */
 const EXPLODE_SECONDS = 0.8;
@@ -427,12 +436,14 @@ export function createLensFocusExperiment(): Experiment {
         samples: 16,
         onPickFocus: (millimeters) => store.set({ focusDistance: millimeters }),
       });
-      // Deitadas no tampo, na frente da placa, inclinadas para quem está diante
-      // da bancada ler.
-      // Quase deitadas: com inclinação maior, a borda da frente afunda no
-      // tampo e corta a tira de miniaturas ao meio.
-      consoleScreens.group.position.set(imagePlaneX + 0.02, -axisHeight + 0.028, 0.34);
-      consoleScreens.group.rotation.set(-Math.PI / 2 + 0.12, 0, 0);
+      // Em pé na face frontal da bancada, de frente para quem está diante
+      // dela, embaixo do meio do conjunto.
+      consoleScreens.group.position.set(
+        CONSOLE_PLACEMENT.x,
+        -CONSOLE_PLACEMENT.drop,
+        CONSOLE_PLACEMENT.z,
+      );
+      consoleScreens.group.scale.setScalar(CONSOLE_PLACEMENT.scale);
       root.add(consoleScreens.group);
       disposers.push(ctx.registerDraggable(consoleScreens.clickHandle));
 
@@ -619,6 +630,12 @@ export function createLensFocusExperiment(): Experiment {
           return state.showNumbers;
         case 'coc':
           return state.coc;
+        // Limites da zona nítida, para a faixa desenhada no slider de
+        // distância. Leitura só: vêm do motor, como o resto.
+        case 'dofNear':
+          return dofLimits(state.focalLength, state.fNumber, state.coc, state.focusDistance).near;
+        case 'dofFar':
+          return dofLimits(state.focalLength, state.fNumber, state.coc, state.focusDistance).far;
         default:
           throw new Error(`Controle desconhecido: ${id}`);
       }
@@ -633,6 +650,12 @@ export function createLensFocusExperiment(): Experiment {
       const copy = buildCopy(facts());
       const dof = dofLimits(state.focalLength, state.fNumber, state.coc, state.focusDistance);
       const zone = Number.isFinite(dof.total) ? formatCentimeters(dof.total, locale) : '∞';
+      const described = {
+        focalLength: state.focalLength,
+        fNumber: state.fNumber,
+        focusDistance: state.focusDistance,
+        coc: state.coc,
+      };
 
       return {
         title: copy.title[locale],
@@ -650,16 +673,8 @@ export function createLensFocusExperiment(): Experiment {
           },
           { id: 'zone', label: locale === 'en' ? 'Sharp zone' : 'Zona nítida', value: zone },
         ],
-        sentence: describeState(
-          {
-            focalLength: state.focalLength,
-            fNumber: state.fNumber,
-            focusDistance: state.focusDistance,
-            coc: state.coc,
-          },
-          SUBJECT_DISTANCES,
-          locale,
-        ),
+        sentence: describeState(described, SUBJECT_DISTANCES, locale),
+        highlights: describeHighlights(described, locale),
       };
     },
 
@@ -725,20 +740,22 @@ export function createLensFocusExperiment(): Experiment {
     },
 
     ui(): PanelSchema {
+      const en = locale === 'en';
       return {
         groups: [
           {
             id: 'focus',
             label: { 'pt-BR': 'Foco', en: 'Focus' },
+            hint: { 'pt-BR': 'arraste o anel · 1 2 3', en: 'drag the ring · 1 2 3' },
             controls: [
               {
                 kind: 'segmented',
                 id: 'focusPreset',
                 label: { 'pt-BR': 'Plano', en: 'Plane' },
                 options: [
-                  { value: 370, label: '1 · Frente' },
-                  { value: 600, label: '2 · Meio' },
-                  { value: 2000, label: '3 · Fundo' },
+                  { value: 370, label: en ? 'Front' : 'Frente' },
+                  { value: 600, label: en ? 'Middle' : 'Meio' },
+                  { value: 2000, label: en ? 'Back' : 'Fundo' },
                 ],
               },
               {
@@ -750,12 +767,14 @@ export function createLensFocusExperiment(): Experiment {
                 step: 1,
                 logarithmic: true,
                 unit: 'mm',
+                band: { from: 'dofNear', to: 'dofFar' },
               },
             ],
           },
           {
             id: 'aperture',
             label: { 'pt-BR': 'Abertura', en: 'Aperture' },
+            hint: { 'pt-BR': 'F', en: 'F' },
             controls: [
               {
                 kind: 'segmented',
@@ -763,7 +782,7 @@ export function createLensFocusExperiment(): Experiment {
                 label: { 'pt-BR': 'Atalhos', en: 'Presets' },
                 options: F_STOP_PRESETS.map((stop) => ({
                   value: stop,
-                  label: `f/${String(stop).replace('.', ',')}`,
+                  label: formatFNumber(stop, locale),
                 })),
               },
               {
@@ -772,20 +791,22 @@ export function createLensFocusExperiment(): Experiment {
                 label: { 'pt-BR': 'Stops completos', en: 'Full stops' },
                 // Só os stops que esta objetiva alcança (ADR 0003).
                 values: F_STOPS.filter((stop) => stop >= widestFNumber(LENS_50MM_F2) - 1e-6),
+                secondary: true,
               },
             ],
           },
           {
             id: 'lens',
             label: { 'pt-BR': 'Lente', en: 'Lens' },
+            hint: { 'pt-BR': 'X', en: 'X' },
             controls: [
               {
                 kind: 'segmented',
                 id: 'lensMode',
                 label: { 'pt-BR': 'Modo', en: 'Mode' },
                 options: [
-                  { value: 'assembled', label: 'Montada' },
-                  { value: 'exploded', label: 'Explodida' },
+                  { value: 'assembled', label: en ? 'Assembled' : 'Montada' },
+                  { value: 'exploded', label: en ? 'Exploded' : 'Explodida' },
                 ],
               },
               {
@@ -793,9 +814,10 @@ export function createLensFocusExperiment(): Experiment {
                 id: 'coc',
                 label: { 'pt-BR': 'Círculo admissível', en: 'Acceptable circle' },
                 options: [
-                  { value: COC_MM.reference, label: '0,036 mm' },
-                  { value: COC_MM.strict, label: '0,030 mm' },
+                  { value: COC_MM.reference, label: formatMillimeters(COC_MM.reference, locale) },
+                  { value: COC_MM.strict, label: formatMillimeters(COC_MM.strict, locale) },
                 ],
+                secondary: true,
               },
             ],
           },
@@ -830,15 +852,26 @@ export function createLensFocusExperiment(): Experiment {
         {
           id: 'overview',
           label: { 'pt-BR': 'Vale e objetiva', en: 'Valley and lens' },
-          // Afastada o bastante para a objetiva não ficar sob o painel da
-          // direita: com HUD e painel abertos, sobra o centro da tela.
+          // Diante da bancada, pouco acima do eixo e levemente à direita da
+          // objetiva, como o estúdio da referência: o vale corre para a
+          // esquerda, a objetiva fica no centro, o console aparece embaixo na
+          // face da bancada e a sala ao fundo cai na profundidade de campo da
+          // câmera. O alvo fica abaixo do eixo para o conjunto sair de baixo
+          // do painel de controles.
           position: {
-            x: origin.x + reach * 1.5,
-            y: origin.y + reach * 1.62,
-            z: origin.z + reach * 3.62,
+            x: origin.x + 0.185,
+            y: origin.y + 0.36,
+            z: origin.z + 2.35,
           },
-          target: { x: origin.x - valleyDepth * 0.48, y: origin.y - axisHeight * 0.45, z: origin.z },
-          fov: 38,
+          target: { x: origin.x - valleyDepth * 0.35, y: origin.y - 0.24, z: origin.z },
+          fov: 36,
+          // No retrato, de viés pela direita: o trilho recua na diagonal e
+          // céu, vale, objetiva e console cabem entre o HUD e a gaveta.
+          portrait: {
+            position: { x: origin.x + 1.165, y: origin.y + 0.76, z: origin.z + 2.55 },
+            target: { x: origin.x - valleyDepth * 0.35, y: origin.y - 0.34, z: origin.z },
+            fov: 56,
+          },
         },
         {
           id: 'optical-path',
@@ -868,13 +901,18 @@ export function createLensFocusExperiment(): Experiment {
         {
           id: 'console',
           label: { 'pt-BR': 'Console', en: 'Console' },
-          // De cima e da frente: é como alguém diante da bancada lê as telas.
+          // De frente e um pouco de cima: é como alguém diante da bancada lê
+          // as telas.
           position: {
-            x: origin.x + reach * 1.55,
-            y: origin.y - axisHeight + 0.55,
-            z: origin.z + 0.95,
+            x: origin.x + CONSOLE_PLACEMENT.x,
+            y: origin.y - CONSOLE_PLACEMENT.drop + 0.3,
+            z: origin.z + CONSOLE_PLACEMENT.z + 0.95,
           },
-          target: { x: origin.x + reach * 1.55, y: origin.y - axisHeight, z: origin.z + 0.3 },
+          target: {
+            x: origin.x + CONSOLE_PLACEMENT.x,
+            y: origin.y - CONSOLE_PLACEMENT.drop,
+            z: origin.z + CONSOLE_PLACEMENT.z,
+          },
           fov: 32,
         },
         {

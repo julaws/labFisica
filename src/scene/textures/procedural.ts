@@ -267,7 +267,7 @@ export function engravedRuler({
 
     ctx.strokeStyle = 'rgba(224, 236, 255, 0.95)';
     ctx.fillStyle = 'rgba(224, 236, 255, 0.88)';
-    ctx.font = `700 ${Math.round(height * 0.34)}px Manrope, ui-sans-serif, system-ui, sans-serif`;
+    ctx.font = `500 ${Math.round(height * 0.34)}px 'DM Mono', ui-monospace, monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
 
@@ -352,7 +352,7 @@ export function wallPosterTexture(blurPx: number, label: string, size = 512): TH
     ctx.strokeRect(6, 6, size - 12, h - 12);
 
     ctx.fillStyle = 'rgba(230, 234, 242, 0.85)';
-    ctx.font = `700 ${Math.round(size * 0.062)}px Manrope, ui-sans-serif, system-ui, sans-serif`;
+    ctx.font = `600 ${Math.round(size * 0.062)}px Outfit, ui-sans-serif, system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillText(label, size / 2, h * 0.9);
 
@@ -414,7 +414,7 @@ export function focusRingScale(
       ctx.lineTo(x, y);
       ctx.stroke();
 
-      ctx.font = `700 ${Math.round(height * 0.2)}px Manrope, ui-sans-serif, system-ui, sans-serif`;
+      ctx.font = `500 ${Math.round(height * 0.2)}px 'DM Mono', ui-monospace, monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = isMeters ? 'bottom' : 'top';
       ctx.fillText(mark.label, x, isMeters ? y - height * 0.02 : y + height * 0.04);
@@ -433,6 +433,80 @@ export function focusRingScale(
     texture.wrapT = THREE.ClampToEdgeWrapping;
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = 16;
+    return texture;
+  });
+}
+
+/**
+ * Céu pintado do fundo do diorama: degradê de azul, nuvens macias e uma serra
+ * distante em tons frios. É o "pano de fundo" de maquete que fecha o vale e dá
+ * à imagem no sensor um céu de verdade atrás do pico.
+ */
+export function skyBackdrop(width = 1024, height = 512): THREE.Texture {
+  return memo(`sky-${width}x${height}`, () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D indisponível para gerar o céu');
+
+    const sky = ctx.createLinearGradient(0, 0, 0, height);
+    sky.addColorStop(0, '#3f86d6');
+    sky.addColorStop(0.55, '#8cc2ee');
+    sky.addColorStop(1, '#d9ecf7');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, width, height);
+
+    // Nuvens: aglomerados de discos brancos com borda suave, determinísticos.
+    let state = 20260930;
+    const random = (): number => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 0xffffffff;
+    };
+    for (let cloud = 0; cloud < 7; cloud += 1) {
+      const cx = random() * width;
+      const cy = height * (0.12 + random() * 0.38);
+      const puffs = 5 + Math.floor(random() * 5);
+      for (let i = 0; i < puffs; i += 1) {
+        const x = cx + (random() - 0.5) * width * 0.16;
+        const y = cy + (random() - 0.5) * height * 0.06;
+        const r = height * (0.04 + random() * 0.06);
+        const puff = ctx.createRadialGradient(x, y, 0, x, y, r);
+        puff.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+        puff.addColorStop(0.6, 'rgba(255, 255, 255, 0.55)');
+        puff.addColorStop(1, 'rgba(255, 255, 255, 0)');
+        ctx.fillStyle = puff;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Serra ao longe, duas camadas: a de trás mais clara, pela névoa.
+    const ridge = (base: number, amplitude: number, color: string, seed: number): void => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(0, height);
+      for (let x = 0; x <= width; x += 8) {
+        const t = x / width;
+        const y =
+          base -
+          amplitude *
+            (0.55 * Math.abs(Math.sin(t * 5.3 + seed)) +
+              0.3 * Math.abs(Math.sin(t * 11.1 + seed * 2)) +
+              0.15 * Math.sin(t * 23.7 + seed * 3));
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(width, height);
+      ctx.closePath();
+      ctx.fill();
+    };
+    ridge(height * 0.86, height * 0.22, '#9fb6cf', 1.7);
+    ridge(height * 0.95, height * 0.17, '#7d97b3', 4.1);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
     return texture;
   });
 }

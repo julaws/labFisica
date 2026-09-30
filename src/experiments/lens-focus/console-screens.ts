@@ -40,11 +40,17 @@ export interface ConsoleScreensOptions {
   readonly onPickFocus: (millimeters: number) => void;
 }
 
-const MAIN = { width: 0.3, height: 0.2 };
-const THUMB = { width: 0.105, height: 0.07, gap: 0.014 };
-
-/** Altura local da tela principal dentro do grupo do console. */
-const MAIN_Y = 0.06;
+/**
+ * Faixa horizontal, como o console da referência: a tela principal à
+ * esquerda, a tira de miniaturas à direita, tudo sobre um painel escuro.
+ * Proporção 3:2 do sensor full frame (36 × 24 mm) em todas as telas.
+ */
+const MAIN = { width: 0.24, height: 0.16 };
+const THUMB = { width: 0.15, height: 0.1, gap: 0.016 };
+/** Espaço entre a tela principal e a tira. */
+const SPLIT = 0.05;
+/** Margem do painel em volta das telas. */
+const BEZEL = 0.035;
 
 export function createConsoleScreens({
   main,
@@ -62,21 +68,50 @@ export function createConsoleScreens({
   const materials: THREE.Material[] = [];
   const textures: THREE.Texture[] = [];
 
+  const stripWidth =
+    THUMBNAIL_FOCUS_MM.length * THUMB.width + (THUMBNAIL_FOCUS_MM.length - 1) * THUMB.gap;
+  const totalWidth = MAIN.width + SPLIT + stripWidth;
+  const left = -totalWidth / 2;
+
+  // --- Painel escuro atrás das telas, com a legenda gravada nele -------------
+  // A legenda vai na textura do painel, não numa placa própria: uma malha a
+  // menos em cada passe (SPEC §8).
+  const bezelWidth = totalWidth + BEZEL * 2;
+  const bezelHeight = MAIN.height + 0.03 + BEZEL * 2;
+  const bezelCenterY = -0.012;
+  const mainCenterX = left + MAIN.width / 2;
+  const captionY = -MAIN.height / 2 - 0.016;
+
+  const bezelTexture = createBezelTexture(
+    'a câmera desvira a imagem',
+    bezelWidth,
+    bezelHeight,
+    // Centro da legenda em coordenadas do painel (0–1, origem embaixo).
+    (mainCenterX + bezelWidth / 2) / bezelWidth,
+    (captionY - bezelCenterY + bezelHeight / 2) / bezelHeight,
+  );
+  textures.push(bezelTexture);
+
+  const bezelGeometry = new THREE.PlaneGeometry(bezelWidth, bezelHeight);
+  geometries.push(bezelGeometry);
+  const bezelMaterial = new THREE.MeshStandardMaterial({
+    map: bezelTexture,
+    roughness: 0.35,
+    metalness: 0.2,
+  });
+  materials.push(bezelMaterial);
+  const bezel = new THREE.Mesh(bezelGeometry, bezelMaterial);
+  bezel.position.set(0, bezelCenterY, -0.004);
+  group.add(bezel);
+
   // --- Tela principal, na orientação correta --------------------------------
   const mainGeometry = new THREE.PlaneGeometry(MAIN.width, MAIN.height);
   geometries.push(mainGeometry);
   const mainMaterial = new THREE.MeshBasicMaterial({ map: main.texture });
   materials.push(mainMaterial);
   const mainScreen = new THREE.Mesh(mainGeometry, mainMaterial);
-  mainScreen.position.y = MAIN_Y;
+  mainScreen.position.set(mainCenterX, 0, 0);
   group.add(mainScreen);
-
-  const caption = createCaption('a câmera desvira a imagem');
-  textures.push(caption.texture);
-  materials.push(caption.material);
-  geometries.push(caption.geometry);
-  caption.mesh.position.set(0, MAIN_Y - MAIN.height / 2 - 0.018, 0);
-  group.add(caption.mesh);
 
   // --- Tira de miniaturas ----------------------------------------------------
   // O foco de cada miniatura entra em setState; aqui só se cria o alvo.
@@ -100,10 +135,7 @@ export function createConsoleScreens({
   }
   for (const thumbnail of thumbnails) cameraParent.add(thumbnail.camera);
 
-  // Com o grupo deitado, y local positivo aponta para o fundo da bancada,
-  // onde está o trilho. A tira vai para y negativo: mais perto de quem olha.
-  const stripY = MAIN_Y - MAIN.height / 2 - 0.05 - THUMB.height / 2;
-  const stripWidth = THUMBNAIL_FOCUS_MM.length * THUMB.width + (THUMBNAIL_FOCUS_MM.length - 1) * THUMB.gap;
+  const stripLeft = left + MAIN.width + SPLIT;
 
   const thumbGeometry = new THREE.PlaneGeometry(THUMB.width, THUMB.height);
   geometries.push(thumbGeometry);
@@ -121,11 +153,7 @@ export function createConsoleScreens({
     const material = new THREE.MeshBasicMaterial({ map: thumbnail.texture });
     materials.push(material);
     const mesh = new THREE.Mesh(thumbGeometry, material);
-    mesh.position.set(
-      -stripWidth / 2 + THUMB.width / 2 + index * (THUMB.width + THUMB.gap),
-      stripY,
-      0,
-    );
+    mesh.position.set(stripLeft + THUMB.width / 2 + index * (THUMB.width + THUMB.gap), 0, 0);
     mesh.userData.focusMm = THUMBNAIL_FOCUS_MM[index];
     thumbMeshes.push(mesh);
     group.add(mesh);
@@ -198,29 +226,35 @@ export function createConsoleScreens({
   };
 }
 
-/** Legenda em canvas, com a tipografia da interface. */
-function createCaption(text: string): {
-  mesh: THREE.Mesh;
-  geometry: THREE.BufferGeometry;
-  material: THREE.Material;
-  texture: THREE.Texture;
-} {
+/**
+ * Painel escuro do console com a legenda gravada, em canvas. `u` e `v` são o
+ * centro da legenda em coordenadas de textura (0–1, v de baixo para cima).
+ */
+function createBezelTexture(
+  text: string,
+  width: number,
+  height: number,
+  u: number,
+  v: number,
+): THREE.Texture {
+  const pixelsPerUnit = 1400;
   const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 48;
+  canvas.width = Math.round(width * pixelsPerUnit);
+  canvas.height = Math.round(height * pixelsPerUnit);
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Canvas 2D indisponível para a legenda');
+  if (!ctx) throw new Error('Canvas 2D indisponível para o painel do console');
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#05080e';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
   ctx.fillStyle = 'rgba(138, 148, 168, 0.95)';
-  ctx.font = '600 26px Manrope, ui-sans-serif, system-ui, sans-serif';
+  ctx.font = `500 ${Math.round(0.0145 * pixelsPerUnit)}px Outfit, ui-sans-serif, system-ui, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  ctx.fillText(text, u * canvas.width, (1 - v) * canvas.height);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false });
-  const geometry = new THREE.PlaneGeometry(0.3, 0.3 * (48 / 512));
-  return { mesh: new THREE.Mesh(geometry, material), geometry, material, texture };
+  texture.anisotropy = 8;
+  return texture;
 }
