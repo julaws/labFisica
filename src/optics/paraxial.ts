@@ -144,12 +144,14 @@ function imagePlane(
   // depois procuramos a translação que anula o termo B (condição de imagem).
   const m = multiply(systemMatrix(surfaces, wavelengthNm, from, to), transferMatrix(-objectZ, nObject));
 
-  // M_total = T(d) · m ; queremos B_total = 0 → d = −B/A · n'
-  const a = m[0];
+  // M_total = T(d) · m = [[A + (d/n')·C, B + (d/n')·D], [C, D]].
+  // Queremos B_total = 0 → d = −B/D · n'. (Até 01/10/2026 isto usava A no
+  // lugar de D, o que deslocava as duas pupilas; ver ADR 0005.)
   const b = m[1];
-  if (a === 0) return { z: Infinity, magnification: 0 };
+  const dTerm = m[3];
+  if (dTerm === 0) return { z: Infinity, magnification: 0 };
 
-  const d = (-b / a) * nImage;
+  const d = (-b / dTerm) * nImage;
   const total = multiply(transferMatrix(d, nImage), m);
 
   return { z: d, magnification: total[0] };

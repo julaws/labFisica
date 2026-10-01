@@ -13,12 +13,16 @@ import {
 import { glassElements, opticalLength, vertexPositions } from '../../src/optics/prescription';
 import {
   DEFAULT_DESIGN,
-  LENS_50MM_F2,
+  SYMMETRIC_DOUBLE_DOUBLET,
   designSymmetricDoubleDoublet,
-  withFNumber,
 } from '../../src/optics/prescriptions/symmetric-double-doublet';
+import { withFNumber } from '../../src/optics/aperture';
 
-const lens = LENS_50MM_F2;
+// Estes testes cobrem o motor (paraxial, traçador, abertura) sobre o par de
+// dubletos, cujo comportamento é conhecido por construção. A objetiva que o
+// experimento usa hoje, o Gauss duplo da patente, tem testes próprios em
+// double-gauss.test.ts (ADR 0005).
+const lens = SYMMETRIC_DOUBLE_DOUBLET;
 const lastVertex = vertexPositions(lens.surfaces).at(-1)!;
 
 describe('análise paraxial (SPEC §5.6)', () => {
@@ -243,5 +247,34 @@ describe('escolha do bending (reprodução da varredura de projeto)', () => {
     }
 
     expect(bestBending).toBeCloseTo(DEFAULT_DESIGN.bending, 1);
+  });
+});
+
+describe('pupilas (regressão do bug de 01/10/2026)', () => {
+  it('um raio real mirado no centro da pupila de entrada cruza o stop no eixo', async () => {
+    const { LENS_50MM_F2 } = await import('../../src/optics/prescriptions/baker-double-gauss');
+    for (const candidate of [SYMMETRIC_DOUBLE_DOUBLET, LENS_50MM_F2]) {
+      const { entrancePupil } = analyze(candidate);
+      const stop = candidate.surfaces.findIndex((s) => s.isStop);
+      const u = 1e-4;
+      const start = -10;
+      const result = traceRay(candidate, {
+        origin: { x: 0, y: u * (start - entrancePupil.z), z: start },
+        direction: normalize({ x: 0, y: u, z: 1 }),
+      });
+      // points[0] é a origem; o stop é a superfície `stop`.
+      expect(Math.abs(result.points[stop + 1]!.y)).toBeLessThan(1e-6);
+    }
+  });
+
+  it('a pupila de entrada tem o diâmetro do feixe paralelo que enche o stop', () => {
+    const { entrancePupil } = analyze(lens);
+    const stop = lens.surfaces.findIndex((s) => s.isStop);
+    const stopRadius = lens.surfaces[stop]!.semiDiameter;
+    // Quase no eixo (a borda real sofre aberração esférica): a razão entre a
+    // altura no stop e a altura de entrada é a magnificação da pupila.
+    const fraction = 1e-3;
+    const ray = traceRay(lens, collimatedRay((entrancePupil.diameter / 2) * fraction));
+    expect(Math.abs(ray.points[stop + 1]!.y) / fraction).toBeCloseTo(stopRadius, 3);
   });
 });
