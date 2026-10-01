@@ -6,14 +6,11 @@ import type {
   LabContext,
   PanelSchema,
 } from '../../core/experiment';
-import {
-  LENS_50MM_F2,
-  widestFNumber,
-  withFNumber,
-} from '../../optics/prescriptions/symmetric-double-doublet';
+import { LENS_50MM_F2 } from '../../optics/prescriptions/baker-double-gauss';
+import { widestFNumber, withFNumber } from '../../optics/aperture';
 import { analyze } from '../../optics/paraxial';
 import { focusExtension } from '../../optics/thin-lens';
-import { opticalLength } from '../../optics/prescription';
+import { opticalLength, stopIndex, vertexPositions } from '../../optics/prescription';
 import {
   COC_MM,
   DEFAULT_SUBJECT_DISTANCES_MM,
@@ -29,7 +26,7 @@ const SUBJECT_DISTANCES = [
   { id: 'background', distanceMm: DEFAULT_SUBJECT_DISTANCES_MM.background },
 ] as const;
 import { focusRingScale } from '../../scene/textures/procedural';
-import { LENS_EXAGGERATION, distanceToDioramaOffset } from '../../scene/scale';
+import { DIORAMA_DEPTH, LENS_EXAGGERATION } from '../../scene/scale';
 import {
   RING_SWEEP,
   distanceToRingAngle,
@@ -40,6 +37,7 @@ import { DEFAULT_IRIS, bladeSweepRadius } from './iris';
 import {
   type LensElementMesh,
   createBarrel,
+  createElementPosts,
   createIris,
   createLensElement,
   elementIndices,
@@ -87,27 +85,51 @@ import { type ConsoleScreens, createConsoleScreens } from './console-screens';
  * plano de foco, os raios e a imagem no sensor chegam nas fases seguintes.
  */
 
-/** Posição da lente no trilho, em marcas da régua. */
-const LENS_RAIL_MM = 620;
+/**
+ * Posição da lente no trilho, em marcas da régua. Escolhida para centrar na
+ * bancada o conjunto inteiro, do céu do diorama à placa da imagem.
+ */
+const LENS_RAIL_MM = 850;
 
 /**
  * Onde ficam as telas do console, relativas à origem do experimento (o
  * elemento frontal), em unidades de cena: embutidas na face frontal da
  * bancada, abaixo do tampo, como o console da referência. Posição visual
  * pura: as telas mostram renders da câmera virtual, que não depende de onde
- * elas estão. `drop` é quanto o centro das telas fica abaixo do eixo óptico.
+ * elas estão. `belowRail` é quanto o centro das telas fica abaixo do topo do
+ * trilho: amarrado ao trilho, e não ao eixo, ele não muda com a escala da lente.
  */
-const CONSOLE_PLACEMENT = { x: -0.3, z: 0.532, drop: 0.6, scale: 1 } as const;
+const CONSOLE_PLACEMENT = { x: -0.62, z: 0.532, belowRail: 0.31, scale: 1 } as const;
+
+/**
+ * Distância da câmera virtual do sensor à borda próxima do vale, em unidades
+ * de cena. É a mesma de antes da ADR 0005 (pupila de entrada 0,1 à frente de
+ * uma folga de 0,14): com ela o vale enche o quadro do sensor.
+ *
+ * A posição não mexe no desfoque. O shader mede a distância física pelo mapa
+ * logarítmico a partir da origem da objetiva, descontando onde a câmera está;
+ * a câmera só decide o enquadramento. Na lente 12×, a pupila de entrada fica
+ * 0,32 atrás do primeiro vidro e o vale se afastou para abrir espaço ao anel
+ * de foco: deixada ali, a câmera veria o vale pequeno, no meio de um quadro
+ * preto. O vale já é uma maquete comprimida; não existe ponto de vista
+ * "fisicamente certo" para olhar para ele.
+ */
+const SENSOR_STANDOFF = 0.24;
+const SENSOR_CAMERA_X = -(DIORAMA_DEPTH.gapScene - SENSOR_STANDOFF);
 
 /** Duração da transição montada ↔ explodida, em segundos (SPEC §6.3). */
 const EXPLODE_SECONDS = 0.8;
 
 /**
  * Afastamento entre elementos vizinhos no modo explodido, em mm de física.
- * Precisa ser maior que o diâmetro do barril, senão os elementos não saem de
- * dentro dele e a animação não explica nada.
+ * O barril some ao explodir, então o espaçamento só precisa deixar cada
+ * elemento à vista; com seis vidros na escala 12×, 11 mm cabem entre o vale e
+ * a placa da imagem.
  */
-const EXPLODE_SPREAD_MM = 72;
+const EXPLODE_SPREAD_MM = 11;
+
+/** Folga entre o último elemento explodido e os anéis, mm de física. */
+const EXPLODE_RING_GAP_MM = { focus: 14, flange: 12 } as const;
 
 /**
  * Quanto a bandeja do diorama fica **abaixo** do eixo óptico, em unidades de
@@ -137,6 +159,7 @@ export function createLensFocusExperiment(): Experiment {
   let consoleScreens: ConsoleScreens | null = null;
   let locale: Locale = 'pt-BR';
   let iris: ReturnType<typeof createIris> | null = null;
+  let posts: ReturnType<typeof createElementPosts> | null = null;
   let barrel: ReturnType<typeof createBarrel> | null = null;
   let opticsGroup: THREE.Group | null = null;
 
@@ -148,9 +171,12 @@ export function createLensFocusExperiment(): Experiment {
   const lengthMm = opticalLength(LENS_50MM_F2.surfaces);
 
   /** Posição do stop na prescrição, em mm de física. */
-  const stopZMm = LENS_50MM_F2.surfaces
-    .slice(0, 3)
-    .reduce((sum, surface) => sum + surface.thickness, 0);
+  const stopZMm = vertexPositions(LENS_50MM_F2.surfaces)[stopIndex(LENS_50MM_F2.surfaces)]!;
+
+  /** Maior semidiâmetro livre entre os vidros, mm: é ele que dá o barril. */
+  const clearSemiDiameterMm = Math.max(
+    ...LENS_50MM_F2.surfaces.filter((surface) => !surface.isStop).map((surface) => surface.semiDiameter),
+  );
 
   /** Altura do eixo óptico acima do topo do carrinho, em unidades de cena. */
   let axisHeight = 0;
@@ -170,7 +196,7 @@ export function createLensFocusExperiment(): Experiment {
 
   /** Diâmetro externo do barril, em mm de física. */
   function barrelDiameterMm(): number {
-    return 2 * Math.max(LENS_50MM_F2.surfaces[0]!.semiDiameter + 3.2, bladeSweepRadius(DEFAULT_IRIS) + 2);
+    return 2 * Math.max(clearSemiDiameterMm + 3.2, bladeSweepRadius(DEFAULT_IRIS) + 2);
   }
 
   /**
@@ -324,6 +350,12 @@ export function createLensFocusExperiment(): Experiment {
         opticsGroup.add(element.group);
       }
 
+      // Hastes do modo explodido: uma malha instanciada para os seis vidros.
+      posts = createElementPosts(elements.length);
+      geometries.push(...posts.geometries);
+      materials.push(...posts.materials);
+      opticsGroup.add(posts.mesh);
+
       iris = createIris();
       // O stop da prescrição fica na superfície 4; a íris mora nele.
       iris.group.position.x = lensMm(stopZMm);
@@ -336,8 +368,9 @@ export function createLensFocusExperiment(): Experiment {
       // --- Barril e anéis ---------------------------------------------------
       const scaleTexture = focusRingScale(ringMarks(), RING_SWEEP / (Math.PI * 2));
       barrel = createBarrel(ctx.materials, {
-        clearSemiDiameter: LENS_50MM_F2.surfaces[0]!.semiDiameter,
+        clearSemiDiameter: clearSemiDiameterMm,
         opticalLengthMm: lengthMm,
+        stopZMm,
         focusScaleTexture: scaleTexture,
       });
       geometries.push(...barrel.geometries);
@@ -418,7 +451,7 @@ export function createLensFocusExperiment(): Experiment {
         size: quality.sensorTargetSize,
         samples: quality.level === 'low' ? 16 : 32,
         blades: 9,
-        cameraX: lensMm(analyze(LENS_50MM_F2).entrancePupil.z),
+        cameraX: SENSOR_CAMERA_X,
         sceneUnitsPerMm: SCENE_UNITS_PER_MM,
       });
       // A câmera virtual entra no grupo do experimento, não na cena: assim a
@@ -430,7 +463,7 @@ export function createLensFocusExperiment(): Experiment {
       consoleScreens = createConsoleScreens({
         main: sensor,
         layer: SENSOR_LAYER,
-        cameraX: lensMm(analyze(LENS_50MM_F2).entrancePupil.z),
+        cameraX: SENSOR_CAMERA_X,
         sceneUnitsPerMm: SCENE_UNITS_PER_MM,
         thumbnailSize: Math.max(160, Math.round(quality.sensorTargetSize / 4)),
         samples: 16,
@@ -440,7 +473,7 @@ export function createLensFocusExperiment(): Experiment {
       // dela, embaixo do meio do conjunto.
       consoleScreens.group.position.set(
         CONSOLE_PLACEMENT.x,
-        -CONSOLE_PLACEMENT.drop,
+        -(axisHeight + CONSOLE_PLACEMENT.belowRail),
         CONSOLE_PLACEMENT.z,
       );
       consoleScreens.group.scale.setScalar(CONSOLE_PLACEMENT.scale);
@@ -560,9 +593,9 @@ export function createLensFocusExperiment(): Experiment {
         element.group.position.x = lensMm(lerp(element.centerMm, target));
 
         // A haste cresce do trilho até o eixo óptico conforme explode.
-        element.post.scale.y = eased * axisHeight;
-        element.post.visible = eased > 0.01;
+        posts?.place(index, element.group.position.x, eased * axisHeight);
       });
+      if (posts) posts.mesh.visible = eased > 0.01;
 
       if (iris) {
         iris.group.position.x = lensMm(lerp(stopZMm, center));
@@ -578,11 +611,12 @@ export function createLensFocusExperiment(): Experiment {
 
         // Os anéis vão para as pontas, cada um no seu suporte.
         const span = ((elements.length - 1) / 2) * EXPLODE_SPREAD_MM;
-        barrel.focusRing.position.x = lensMm(lerp(barrel.restMm.focusRing, center - span - 58));
-        barrel.apertureRing.position.x = lensMm(
-          lerp(barrel.restMm.apertureRing, center + span + 58),
-        );
-        barrel.flange.position.x = lensMm(lerp(barrel.restMm.flange, center + span + 112));
+        // O anel de foco vai para a frente; a engrenagem do diafragma acompanha
+        // a íris até o meio, entre os elementos III e IV; o flange vai atrás.
+        const gap = EXPLODE_RING_GAP_MM;
+        barrel.focusRing.position.x = lensMm(lerp(barrel.restMm.focusRing, center - span - gap.focus));
+        barrel.apertureRing.position.x = lensMm(lerp(barrel.restMm.apertureRing, center));
+        barrel.flange.position.x = lensMm(lerp(barrel.restMm.flange, center + span + gap.flange));
       }
 
       context?.invalidate();
@@ -841,12 +875,16 @@ export function createLensFocusExperiment(): Experiment {
       root.updateWorldMatrix(true, false);
       root.getWorldPosition(origin);
 
-      // As distâncias saem do tamanho real da objetiva desenhada. O diâmetro
-      // do barril domina o comprimento, então é ele que dá a régua.
-      const reach = Math.max(lensMm(lengthMm), lensMm(barrelDiameterMm()));
-
-      // Fundo do vale: o pico está na posição mapeada de 2 m.
-      const valleyDepth = distanceToDioramaOffset(DEFAULT_SUBJECT_DISTANCES_MM.background);
+      // Âncoras ao longo do eixo, em x de mundo: os enquadramentos miram
+      // peças, não múltiplos do tamanho da lente — assim sobrevivem a uma
+      // troca de escala (ADR 0005).
+      const lensCenterX = origin.x + lensMm(lengthMm / 2);
+      const stopX = origin.x + lensMm(stopZMm);
+      const plateX = origin.x + imagePlaneX;
+      const valleyNearX = origin.x - DIORAMA_DEPTH.gapScene;
+      const valleyMidX = origin.x - (DIORAMA_DEPTH.gapScene + DIORAMA_DEPTH.spanScene / 2);
+      // Altura do tampo do diorama em relação ao eixo.
+      const trayY = origin.y - DIORAMA_DROP;
 
       return [
         {
@@ -859,44 +897,41 @@ export function createLensFocusExperiment(): Experiment {
           // câmera. O alvo fica abaixo do eixo para o conjunto sair de baixo
           // do painel de controles.
           position: {
-            x: origin.x + 0.185,
-            y: origin.y + 0.36,
-            z: origin.z + 2.35,
+            x: origin.x + 0.195,
+            y: origin.y + 0.445,
+            z: origin.z + 3.05,
           },
-          target: { x: origin.x - valleyDepth * 0.35, y: origin.y - 0.24, z: origin.z },
-          fov: 36,
+          target: { x: origin.x - 0.335, y: origin.y - 0.185, z: origin.z },
+          fov: 40,
           // No retrato, de viés pela direita: o trilho recua na diagonal e
-          // céu, vale, objetiva e console cabem entre o HUD e a gaveta.
+          // vale, objetiva e console cabem entre o HUD e a gaveta.
           portrait: {
-            position: { x: origin.x + 1.165, y: origin.y + 0.76, z: origin.z + 2.55 },
-            target: { x: origin.x - valleyDepth * 0.35, y: origin.y - 0.34, z: origin.z },
+            position: { x: origin.x + 1.145, y: origin.y + 0.895, z: origin.z + 3.4 },
+            target: { x: origin.x - 0.355, y: origin.y - 0.405, z: origin.z },
             fov: 56,
           },
         },
         {
           id: 'optical-path',
           label: { 'pt-BR': 'Caminho da luz', en: 'Light path' },
-          // Perfil puro: é o enquadramento em que o cone de raios, o plano de
-          // foco e a placa de vidro aparecem juntos e legíveis.
+          // Perfil puro, do meio do vale à placa: é o enquadramento em que o
+          // cone de raios, o plano de foco e a placa aparecem juntos.
           position: {
-            x: origin.x - valleyDepth * 0.42,
-            y: origin.y + reach * 0.35,
-            z: origin.z + valleyDepth * 1.35,
+            x: (valleyNearX + plateX) / 2 - 0.15,
+            y: origin.y + 0.22,
+            z: origin.z + 2.3,
           },
-          target: { x: origin.x - valleyDepth * 0.42, y: origin.y - 0.02, z: origin.z },
+          target: { x: (valleyNearX + plateX) / 2 - 0.15, y: origin.y - 0.03, z: origin.z },
           fov: 34,
         },
         {
           id: 'sensor',
           label: { 'pt-BR': 'Imagem no sensor', en: 'Sensor image' },
-          // De frente para o vidro fosco: é onde a imagem invertida aparece.
-          position: {
-            x: origin.x + reach * 3.4,
-            y: origin.y + reach * 0.12,
-            z: origin.z + reach * 0.35,
-          },
-          target: { x: origin.x + reach * 1.42, y: origin.y, z: origin.z },
-          fov: 18,
+          // De trás e de frente para o vidro fosco: é onde a imagem invertida
+          // aparece, com os anéis de cada objeto.
+          position: { x: plateX + 0.95, y: origin.y + 0.06, z: origin.z + 0.18 },
+          target: { x: plateX, y: origin.y, z: origin.z },
+          fov: 22,
         },
         {
           id: 'console',
@@ -905,12 +940,12 @@ export function createLensFocusExperiment(): Experiment {
           // as telas.
           position: {
             x: origin.x + CONSOLE_PLACEMENT.x,
-            y: origin.y - CONSOLE_PLACEMENT.drop + 0.3,
+            y: origin.y - axisHeight - CONSOLE_PLACEMENT.belowRail + 0.3,
             z: origin.z + CONSOLE_PLACEMENT.z + 0.95,
           },
           target: {
             x: origin.x + CONSOLE_PLACEMENT.x,
-            y: origin.y - CONSOLE_PLACEMENT.drop,
+            y: origin.y - axisHeight - CONSOLE_PLACEMENT.belowRail,
             z: origin.z + CONSOLE_PLACEMENT.z,
           },
           fov: 32,
@@ -918,60 +953,44 @@ export function createLensFocusExperiment(): Experiment {
         {
           id: 'plate',
           label: { 'pt-BR': 'Plano da imagem', en: 'Image plane' },
-          position: {
-            x: origin.x + reach * 2.4,
-            y: origin.y + reach * 0.5,
-            z: origin.z + reach * 1.5,
-          },
-          target: { x: origin.x + reach * 1.5, y: origin.y, z: origin.z },
-          fov: 26,
+          // Três quartos por trás: os cones chegando e a imagem na placa.
+          position: { x: plateX + 0.6, y: origin.y + 0.35, z: origin.z + 0.95 },
+          target: { x: plateX - 0.12, y: origin.y, z: origin.z },
+          fov: 34,
         },
         {
           id: 'valley',
           label: { 'pt-BR': 'Diorama de perto', en: 'Diorama close-up' },
-          position: {
-            x: origin.x - valleyDepth * 0.45,
-            y: origin.y - axisHeight + 0.42,
-            z: origin.z + 0.95,
-          },
-          target: {
-            x: origin.x - valleyDepth * 0.55,
-            y: origin.y - axisHeight + 0.04,
-            z: origin.z,
-          },
-          fov: 32,
+          // Pela frente e de cima, no meio da bandeja: o bosque, a cabana e o
+          // plano de foco cortando o vale.
+          position: { x: valleyMidX + 0.25, y: trayY + 0.42, z: origin.z + 0.95 },
+          target: { x: valleyMidX + 0.1, y: trayY + 0.02, z: origin.z },
+          fov: 34,
         },
         {
           id: 'lens-three-quarter',
           label: { 'pt-BR': 'Objetiva, três quartos', en: 'Lens, three-quarter' },
           // Do lado do objeto: é de lá que se vê o elemento frontal.
-          position: {
-            x: origin.x - reach * 2.1,
-            y: origin.y + reach * 1.15,
-            z: origin.z + reach * 2.6,
-          },
-          target: origin,
-          fov: 30,
+          position: { x: lensCenterX - 0.95, y: origin.y + 0.5, z: origin.z + 1.2 },
+          target: { x: lensCenterX, y: origin.y, z: origin.z },
+          fov: 34,
         },
         {
           id: 'lens-profile',
           label: { 'pt-BR': 'Objetiva, perfil', en: 'Lens, profile' },
-          position: { x: origin.x, y: origin.y + reach * 0.55, z: origin.z + reach * 3.2 },
-          target: origin,
-          fov: 26,
+          // De frente para o corte do barril: os seis vidros, lado a lado.
+          position: { x: lensCenterX - 0.05, y: origin.y + 0.3, z: origin.z + 1.55 },
+          target: { x: lensCenterX - 0.05, y: origin.y, z: origin.z },
+          fov: 32,
         },
         {
           id: 'iris',
           label: { 'pt-BR': 'Diafragma', en: 'Iris' },
           // Três quartos de perto, de cima: no modo explodido enquadra as
-          // lâminas, que ficam no centro enquanto os anéis vão para as pontas.
-          position: {
-            x: origin.x - reach * 0.45,
-            y: origin.y + reach * 1.0,
-            z: origin.z + reach * 1.85,
-          },
-          target: origin,
-          fov: 28,
+          // lâminas, que ficam no centro com a engrenagem do diafragma.
+          position: { x: stopX - 0.35, y: origin.y + 0.42, z: origin.z + 0.8 },
+          target: { x: stopX, y: origin.y, z: origin.z },
+          fov: 30,
         },
       ];
     },

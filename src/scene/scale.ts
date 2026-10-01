@@ -21,16 +21,17 @@ export const sceneToMm = (units: number): number => units / SCENE_UNITS_PER_MM;
 /**
  * Fator de ampliação da lente e do plano da imagem (SPEC §6.2).
  *
- * Uma objetiva de 50 mm tem cerca de 3 cm de diâmetro. Na bancada, do outro
+ * Uma objetiva de 50 mm tem cerca de 3 cm de vidro. Na bancada, do outro
  * lado da sala, o vidro sumiria e o diafragma seria invisível. A objetiva é
- * desenhada **6× maior** que o tamanho real.
+ * desenhada **12× maior** que o tamanho real (era 6× até a ADR 0005; o dobro
+ * deixa a placa da imagem e os seis elementos legíveis de longe).
  *
  * O que NÃO muda com isso: as curvaturas, as espessuras e o curso de foco
  * mantêm as proporções corretas entre si, porque a ampliação é um fator único
  * aplicado ao conjunto. Nenhuma distância óptica é calculada nesta escala — o
  * motor continua em milímetros reais.
  */
-export const LENS_EXAGGERATION: number = 6;
+export const LENS_EXAGGERATION: number = 12;
 
 /**
  * Mapa de profundidade do diorama (SPEC §6.2).
@@ -53,8 +54,13 @@ export const DIORAMA_DEPTH = {
   maxMm: 10_000,
   /** Comprimento da bandeja em unidades de cena. */
   spanScene: 1.15,
-  /** Folga entre o elemento frontal da objetiva e a borda próxima, em unidades. */
-  gapScene: 0.14,
+  /**
+   * Folga entre o elemento frontal da objetiva e a borda próxima, em
+   * unidades. Abre espaço para a extensão dianteira do barril, onde fica o
+   * anel de foco. É um deslocamento aditivo: o plano de foco usa o mesmo mapa,
+   * então quem está em foco continua o mesmo.
+   */
+  gapScene: 0.4,
 } as const;
 
 const LOG_SPAN = Math.log(DIORAMA_DEPTH.maxMm / DIORAMA_DEPTH.minMm);

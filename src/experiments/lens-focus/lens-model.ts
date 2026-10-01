@@ -60,14 +60,19 @@ export function elementProfile(
 ): THREE.Vector2[] {
   const points: THREE.Vector2[] = [];
 
+  // Além do diâmetro livre da própria face, o vidro segue plano até a borda
+  // do elemento: é o ressalto dos meniscos III e IV no desenho da patente.
+  const faceSag = (surface: Surface, r: number): number =>
+    surfaceSag(surface.radius, Math.min(r, surface.semiDiameter));
+
   for (let i = 0; i <= segments; i += 1) {
     const r = (i / segments) * semiDiameter;
-    points.push(new THREE.Vector2(r, frontZ + surfaceSag(front.radius, r)));
+    points.push(new THREE.Vector2(r, frontZ + faceSag(front, r)));
   }
 
   for (let i = segments; i >= 0; i -= 1) {
     const r = (i / segments) * semiDiameter;
-    points.push(new THREE.Vector2(r, backZ + surfaceSag(back.radius, r)));
+    points.push(new THREE.Vector2(r, backZ + faceSag(back, r)));
   }
 
   return points;
@@ -76,8 +81,6 @@ export function elementProfile(
 export interface LensElementMesh {
   readonly group: THREE.Group;
   readonly glass: THREE.Mesh;
-  /** Haste que aparece no modo explodido, ligando o elemento ao trilho. */
-  readonly post: THREE.Mesh;
   /** Posição do centro do elemento ao longo do eixo, em mm de física. */
   readonly centerMm: number;
   readonly geometries: THREE.BufferGeometry[];
@@ -141,7 +144,9 @@ export function createLensElement(
   const back = surfaces[backIndex]!;
   const frontZ = vertices[frontIndex]!;
   const backZ = vertices[backIndex]!;
-  const semiDiameter = Math.min(front.semiDiameter, back.semiDiameter);
+  // O elemento tem o diâmetro da face mais larga; a outra termina num
+  // ressalto plano (ver elementProfile).
+  const semiDiameter = Math.max(front.semiDiameter, back.semiDiameter);
 
   const profileMm = elementProfile(front, back, frontZ, backZ, semiDiameter);
   const centerMm = (frontZ + backZ) / 2;
@@ -159,52 +164,66 @@ export function createLensElement(
   // O torno gira em torno de Y; o eixo óptico da bancada é X.
   glass.rotation.z = -Math.PI / 2;
 
-  // Borda pintada de preto, como nas lentes reais: mata o reflexo interno.
-  const edgeFront = frontZ + surfaceSag(front.radius, semiDiameter) - centerMm;
-  const edgeBack = backZ + surfaceSag(back.radius, semiDiameter) - centerMm;
-  const edgeGeometry = new THREE.CylinderGeometry(
-    lensMm(semiDiameter) * 1.004,
-    lensMm(semiDiameter) * 1.004,
-    Math.max(lensMm(Math.abs(edgeBack - edgeFront)), 0.0005),
-    72,
-    1,
-    true,
-  );
-  const edgeMaterial = new THREE.MeshStandardMaterial({
-    color: 0x05070a,
-    roughness: 0.95,
-    metalness: 0,
-    side: THREE.DoubleSide,
-  });
-  const edge = new THREE.Mesh(edgeGeometry, edgeMaterial);
-  edge.rotation.z = -Math.PI / 2;
-  edge.position.x = lensMm((edgeFront + edgeBack) / 2);
-
-  // Suporte individual: no modo montado tem altura zero e some.
-  const postGeometry = new THREE.CylinderGeometry(lensMm(1.6), lensMm(2.2), 1, 12);
-  postGeometry.translate(0, -0.5, 0);
-  const postMaterial = new THREE.MeshStandardMaterial({
-    color: 0x14171c,
-    roughness: 0.5,
-    metalness: 0.85,
-  });
-  const post = new THREE.Mesh(postGeometry, postMaterial);
-  post.castShadow = true;
-  post.scale.y = 0;
-  post.visible = false;
+  // A borda é do próprio vidro: o perfil do torno já fecha o contorno pela
+  // lateral do elemento. (Até a ADR 0005 havia uma faixa preta por cima, como
+  // nas lentes reais; ela escondia o contorno que o brilho de Fresnel desenha.)
 
   const group = new THREE.Group();
   group.name = `element-${frontIndex}-${backIndex}`;
-  group.add(glass, edge, post);
+  group.add(glass);
   group.position.x = lensMm(centerMm);
 
   return {
     group,
     glass,
-    post,
     centerMm,
-    geometries: [glassGeometry, edgeGeometry, postGeometry],
-    materials: [glassMaterial, edgeMaterial, postMaterial],
+    geometries: [glassGeometry],
+    materials: [glassMaterial],
+  };
+}
+
+/**
+ * Hastes do modo explodido, uma por elemento, ligando cada vidro ao trilho.
+ * Uma InstancedMesh só: seis hastes custavam seis draw calls em cada passe
+ * (principal, transmissão, normais, sombra) e levavam o modo explodido acima
+ * do orçamento da SPEC §8.
+ */
+export function createElementPosts(count: number): {
+  mesh: THREE.InstancedMesh;
+  /** Põe a haste `index` sob o elemento em `x`, com `height` de altura. */
+  place(index: number, x: number, height: number): void;
+  geometries: THREE.BufferGeometry[];
+  materials: THREE.Material[];
+} {
+  const geometry = new THREE.CylinderGeometry(lensMm(1.6), lensMm(2.2), 1, 12);
+  geometry.translate(0, -0.5, 0);
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x14171c,
+    roughness: 0.5,
+    metalness: 0.85,
+  });
+  const mesh = new THREE.InstancedMesh(geometry, material, count);
+  mesh.name = 'element-posts';
+  mesh.castShadow = true;
+  mesh.frustumCulled = false;
+  mesh.visible = false;
+
+  const matrix = new THREE.Matrix4();
+  const position = new THREE.Vector3();
+  const scale = new THREE.Vector3();
+  const rotation = new THREE.Quaternion();
+
+  return {
+    mesh,
+    place(index: number, x: number, height: number): void {
+      position.set(x, 0, 0);
+      scale.set(1, Math.max(height, 1e-4), 1);
+      matrix.compose(position, rotation, scale);
+      mesh.setMatrixAt(index, matrix);
+      mesh.instanceMatrix.needsUpdate = true;
+    },
+    geometries: [geometry],
+    materials: [material],
   };
 }
 
@@ -281,12 +300,91 @@ export interface BarrelParts {
 }
 
 export interface BarrelOptions {
-  /** Semidiâmetro livre dos elementos, mm. */
+  /** Maior semidiâmetro livre entre os elementos, mm. */
   readonly clearSemiDiameter: number;
   /** Extensão axial do grupo óptico, mm. */
   readonly opticalLengthMm: number;
+  /** Posição axial do diafragma, mm a partir do primeiro vértice. */
+  readonly stopZMm: number;
   /** Textura da escala gravada no anel de foco. */
   readonly focusScaleTexture: THREE.Texture;
+}
+
+/**
+ * Geometria mecânica do barril, em mm de física a partir do primeiro vértice.
+ * Não vem da óptica: é a carcaça, desenhada para mostrar a montagem.
+ *
+ * O barril avança `frontExtensionMm` à frente do primeiro vidro, e é nessa
+ * extensão que mora o anel de foco — longe dos elementos, como na objetiva da
+ * referência, para que o corte mostre os seis vidros sem nada por cima.
+ */
+export const BARREL_LAYOUT = {
+  /** Quanto o barril passa à frente do primeiro vértice. */
+  frontExtensionMm: 26,
+  /** Quanto passa atrás do último vértice. */
+  rearExtensionMm: 8,
+  /** Centro e largura do anel de foco, na extensão dianteira. */
+  focusRingCenterMm: -16,
+  focusRingWidthMm: 14,
+  /** Largura do anel de abertura, centrado no diafragma. */
+  apertureRingWidthMm: 5,
+  /** Dentes da engrenagem de latão do anel de abertura. */
+  apertureTeeth: 60,
+} as const;
+
+/**
+ * Anel oco (perfil retangular girado no torno): deixa ver o que está dentro,
+ * ao contrário de um cilindro maciço.
+ */
+function hollowRing(inner: number, outer: number, width: number, segments = 96): THREE.BufferGeometry {
+  const half = width / 2;
+  const profile = [
+    new THREE.Vector2(inner, -half),
+    new THREE.Vector2(outer, -half),
+    new THREE.Vector2(outer, half),
+    new THREE.Vector2(inner, half),
+    new THREE.Vector2(inner, -half),
+  ];
+  const geometry = new THREE.LatheGeometry(profile, segments);
+  // O torno gira em torno de Y; o eixo óptico é X.
+  geometry.rotateZ(-Math.PI / 2);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** Engrenagem oca extrudada ao longo do eixo: o anel de latão da referência. */
+function gearRing(
+  inner: number,
+  root: number,
+  tip: number,
+  width: number,
+  teeth: number,
+): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  const steps = teeth * 4;
+  for (let i = 0; i <= steps; i += 1) {
+    const angle = (i / steps) * Math.PI * 2;
+    // Dente trapezoidal: dois pontos no topo, dois na raiz.
+    const radius = i % 4 < 2 ? tip : root;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    if (i === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  }
+  const hole = new THREE.Path();
+  hole.absarc(0, 0, inner, 0, Math.PI * 2, true);
+  shape.holes.push(hole);
+
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: width,
+    bevelEnabled: false,
+    curveSegments: 48,
+  });
+  geometry.translate(0, 0, -width / 2);
+  // A extrusão anda em Z; o eixo óptico é X.
+  geometry.rotateY(Math.PI / 2);
+  geometry.computeVertexNormals();
+  return geometry;
 }
 
 /**
@@ -295,7 +393,7 @@ export interface BarrelOptions {
  */
 export function createBarrel(
   materials: MaterialLibrary,
-  { clearSemiDiameter, opticalLengthMm, focusScaleTexture }: BarrelOptions,
+  { clearSemiDiameter, opticalLengthMm, stopZMm, focusScaleTexture }: BarrelOptions,
 ): BarrelParts {
   const group = new THREE.Group();
   group.name = 'barrel';
@@ -308,8 +406,8 @@ export function createBarrel(
   const housingMm = Math.max(clearSemiDiameter + 3.2, bladeSweepRadius(DEFAULT_IRIS) + 2);
   const innerRadius = lensMm(clearSemiDiameter + 0.6);
   const outerRadius = lensMm(housingMm);
-  const frontZ = -6;
-  const rearZ = opticalLengthMm + 10;
+  const frontZ = -BARREL_LAYOUT.frontExtensionMm;
+  const rearZ = opticalLengthMm + BARREL_LAYOUT.rearExtensionMm;
   const lengthMm = rearZ - frontZ;
 
   // Casca com 270°: o quarto que falta é o cutaway.
@@ -366,14 +464,12 @@ export function createBarrel(
   liner.position.x = shell.position.x;
   group.add(liner);
 
-  // Anel de foco: borracha serrilhada com a escala gravada por cima.
-  const focusRingGeometry = new THREE.CylinderGeometry(
-    outerRadius * 1.1,
-    outerRadius * 1.1,
-    lensMm(11),
-    64,
+  // Anel de foco: borracha serrilhada, oca, na extensão dianteira do barril.
+  const focusRingGeometry = hollowRing(
+    outerRadius * 0.995,
+    outerRadius * 1.12,
+    lensMm(BARREL_LAYOUT.focusRingWidthMm),
   );
-  focusRingGeometry.rotateZ(-Math.PI / 2);
   geometries.push(focusRingGeometry);
 
   const focusRingMaterial = materials.knurledRubber.clone();
@@ -382,16 +478,16 @@ export function createBarrel(
 
   const focusRing = new THREE.Mesh(focusRingGeometry, focusRingMaterial);
   focusRing.name = 'focus-ring';
-  focusRing.position.x = lensMm(4);
+  focusRing.position.x = lensMm(BARREL_LAYOUT.focusRingCenterMm);
   focusRing.castShadow = true;
   group.add(focusRing);
 
-  // Faixa gravada, num cilindro um fio maior que o anel.
+  // Faixa gravada, num cilindro um fio maior que o anel, na metade de trás.
   const scaleGeometry = new THREE.CylinderGeometry(
-    outerRadius * 1.106,
-    outerRadius * 1.106,
+    outerRadius * 1.126,
+    outerRadius * 1.126,
     lensMm(5.5),
-    64,
+    96,
     1,
     true,
   );
@@ -414,36 +510,30 @@ export function createBarrel(
   const scaleBand = new THREE.Mesh(scaleGeometry, scaleMaterial);
   scaleBand.name = 'focus-scale';
   focusRing.add(scaleBand);
-  scaleBand.position.x = lensMm(2.4);
+  scaleBand.position.x = lensMm(3.6);
 
-  // Anel de abertura em latão escovado.
-  const apertureRingGeometry = new THREE.CylinderGeometry(
+  // Anel de abertura: engrenagem de latão no plano do diafragma.
+  const apertureRingGeometry = gearRing(
+    outerRadius * 0.995,
     outerRadius * 1.06,
-    outerRadius * 1.06,
-    lensMm(7),
-    64,
+    outerRadius * 1.1,
+    lensMm(BARREL_LAYOUT.apertureRingWidthMm),
+    BARREL_LAYOUT.apertureTeeth,
   );
-  apertureRingGeometry.rotateZ(-Math.PI / 2);
   geometries.push(apertureRingGeometry);
 
   const apertureRing = new THREE.Mesh(apertureRingGeometry, materials.brushedBrass);
   apertureRing.name = 'aperture-ring';
-  apertureRing.position.x = lensMm(opticalLengthMm * 0.55);
+  apertureRing.position.x = lensMm(stopZMm);
   apertureRing.castShadow = true;
   group.add(apertureRing);
 
-  // Flange traseiro de montagem.
-  const flangeGeometry = new THREE.CylinderGeometry(
-    outerRadius * 0.72,
-    outerRadius * 0.72,
-    lensMm(3),
-    64,
-  );
-  flangeGeometry.rotateZ(-Math.PI / 2);
+  // Flange traseiro de montagem, também oco, em latão.
+  const flangeGeometry = hollowRing(outerRadius * 0.6, outerRadius * 0.86, lensMm(3));
   geometries.push(flangeGeometry);
 
-  const flange = new THREE.Mesh(flangeGeometry, materials.anodizedAluminum);
-  flange.position.x = lensMm(rearZ - 1.5);
+  const flange = new THREE.Mesh(flangeGeometry, materials.brushedBrass);
+  flange.position.x = lensMm(rearZ + 1.5);
   flange.castShadow = true;
   group.add(flange);
 
@@ -454,7 +544,11 @@ export function createBarrel(
     shell,
     liner,
     flange,
-    restMm: { focusRing: 4, apertureRing: opticalLengthMm * 0.55, flange: rearZ - 1.5 },
+    restMm: {
+      focusRing: BARREL_LAYOUT.focusRingCenterMm,
+      apertureRing: stopZMm,
+      flange: rearZ + 1.5,
+    },
     geometries,
     materials: ownedMaterials,
   };
