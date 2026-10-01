@@ -971,8 +971,10 @@ export function createLensFocusExperiment(): Experiment {
           id: 'lens-three-quarter',
           label: { 'pt-BR': 'Objetiva, três quartos', en: 'Lens, three-quarter' },
           // Do lado do objeto: é de lá que se vê o elemento frontal.
-          position: { x: lensCenterX - 0.95, y: origin.y + 0.5, z: origin.z + 1.2 },
-          target: { x: lensCenterX, y: origin.y, z: origin.z },
+          // Afastada o bastante para o anel de foco, que no modo explodido
+          // vai para a frente, não tomar o primeiro plano.
+          position: { x: lensCenterX - 1.15, y: origin.y + 0.6, z: origin.z + 1.75 },
+          target: { x: lensCenterX + 0.05, y: origin.y - 0.02, z: origin.z },
           fov: 34,
         },
         {
