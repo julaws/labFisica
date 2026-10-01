@@ -86,6 +86,36 @@ export const GLASSES = {
     validRangeUm: [0.31, 2.5],
     source: SCHOTT_2017,
   },
+  // Os três abaixo entram com o Gauss duplo da patente US 2.532.751: são os
+  // vidros do catálogo mais próximos dos (n_d, ν) que a patente declara
+  // (ver docs/optics-sources.md §6).
+  'N-SSK2': {
+    name: 'N-SSK2',
+    sellmeier: {
+      b: [1.4306027, 0.153150554, 1.01390904],
+      c: [0.00823982975, 0.0333736841, 106.870822],
+    },
+    validRangeUm: [0.35, 2.5],
+    source: SCHOTT_2017,
+  },
+  'N-SK4': {
+    name: 'N-SK4',
+    sellmeier: {
+      b: [1.32993741, 0.228542996, 0.988465211],
+      c: [0.00716874107, 0.0246455892, 100.886364],
+    },
+    validRangeUm: [0.334, 2.5],
+    source: SCHOTT_2017,
+  },
+  F5: {
+    name: 'F5',
+    sellmeier: {
+      b: [1.3104463, 0.19603426, 0.96612977],
+      c: [0.00958633048, 0.0457627627, 115.011883],
+    },
+    validRangeUm: [0.32, 2.5],
+    source: SCHOTT_2017,
+  },
 } as const satisfies Record<string, Glass>;
 
 export type GlassName = keyof typeof GLASSES;

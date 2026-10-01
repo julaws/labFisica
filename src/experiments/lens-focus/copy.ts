@@ -73,7 +73,8 @@ function sectionsFor(facts: Facts, locale: Locale): Record<string, string> {
   const fN = formatFNumber(facts.fNumber, locale);
   // Duas casas: é o número do ADR 0003, e arredondar para f/1,8 esconderia
   // justamente a diferença que o texto explica.
-  const widest = `f/${formatNumber(facts.widestFNumber, 2, locale)}`;
+  // Arredondado ao centésimo: f/2, não f/2,00 nem f/1,9999999.
+  const widest = formatFNumber(Math.round(facts.widestFNumber * 100) / 100, locale);
   // Um disco abaixo de um micrômetro é, para todos os efeitos, um ponto.
   const disc = (value: number): string =>
     value < 0.001 ? (locale === 'en' ? 'a point' : 'um ponto') : mm(value, locale);
@@ -117,9 +118,11 @@ function sectionsFor(facts: Facts, locale: Locale): Record<string, string> {
         `The thin line where the focus plane cuts the valley has a fixed width so it stays visible; the wide band ` +
         `around it is the real sharp zone.`,
       lens:
-        `A symmetric pair of achromatic doublets of ${n(facts.eflPrescription, 1)} mm, designed here from ` +
-        `catalogue glasses. It is not a copy of a commercial lens: with 4 elements, spherical aberration at f/2 ` +
-        `is larger than in a 6-element design.`,
+        `A six-element double Gauss of ${n(facts.eflPrescription, 1)} mm f/2, from US patent 2,532,751 ` +
+        `(James G. Baker, 1950), scaled to 50 mm. The patent's glasses were swapped for the closest ones in ` +
+        `today's SCHOTT catalogue. The patent gives neither the clear diameters nor the stop position: the ` +
+        `diameters are derived here from the f/2 marginal ray and the 10° chief ray, and the stop sits where the ` +
+        `patent drawing puts it, in the middle of the central air space.`,
     };
   }
 
@@ -156,9 +159,11 @@ function sectionsFor(facts: Facts, locale: Locale): Record<string, string> {
       `A linha fina onde o plano de foco corta o vale tem largura fixa, para continuar visível; a faixa larga em ` +
       `volta dela é a zona nítida real.`,
     lens:
-      `Um par simétrico de dubletos acromáticos de ${n(facts.eflPrescription, 1)} mm, projetado aqui a partir ` +
-      `de vidros de catálogo. Não é cópia de uma objetiva comercial: com 4 elementos, a aberração esférica em f/2 ` +
-      `é maior que a de uma lente de 6 elementos.`,
+      `Um Gauss duplo de seis elementos, ${n(facts.eflPrescription, 1)} mm f/2, da patente americana ` +
+      `2.532.751 (James G. Baker, 1950), escalado para 50 mm. Os vidros da patente foram trocados pelos mais ` +
+      `próximos do catálogo SCHOTT atual. A patente não dá os diâmetros nem a posição do diafragma: os ` +
+      `diâmetros são derivados aqui do raio marginal em f/2 e do raio principal a 10°, e o diafragma fica onde o ` +
+      `desenho da patente o põe, no meio do espaço de ar central.`,
   };
 }
 

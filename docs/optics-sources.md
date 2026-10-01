@@ -71,6 +71,12 @@ licença **CC0 1.0** (domínio público), arquivos
 | N-LAK22 | 1,65113 | 55,89 | 0,31 – 2,50 |
 | N-SF2 | 1,64769 | 33,82 | 0,365 – 2,50 |
 | N-SF5 | 1,67271 | 32,25 | 0,37 – 2,50 |
+| N-SSK2 | 1,62229 | 53,27 | 0,35 – 2,50 |
+| N-SK4 | 1,61272 | 58,63 | 0,334 – 2,50 |
+| F5 | 1,60342 | 38,03 | 0,32 – 2,50 |
+
+N-SSK2, N-SK4 e F5 entraram em 30/09/2026, com o Gauss duplo da §6, da mesma base e do
+mesmo catálogo.
 
 **Validação cruzada:** os coeficientes do N-BK7 obtidos dessa base são idênticos, dígito a
 dígito, aos que a SPEC §5.4 traz de forma independente, e o índice calculado na linha d
@@ -93,9 +99,15 @@ plano principal traseiro em `(1 − A)/C` a partir do último vértice, dianteir
 subsistemas que o precedem (traçado revertido) e que o seguem.
 
 Relações-padrão de óptica matricial, sem constante empírica. **Validação:** o determinante
-da matriz vale 1; a EFL concorde com o traçador real; e as pupilas de entrada e saída de um
-sistema simétrico caem simetricamente em torno do stop (3,584 mm de cada lado, no projeto
-atual) — três verificações independentes em `tests/optics/prescription.test.ts`.
+da matriz vale 1; a EFL concorda com o traçador real; e um raio real mirado no centro da
+pupila de entrada cruza o stop no eixo — verificações independentes em
+`tests/optics/prescription.test.ts`.
+
+**Correção de 01/10/2026.** A imagem do stop é achada impondo `B = 0` em `T(d)·M`, o que dá
+`d = −B·n′/D`. O código usava `A` no lugar de `D`, e as duas pupilas saíam fora do lugar e do
+tamanho (no par de dubletos, a de entrada caía em 15,0 mm em vez de 16,8 mm). O erro passou
+porque o teste antigo só checava que a pupila ficava à frente do stop. O teste novo traça
+um raio real pela pupila calculada, que é o que a definição exige.
 
 ## 5. Traçado de raios real
 
@@ -109,101 +121,113 @@ Reflexão interna total quando `η²(1 − cos²θi) > 1`. Vinhetagem quando o p
 cai além do semidiâmetro livre da superfície. Interseção com esfera de vértice em `z₀` e
 centro em `z₀ + R`, escolhendo a raiz do lado do vértice (`t = −b − sign(R)·√Δ`).
 
-## 6. Prescrição da objetiva: por que **não** é um Gauss duplo de patente
+## 6. Prescrição da objetiva: Gauss duplo da patente US 2.532.751
 
-A SPEC §5.3 pede um Gauss duplo clássico ~50 mm f/2 "obtido de fonte pública documentada"
-e a §13 proíbe inventar prescrições. A busca, em 26/09/2026, não produziu uma tabela que
-pudesse ser citada com segurança:
+**Fonte:** patente americana **US 2.532.751**, *Highly corrected objective having two inner
+divergent meniscus components between collective components*, James G. Baker, cedida à
+Perkin-Elmer, depositada em 29/09/1949 e concedida em 05/12/1950. Exemplo 1 / Fig. 1.
+Patente expirada: os números são de domínio público. Documento obtido em 30/09/2026 em
+`patentimages.storage.googleapis.com/5c/6b/cb/66551697e1960a/US2532751.pdf`.
 
-1. **Google Patents, US 2.532.751** (Baker / Perkin-Elmer, 1950) — a transcrição por OCR do
-   documento sai corrompida: índices de refração impossíveis (`n = 1,010`, `n = 1,020`),
-   rótulos de raio trocados por ruído (`11F=`) e **sinais de curvatura perdidos**, o que
-   torna a tabela inutilizável. Usar esses números seria pior que inventá-los, porque
-   pareceriam ter procedência.
-2. **US 3.552.829** (Marquardt / Ernst Leitz, 1971) — a página não expõe a tabela numérica
-   no texto extraível.
-3. **photonstophotos.net / Optical Bench** — tem mais de 1.280 prescrições transcritas de
-   patentes, mas o site declara `Copyright 2017-2026 William J. Claff, All Rights Reserved`,
-   o que impede a cópia (CLAUDE.md §10).
-4. Tabelas avulsas em artigos acadêmicos — a que foi encontrada (arXiv 2409.09754, Tabela A.3)
-   aparece **sem citação de origem** e com uma escala estranha (EFL 4,0 mm em f/1,0), o que
-   não atende à exigência de fonte rastreável.
+### Por que esta fonte agora serve
 
-A própria SPEC §5.3 prevê a saída: *"Se não houver fonte confiável, usar dois dubletos
-acromáticos simétricos em torno do stop e documentar isso."* É o caminho adotado.
+A busca de 26/09/2026 (ADR 0002) descartou esta mesma patente porque o **texto extraído
+por OCR** saía corrompido (índices como `n = 1,010`, sinais perdidos). Desta vez a tabela
+foi lida na **imagem escaneada** do documento, renderizada página a página, e não no OCR.
+A patente traz a tabela duas vezes — no desenho (p. 1) e impressa no texto (col. 6) —, e as
+duas foram conferidas uma contra a outra.
 
-Se você tiver acesso a uma prescrição citável (um livro de projeto óptico, por exemplo),
-ela entra sem retrabalho: `Prescription` é só uma tabela de superfícies, e todo o motor,
-a geometria 3D e os raios passam a usá-la.
+### Tabela da patente (F = 1,000, f/2)
 
-## 7. Prescrição adotada: par simétrico de dubletos acromáticos, 50 mm f/2
+| Elemento | n_D | ν | Raios | Espessuras e espaços |
+|---|---|---|---|---|
+| I | 1,617 | 55,0 | R1 = 0,578 · R2 = 1,896 | t1 = 0,088 · S1 = 0,003 |
+| II | 1,611 | 57,2 | R3 = 0,351 | t2 = 0,125 |
+| III | 1,605 | 38,0 | R4 = plano · R5 = 0,216 | t3 = 0,038 · S2 = 0,282 |
+| IV | 1,605 | 38,0 | R6 = −0,272 | t4 = 0,038 |
+| V | 1,620 | 60,3 | R7 = plano · R8 = −0,352 | t5 = 0,109 · S3 = 0,003 |
+| VI | 1,620 | 60,3 | R9 = 5,902 · R10 = −0,635 | t6 = 0,069 |
 
-`src/optics/prescriptions/symmetric-double-doublet.ts`.
+II–III e IV–V são pares cimentados (R4 e R7 são as interfaces). Única divergência entre
+as duas cópias da tabela: o ν do elemento III é **38,9 no desenho** e **38,0 na tabela
+impressa**. Vale a impressa, que também coincide com o elemento IV (mesmo vidro).
 
-### Como a geometria é obtida
+### O que foi preciso completar, e como
 
-Nenhum raio ou espessura é digitado à mão. O módulo resolve:
+| Lacuna da patente | Decisão | Por quê |
+|---|---|---|
+| Vidros dados por (n_D, ν), não por nome | Vidro SCHOTT 2017 mais próximo (tabela abaixo) | A SPEC §5.4 pede coeficientes de catálogo |
+| Posição do diafragma | No meio de S2 (S2 partido em 0,141 + 0,141) | É onde a Fig. 1 o desenha |
+| Escala | Tudo × 50,2048, o fator que leva a EFL a 50,000 mm | Com os vidros do catálogo a EFL da tabela é 0,9959 (a patente diz 1,000) |
+| Diâmetros livres | Derivados (abaixo) | A patente não os dá |
 
-1. **Condição acromática** de duas lentes finas em contato, `Φ_a/V_a + Φ_b/V_b = 0`, que dá
-   `f_a = f_d·(V_a − V_b)/V_a` e `f_b = −f_d·(V_a − V_b)/V_b`, com V vindo do catálogo CC0.
-2. **Equação do fabricante de lentes** em cada superfície do dubleto cimentado, deixando
-   `R1` livre como parâmetro de forma (*bending*).
-3. `f_d` por bissecção até a **EFL paraxial do sistema espesso** dar exatamente 50 mm.
-4. `κ`, um fator sobre a potência do flint, por bissecção até a **aberração cromática
-   longitudinal medida no traçador real** (linhas F e C) zerar. A condição do passo 1 é de
-   lente fina; κ absorve o efeito das espessuras.
+**Vidros.** Busca pelo menor desvio em (n_d, ν_d) entre os 156 vidros SCHOTT da base
+CC0 do refractiveindex.info (`database/data/specs/schott/optical/`):
 
-Entradas de projeto (escolhas declaradas, não constantes físicas): crown **N-LAK22**,
-flint **N-SF5**, espessuras 7,0 mm e 2,6 mm, separação total entre os dubletos 18,0 mm,
-semidiâmetro livre 15,0 mm, stop totalmente aberto com semidiâmetro 12,5 mm, e
-**bending R1/f_d = 1,30**, achado por varredura que minimiza a aberração esférica marginal
-em f/2. A varredura é reproduzida em `tests/optics/prescription.test.ts`, que falha se 1,30
-deixar de ser o mínimo.
+| Patente | Vidro | n_d | ν_d |
+|---|---|---|---|
+| 1,617 / 55,0 (I) | N-SSK2 | 1,62229 | 53,27 |
+| 1,611 / 57,2 (II) | N-SK4 | 1,61272 | 58,63 |
+| 1,605 / 38,0 (III, IV) | F5 | 1,60342 | 38,03 |
+| 1,620 / 60,3 (V, VI) | N-SK16 | 1,62041 | 60,32 |
+
+**Diâmetros livres** (`clearSemiDiameters` em `baker-double-gauss.ts`):
+
+1. cada superfície deixa passar o raio marginal de f/2 no eixo somado ao raio principal a
+   **10°** (um círculo de 18 mm no centro do quadro full frame; além disso a lente vinheta,
+   como toda objetiva rápida real) — essa é a única escolha de projeto;
+2. cada componente (elemento solto ou par cimentado) tem um só diâmetro externo, o maior
+   envelope entre as suas superfícies; a face cuja esfera não chega lá termina num
+   **ressalto plano**, como os meniscos III e IV do desenho;
+3. o componente é limitado ao diâmetro em que a borda de algum elemento chegaria a
+   **0,5 mm**;
+4. o stop fica com o raio marginal de f/2: a abertura máxima é exatamente a nominal.
+
+## 7. Prescrição adotada: Gauss duplo de 6 elementos, 50 mm f/2
+
+`src/optics/prescriptions/baker-double-gauss.ts`. Testes em
+`tests/optics/double-gauss.test.ts`.
 
 ### Tabela resultante (mm)
 
 | # | Raio | Espessura | Meio | Semidiâmetro | |
 |---|---|---|---|---|---|
-| 1 | 113,4041 | 7,0000 | N-LAK22 | 15,00 | |
-| 2 | −30,4830 | 2,6000 | N-SF5 | 15,00 | |
-| 3 | −99,7248 | 9,0000 | ar | 15,00 | |
-| 4 | plano | 9,0000 | ar | 12,50 | **stop** |
-| 5 | 99,7248 | 2,6000 | N-SF5 | 15,00 | |
-| 6 | 30,4830 | 7,0000 | N-LAK22 | 15,00 | |
-| 7 | −113,4041 | — | ar | 15,00 | |
+| 1 | 29,018 | 4,418 | N-SSK2 | 16,90 | I |
+| 2 | 95,188 | 0,151 | ar | 16,90 | |
+| 3 | 17,622 | 6,276 | N-SK4 | 13,05 | II |
+| 4 | plano | 1,908 | F5 | 13,05 | III (cimentado) |
+| 5 | 10,844 | 7,079 | ar | 10,63 | ressalto plano até 13,05 |
+| 6 | plano | 7,079 | ar | 7,88 | **stop** |
+| 7 | −13,656 | 1,908 | F5 | 11,62 | IV |
+| 8 | plano | 5,472 | N-SK16 | 11,62 | V (cimentado) |
+| 9 | −17,672 | 0,151 | ar | 11,62 | |
+| 10 | 296,309 | 3,464 | N-SK16 | 11,92 | VI |
+| 11 | −31,880 | — | ar | 11,92 | |
 
 ### Desempenho medido pelo próprio motor
 
 | Grandeza | Valor |
 |---|---|
 | EFL | 50,0000 mm |
-| BFL | 33,2403 mm |
-| FFL | −33,2403 mm |
-| Plano principal traseiro | −16,7597 mm do último vértice |
-| Plano principal dianteiro | +16,7597 mm do primeiro vértice |
-| Pupila de entrada | z = 15,0158 mm, D = 28,4441 mm |
-| Pupila de saída | z = 22,1842 mm, D = 28,4441 mm |
-| Abertura máxima | **f/1,76** (o stop fecha para f/2 com semidiâmetro 10,99 mm) |
-| Comprimento do grupo óptico | 37,20 mm |
-| Aberração esférica longitudinal em f/2 | −1,8848 mm (marginal em 31,36 mm, paraxial em 33,24 mm) |
-| Aberração cromática longitudinal F–C | < 0,01 mm (nula por construção) |
+| BFL | 30,9319 mm |
+| Plano principal traseiro | −19,0681 mm do último vértice |
+| Pupila de entrada | z = 26,9839 mm, D = 25,0000 mm |
+| Pupila de saída | z = 9,9170 mm, D = 29,4598 mm |
+| Abertura máxima | **f/2** (a nominal da patente) |
+| Comprimento do grupo óptico | 37,90 mm |
+| Aberração esférica longitudinal | −0,038 mm (h = 3) · −0,136 (h = 6) · −0,239 (h = 9) · −0,161 mm (h = 12,5, f/2) |
+| Aberração cromática longitudinal F–C | −0,020 mm (raio a 5 mm) |
 
-### Abertura máxima: f/1,76, não f/1.4
+A aberração esférica cresce até a zona e volta na borda: é a correção zonal típica do
+Gauss duplo, que a própria patente menciona ("the zonal aberration has been permitted to
+be significant"). O par de dubletos anterior tinha −1,885 mm em f/2.
 
-A SPEC §5.1 lista a escala de stops de f/1.4 a f/22. Esta objetiva **não alcança
-f/1.4**: seria preciso uma pupila de entrada de 35,7 mm num conjunto de 30 mm de
-diâmetro livre. O limite sai do cálculo, não de uma constante — `widestFNumber()`
-o obtém da própria prescrição, e `withFNumber()` limita pedidos abaixo dele. A
-escala oferecida na interface começa em f/2. Decisão registrada no
-[ADR 0003](adr/0003-limite-de-abertura-e-escala-da-lente.md).
+### A objetiva anterior
 
-### Limitação, declarada na interface
-
-Com 4 elementos, a aberração esférica residual em f/2 (−1,9 mm) é **muito maior** que a de
-uma objetiva comercial de 6 elementos (da ordem de −0,1 mm). Isso é honesto para um projeto
-simétrico simples e até didático — o modo "Aberrações" mostra o efeito com clareza —, mas
-precisa estar escrito no modal "?" (F7): **esta é uma lente de laboratório, não a cópia de
-uma objetiva de mercado.**
+O par simétrico de dubletos acromáticos (ADR 0002) continua em
+`src/optics/prescriptions/symmetric-double-doublet.ts`, coberto pelos testes do motor, mas
+não é mais a lente do experimento. Com a correção das pupilas (§4), a abertura máxima
+dele é **f/1,73**, e não o f/1,76 registrado no ADR 0003.
 
 ---
 
@@ -216,7 +240,7 @@ uma objetiva de mercado.**
 | Sellmeier e coeficientes dos vidros | documentado, fonte CC0 (§3) | F1 ✔ |
 | Matriz paraxial (ABCD), EFL, BFL, pupilas | documentado e testado (§4) | F1 ✔ |
 | Traçador sequencial, Snell, TIR, vinhetagem | documentado e testado (§5) | F1 ✔ |
-| Prescrição da objetiva | alternativa da SPEC §5.3, documentada (§6 e §7) | F1 ✔ |
-| Ampliação de desenho da objetiva | 8×, declarada em `src/scene/scale.ts` e no modal "?" | F3 ✔ |
-| Limite real de abertura (f/1,76) | documentado (§7) e no ADR 0003 | F3 ✔ |
-| Mapa logarítmico de profundidade do diorama | `offset(d) = k·ln(d/300 mm)`, k = 0,328 un/ln, declarado em `src/scene/scale.ts` e no modal "?" | F4 ✔ |
+| Prescrição da objetiva | Gauss duplo da patente US 2.532.751, documentado (§6 e §7), ADR 0005 | 01/10/2026 ✔ |
+| Ampliação de desenho da objetiva | 12×, declarada em `src/scene/scale.ts` e no modal "?" | 01/10/2026 ✔ |
+| Limite real de abertura | f/2, a nominal da patente (§7) | 01/10/2026 ✔ |
+| Mapa logarítmico de profundidade do diorama | `offset(d) = folga + k·ln(d/300 mm)`, k = 0,328 un/ln, folga 0,40 un, declarado em `src/scene/scale.ts` e no modal "?" | F4 ✔ |

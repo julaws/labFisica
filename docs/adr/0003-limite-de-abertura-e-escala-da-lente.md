@@ -1,6 +1,6 @@
 # ADR 0003 — Limite de abertura da objetiva e escala de desenho
 
-- **Status:** aceito
+- **Status:** substituído pelo [ADR 0005](0005-gauss-duplo-da-patente-e-escala-12x.md) em 01/10/2026
 - **Data:** 2026-09-27
 - **Fase:** F3
 

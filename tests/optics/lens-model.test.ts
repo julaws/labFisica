@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  LENS_50MM_F2,
-  widestFNumber,
-  withFNumber,
-} from '../../src/optics/prescriptions/symmetric-double-doublet';
+import { LENS_50MM_F2 } from '../../src/optics/prescriptions/baker-double-gauss';
+import { widestFNumber, withFNumber } from '../../src/optics/aperture';
 import { FOCUS_RANGE_MM } from '../../src/optics/constants';
 import { elementProfile, surfaceSag } from '../../src/experiments/lens-focus/lens-model';
 import {
@@ -70,9 +67,9 @@ describe('perfil dos elementos, gerado da prescrição', () => {
   });
 
   it('gera um elemento por vidro da prescrição', () => {
-    // 4 elementos: crown e flint de cada lado do stop.
+    // 6 elementos: o Gauss duplo da patente US 2.532.751 (ADR 0005).
     const glassSurfaces = surfaces.filter((surface) => surface.material.name !== 'ar');
-    expect(glassSurfaces).toHaveLength(4);
+    expect(glassSurfaces).toHaveLength(6);
   });
 });
 
@@ -102,9 +99,8 @@ describe('diafragma de 9 lâminas', () => {
 
   it('abre até o limite mecânico da objetiva e não além', () => {
     const widest = widestFNumber(LENS_50MM_F2);
-    // O par simétrico de dubletos chega a f/1,76; f/1.4 exigiria vidro maior.
-    expect(widest).toBeGreaterThan(1.7);
-    expect(widest).toBeLessThan(1.8);
+    // O Gauss duplo da patente é f/2; f/1.4 exigiria vidro maior.
+    expect(widest).toBeCloseTo(2, 6);
 
     const asked = withFNumber(LENS_50MM_F2, 1.4).surfaces.find((s) => s.isStop)!;
     const limit = withFNumber(LENS_50MM_F2, widest).surfaces.find((s) => s.isStop)!;

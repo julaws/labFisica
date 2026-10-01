@@ -35,13 +35,14 @@ disco de **1,41 mm** do pinheiro, o desfoque de cada pixel da imagem no sensor.
 Três coisas não estão em escala real, e o modal "Sobre as escalas" diz quais e
 por quê, lendo os fatores direto do código:
 
-1. A objetiva e o vidro fosco são desenhados **6× maiores**.
+1. A objetiva e o vidro fosco são desenhados **12× maiores**.
 2. A profundidade do diorama é **logarítmica** (30 cm a 10 m numa bandeja de
    1,15 m). O plano de foco usa o mesmo mapa, então ele corta um objeto na cena
    exatamente quando a física diz que o objeto está nítido.
-3. A objetiva é um **par simétrico de dubletos acromáticos** projetado aqui, não
-   um Gauss duplo comercial — não havia prescrição citável (ADR 0002). Ela abre
-   até **f/1,76**, não f/1.4 (ADR 0003).
+
+A objetiva é um **Gauss duplo de seis elementos, 50 mm f/2**, da patente
+americana 2.532.751 (James G. Baker, 1950), com os vidros trocados pelos
+equivalentes do catálogo SCHOTT atual (ADR 0005).
 
 ## Requisitos
 

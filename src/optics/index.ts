@@ -12,4 +12,6 @@ export * from './thin-lens';
 export * from './prescription';
 export * from './paraxial';
 export * from './trace';
+export * from './aperture';
 export * from './prescriptions/symmetric-double-doublet';
+export * from './prescriptions/baker-double-gauss';

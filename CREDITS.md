@@ -41,9 +41,11 @@ com cobrança.
 
 | Dado | Fonte | Licença | Obtido em | Onde é usado |
 |---|---|---|---|---|
-| Coeficientes de Sellmeier dos vidros SCHOTT (N-BK7, N-SK16, N-LAK22, N-SF2, N-SF5) | [refractiveindex.info database](https://github.com/polyanskiy/refractiveindex.info-database), a partir do SCHOTT Zemax catalog 2017-01-20b | CC0 1.0 | 26/09/2026 | `src/optics/glass.ts` |
+| Coeficientes de Sellmeier dos vidros SCHOTT (N-BK7, N-SK16, N-LAK22, N-SF2, N-SF5; N-SSK2, N-SK4 e F5 em 30/09/2026) | [refractiveindex.info database](https://github.com/polyanskiy/refractiveindex.info-database), a partir do SCHOTT Zemax catalog 2017-01-20b | CC0 1.0 | 26/09/2026 | `src/optics/glass.ts` |
+| Prescrição do Gauss duplo 50 mm f/2 (raios, espessuras, n_D e ν do Exemplo 1) | Patente US 2.532.751, J. G. Baker / Perkin-Elmer, 1950 | Domínio público (patente expirada) | 30/09/2026 | `src/optics/prescriptions/baker-double-gauss.ts` |
 
 Coeficientes de vidros, prescrições e fórmulas têm as referências completas em
-[`docs/optics-sources.md`](docs/optics-sources.md). A prescrição da objetiva **não** é
-copiada de terceiros: é derivada em código a partir desses dados de vidro, conforme
-[ADR 0002](docs/adr/0002-prescricao-da-objetiva.md).
+[`docs/optics-sources.md`](docs/optics-sources.md). A prescrição da objetiva vem da
+patente acima, lida na imagem do documento; o que a patente não dá (vidros de catálogo,
+posição do diafragma, diâmetros livres) é derivado em código, conforme
+[ADR 0005](docs/adr/0005-gauss-duplo-da-patente-e-escala-12x.md).
