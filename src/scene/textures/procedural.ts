@@ -511,6 +511,220 @@ export function skyBackdrop(width = 1024, height = 512): THREE.Texture {
   });
 }
 
+/**
+ * Quadro do átomo (parede direita): núcleo de prótons e nêutrons, três
+ * órbitas elípticas em ângulos diferentes e os elétrons acesos, sobre azul
+ * profundo, com moldura. Desenhado em canvas, como os cartazes.
+ */
+export function atomArtwork(width = 1024, height = 768): THREE.Texture {
+  return memo(`atom-${width}x${height}`, () => {
+    const { canvas, ctx } = artCanvas(width, height);
+    paintFramedBackground(ctx, width, height, '#0b1a33', '#050b18');
+
+    const cx = width / 2;
+    const cy = height / 2;
+    let state = 20261002;
+    const random = (): number => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 0xffffffff;
+    };
+
+    // Brilho difuso atrás do átomo.
+    const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, height * 0.45);
+    halo.addColorStop(0, 'rgba(127, 227, 255, 0.28)');
+    halo.addColorStop(1, 'rgba(127, 227, 255, 0)');
+    ctx.fillStyle = halo;
+    ctx.fillRect(0, 0, width, height);
+
+    // Órbitas: três elipses giradas, com traço duplo (brilho + linha fina).
+    const orbit = { rx: height * 0.4, ry: height * 0.13 };
+    const angles = [0, Math.PI / 3, (2 * Math.PI) / 3];
+    for (const angle of angles) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+      ctx.strokeStyle = 'rgba(127, 227, 255, 0.25)';
+      ctx.lineWidth = 10;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, orbit.rx, orbit.ry, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(200, 245, 255, 0.95)';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // Elétrons: um em cada órbita, aceso.
+    angles.forEach((angle, index) => {
+      const t = 0.7 + index * 2.1;
+      const ex = Math.cos(t) * orbit.rx;
+      const ey = Math.sin(t) * orbit.ry;
+      const x = cx + ex * Math.cos(angle) - ey * Math.sin(angle);
+      const y = cy + ex * Math.sin(angle) + ey * Math.cos(angle);
+      const glow = ctx.createRadialGradient(x, y, 0, x, y, 26);
+      glow.addColorStop(0, 'rgba(255, 255, 255, 1)');
+      glow.addColorStop(0.3, 'rgba(127, 227, 255, 0.9)');
+      glow.addColorStop(1, 'rgba(127, 227, 255, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(x, y, 26, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    // Núcleo: bolinhas vermelhas (prótons) e cinza-azuladas (nêutrons).
+    const nucleus = height * 0.06;
+    for (let i = 0; i < 14; i += 1) {
+      const a = random() * Math.PI * 2;
+      const r = Math.sqrt(random()) * nucleus;
+      const x = cx + Math.cos(a) * r;
+      const y = cy + Math.sin(a) * r;
+      const radius = nucleus * 0.42;
+      const proton = i % 2 === 0;
+      const ball = ctx.createRadialGradient(x - radius * 0.3, y - radius * 0.3, radius * 0.1, x, y, radius);
+      ball.addColorStop(0, proton ? '#ffb4a0' : '#e6ecf5');
+      ball.addColorStop(1, proton ? '#c2412f' : '#6c7a92');
+      ctx.fillStyle = ball;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    caption(ctx, width, height, 'átomo');
+    return finishArt(canvas);
+  });
+}
+
+/**
+ * Quadro da galáxia (parede esquerda): espiral de dois braços feita de
+ * milhares de estrelas, núcleo amarelado, braços azulados e faixas de
+ * poeira, sobre um céu estrelado, com moldura.
+ */
+export function galaxyArtwork(width = 1024, height = 768): THREE.Texture {
+  return memo(`galaxy-${width}x${height}`, () => {
+    const { canvas, ctx } = artCanvas(width, height);
+    paintFramedBackground(ctx, width, height, '#070a1a', '#020309');
+
+    let state = 19900424;
+    const random = (): number => {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      return state / 0xffffffff;
+    };
+    const gaussian = (): number => (random() + random() + random() - 1.5) / 1.5;
+
+    // Céu de fundo.
+    for (let i = 0; i < 700; i += 1) {
+      const a = random() * 0.8 + 0.1;
+      ctx.fillStyle = `rgba(220, 230, 255, ${a * 0.7})`;
+      ctx.fillRect(random() * width, random() * height, 1.4, 1.4);
+    }
+
+    const cx = width / 2;
+    const cy = height / 2;
+    const tilt = 0.55; // achatamento: a galáxia vista de viés
+    const rotation = -0.35;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rotation);
+    ctx.globalCompositeOperation = 'lighter';
+
+    // Halo difuso.
+    const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, height * 0.42);
+    halo.addColorStop(0, 'rgba(255, 220, 170, 0.5)');
+    halo.addColorStop(0.35, 'rgba(150, 170, 255, 0.16)');
+    halo.addColorStop(1, 'rgba(80, 100, 200, 0)');
+    ctx.fillStyle = halo;
+    ctx.save();
+    ctx.scale(1, tilt);
+    ctx.beginPath();
+    ctx.arc(0, 0, height * 0.42, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Braços: espiral logarítmica r = a·e^(bθ), com dispersão.
+    const maxR = height * 0.44;
+    for (let i = 0; i < 9000; i += 1) {
+      const arm = i % 2;
+      const theta = random() * 4.2;
+      const r = maxR * 0.06 * Math.exp(0.68 * theta);
+      if (r > maxR) continue;
+      const spread = (0.06 + 0.12 * (r / maxR)) * maxR * gaussian();
+      const angle = theta + arm * Math.PI;
+      const x = Math.cos(angle) * r + Math.cos(angle + Math.PI / 2) * spread;
+      const y = (Math.sin(angle) * r + Math.sin(angle + Math.PI / 2) * spread) * tilt;
+      const near = 1 - r / maxR;
+      const red = Math.round(150 + 105 * near);
+      const green = Math.round(170 + 60 * near);
+      const blue = Math.round(255 - 70 * near);
+      ctx.fillStyle = `rgba(${red}, ${green}, ${blue}, ${0.22 + 0.4 * random()})`;
+      const size = random() < 0.04 ? 2.6 : 1.3;
+      ctx.fillRect(x, y, size, size);
+    }
+
+    // Núcleo brilhante.
+    const core = ctx.createRadialGradient(0, 0, 0, 0, 0, height * 0.09);
+    core.addColorStop(0, 'rgba(255, 250, 230, 1)');
+    core.addColorStop(0.4, 'rgba(255, 210, 150, 0.7)');
+    core.addColorStop(1, 'rgba(255, 180, 120, 0)');
+    ctx.fillStyle = core;
+    ctx.save();
+    ctx.scale(1, tilt * 1.2);
+    ctx.beginPath();
+    ctx.arc(0, 0, height * 0.09, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    ctx.restore();
+
+    caption(ctx, width, height, 'galáxia');
+    return finishArt(canvas);
+  });
+}
+
+function artCanvas(width: number, height: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D indisponível para o quadro');
+  return { canvas, ctx };
+}
+
+/** Fundo em degradê com moldura escura e filete ciano, como os cartazes. */
+function paintFramedBackground(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  top: string,
+  bottom: string,
+): void {
+  ctx.fillStyle = '#0a0d14';
+  ctx.fillRect(0, 0, width, height);
+  const inset = Math.round(height * 0.045);
+  const background = ctx.createLinearGradient(0, inset, 0, height - inset);
+  background.addColorStop(0, top);
+  background.addColorStop(1, bottom);
+  ctx.fillStyle = background;
+  ctx.fillRect(inset, inset, width - inset * 2, height - inset * 2);
+  ctx.strokeStyle = 'rgba(127, 227, 255, 0.55)';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(inset - 4, inset - 4, width - inset * 2 + 8, height - inset * 2 + 8);
+}
+
+function caption(ctx: CanvasRenderingContext2D, width: number, height: number, text: string): void {
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = 'rgba(230, 236, 246, 0.8)';
+  ctx.font = `600 ${Math.round(height * 0.04)}px Outfit, ui-sans-serif, system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.fillText(text, width / 2, height * 0.92);
+}
+
+function finishArt(canvas: HTMLCanvasElement): THREE.Texture {
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
 /** Libera todas as texturas geradas. Chamado no dispose do laboratório. */
 export function disposeProceduralTextures(): void {
   for (const texture of cache.values()) texture.dispose();

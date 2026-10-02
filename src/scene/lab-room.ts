@@ -3,7 +3,7 @@ import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLigh
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from './materials';
 import { PALETTE } from './materials';
-import { wallPosterTexture } from './textures/procedural';
+import { atomArtwork, galaxyArtwork, wallPosterTexture } from './textures/procedural';
 
 /**
  * A sala do laboratório (SPEC §3.1): estúdio escuro com profundidade, piso de
@@ -121,6 +121,53 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   const frames = new THREE.Mesh(framesGeometry, materials.emissive(PALETTE.focus, 0.65));
   group.add(frames);
   glowing.push(frames);
+
+  // --- Quadros nas paredes laterais ------------------------------------------
+  // Átomo na parede direita, junto ao canto da estante; galáxia na esquerda.
+  // Retroiluminados como os cartazes, com a moldura desenhada na textura. As
+  // duas artes vão lado a lado numa textura só e os dois quadros são uma malha
+  // só: um draw call por passe, não dois (SPEC §8).
+  const atom = atomArtwork().image as HTMLCanvasElement;
+  const galaxy = galaxyArtwork().image as HTMLCanvasElement;
+  const artCanvas = document.createElement('canvas');
+  artCanvas.width = atom.width + galaxy.width;
+  artCanvas.height = Math.max(atom.height, galaxy.height);
+  const artContext = artCanvas.getContext('2d');
+  if (!artContext) throw new Error('Canvas 2D indisponível para os quadros');
+  artContext.drawImage(atom, 0, 0);
+  artContext.drawImage(galaxy, atom.width, 0);
+  const artAtlas = new THREE.CanvasTexture(artCanvas);
+  artAtlas.colorSpace = THREE.SRGBColorSpace;
+  artAtlas.anisotropy = 8;
+  owned.push(artAtlas);
+
+  const artParts = [
+    { half: 0, x: ROOM.width / 2 - 0.015, rotation: -Math.PI / 2 },
+    { half: 1, x: -ROOM.width / 2 + 0.015, rotation: Math.PI / 2 },
+  ].map(({ half, x, rotation }) => {
+    const plane = new THREE.PlaneGeometry(1.6, 1.2);
+    const uv = plane.attributes.uv!;
+    for (let i = 0; i < uv.count; i += 1) uv.setX(i, (uv.getX(i) + half) / 2);
+    return plane.rotateY(rotation).translate(x, 1.95, -ROOM.depth / 2 + 1.6);
+  });
+  const artGeometry = mergeGeometries(artParts);
+  for (const part of artParts) part.dispose();
+  if (!artGeometry) throw new Error('Falha ao mesclar os quadros');
+  owned.push(artGeometry);
+
+  const artMaterial = new THREE.MeshStandardMaterial({
+    map: artAtlas,
+    emissiveMap: artAtlas,
+    emissive: new THREE.Color(0xffffff),
+    emissiveIntensity: 0.75,
+    roughness: 0.6,
+    metalness: 0,
+  });
+  owned.push(artMaterial);
+  const artworks = new THREE.Mesh(artGeometry, artMaterial);
+  artworks.name = 'artworks';
+  group.add(artworks);
+  glowing.push(artworks);
 
   // --- Luzes ---------------------------------------------------------------
   // Luz principal quente, alta e à frente: é ela que dá o dourado do latão e
