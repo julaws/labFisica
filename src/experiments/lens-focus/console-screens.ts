@@ -45,10 +45,12 @@ export interface ConsoleScreensOptions {
  * esquerda, a tira de miniaturas à direita, tudo sobre um painel escuro.
  * Proporção 3:2 do sensor full frame (36 × 24 mm) em todas as telas.
  */
-const MAIN = { width: 0.24, height: 0.16 };
-const THUMB = { width: 0.15, height: 0.1, gap: 0.016 };
+// As miniaturas ficaram 3× maiores na ADR 0006 (eram 0,15 × 0,10); a tela
+// principal acompanha, para não ficar menor que elas.
+const MAIN = { width: 0.45, height: 0.3 };
+const THUMB = { width: 0.45, height: 0.3, gap: 0.03 };
 /** Espaço entre a tela principal e a tira. */
-const SPLIT = 0.05;
+const SPLIT = 0.07;
 /** Margem do painel em volta das telas. */
 const BEZEL = 0.035;
 
@@ -77,10 +79,10 @@ export function createConsoleScreens({
   // A legenda vai na textura do painel, não numa placa própria: uma malha a
   // menos em cada passe (SPEC §8).
   const bezelWidth = totalWidth + BEZEL * 2;
-  const bezelHeight = MAIN.height + 0.03 + BEZEL * 2;
-  const bezelCenterY = -0.012;
+  const bezelHeight = MAIN.height + 0.045 + BEZEL * 2;
+  const bezelCenterY = -0.02;
   const mainCenterX = left + MAIN.width / 2;
-  const captionY = -MAIN.height / 2 - 0.016;
+  const captionY = -MAIN.height / 2 - 0.024;
 
   const bezelTexture = createBezelTexture(
     'a câmera desvira a imagem',
@@ -140,7 +142,7 @@ export function createConsoleScreens({
   const thumbGeometry = new THREE.PlaneGeometry(THUMB.width, THUMB.height);
   geometries.push(thumbGeometry);
 
-  const frameGeometry = new THREE.PlaneGeometry(THUMB.width + 0.008, THUMB.height + 0.008);
+  const frameGeometry = new THREE.PlaneGeometry(THUMB.width + 0.016, THUMB.height + 0.016);
   geometries.push(frameGeometry);
   const frameMaterial = new THREE.MeshBasicMaterial({ color: PALETTE.focus });
   materials.push(frameMaterial);
@@ -237,7 +239,7 @@ function createBezelTexture(
   u: number,
   v: number,
 ): THREE.Texture {
-  const pixelsPerUnit = 1400;
+  const pixelsPerUnit = 900;
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(width * pixelsPerUnit);
   canvas.height = Math.round(height * pixelsPerUnit);
@@ -248,7 +250,7 @@ function createBezelTexture(
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   ctx.fillStyle = 'rgba(138, 148, 168, 0.95)';
-  ctx.font = `500 ${Math.round(0.0145 * pixelsPerUnit)}px Outfit, ui-sans-serif, system-ui, sans-serif`;
+  ctx.font = `500 ${Math.round(0.024 * pixelsPerUnit)}px Outfit, ui-sans-serif, system-ui, sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(text, u * canvas.width, (1 - v) * canvas.height);

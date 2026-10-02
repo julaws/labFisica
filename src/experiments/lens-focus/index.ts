@@ -44,7 +44,8 @@ import {
   lensMm,
 } from './lens-model';
 import { type LensFocusStore, createLensFocusStore, stepFNumber } from './state';
-import { type Diorama, createDiorama } from './diorama';
+import { type Diorama, MOUNTAIN, TRAY_WIDTH, createDiorama } from './diorama';
+import { millimetersToRailX } from '../../scene/bench';
 import { type RayBundle, createRayBundle } from '../../scene/rays';
 import { type FocusPlane, type IntersectionPatch, attachIntersectionPatch, createFocusPlane } from './focus-plane';
 import { type ImagePlane, createImagePlane } from './image-plane';
@@ -89,7 +90,7 @@ import { type ConsoleScreens, createConsoleScreens } from './console-screens';
  * Posição da lente no trilho, em marcas da régua. Escolhida para centrar na
  * bancada o conjunto inteiro, do céu do diorama à placa da imagem.
  */
-const LENS_RAIL_MM = 850;
+const LENS_RAIL_MM = 790;
 
 /**
  * Onde ficam as telas do console, relativas à origem do experimento (o
@@ -99,12 +100,13 @@ const LENS_RAIL_MM = 850;
  * elas estão. `belowRail` é quanto o centro das telas fica abaixo do topo do
  * trilho: amarrado ao trilho, e não ao eixo, ele não muda com a escala da lente.
  */
-const CONSOLE_PLACEMENT = { x: -0.62, z: 0.532, belowRail: 0.31, scale: 1 } as const;
+const CONSOLE_PLACEMENT = { z: 0.532, belowRail: 0.35, scale: 1 } as const;
 
 /**
  * Distância da câmera virtual do sensor à borda próxima do vale, em unidades
- * de cena. É a mesma de antes da ADR 0005 (pupila de entrada 0,1 à frente de
- * uma folga de 0,14): com ela o vale enche o quadro do sensor.
+ * de cena. Escolhida para o quadro do sensor (±13,5° na vertical, uma 50 mm
+ * full frame) pegar do pé da cabana ao pico da montanha, que cresceram 3× na
+ * ADR 0006.
  *
  * A posição não mexe no desfoque. O shader mede a distância física pelo mapa
  * logarítmico a partir da origem da objetiva, descontando onde a câmera está;
@@ -114,7 +116,7 @@ const CONSOLE_PLACEMENT = { x: -0.62, z: 0.532, belowRail: 0.31, scale: 1 } as c
  * preto. O vale já é uma maquete comprimida; não existe ponto de vista
  * "fisicamente certo" para olhar para ele.
  */
-const SENSOR_STANDOFF = 0.24;
+const SENSOR_STANDOFF = 0.74;
 const SENSOR_CAMERA_X = -(DIORAMA_DEPTH.gapScene - SENSOR_STANDOFF);
 
 /** Duração da transição montada ↔ explodida, em segundos (SPEC §6.3). */
@@ -136,7 +138,7 @@ const EXPLODE_RING_GAP_MM = { focus: 14, flange: 12 } as const;
  * cena. Pequeno de propósito: o vale precisa estar na altura da objetiva para
  * que a imagem dos objetos caia dentro do sensor.
  */
-const DIORAMA_DROP = 0.055;
+const DIORAMA_DROP = 0.28;
 
 export function createLensFocusExperiment(): Experiment {
   const store: LensFocusStore = createLensFocusStore();
@@ -193,6 +195,14 @@ export function createLensFocusExperiment(): Experiment {
   const imagePlaneX = lensMm(
     opticalLength(LENS_50MM_F2.surfaces) + analyze(LENS_50MM_F2).rearPrincipal + 50,
   );
+
+  /**
+   * x do console no grupo do experimento: o centro da bancada. A faixa de
+   * telas ocupa quase toda a frente dela.
+   */
+  function consoleX(): number {
+    return -(millimetersToRailX(LENS_RAIL_MM) + root.position.x);
+  }
 
   /** Diâmetro externo do barril, em mm de física. */
   function barrelDiameterMm(): number {
@@ -302,8 +312,13 @@ export function createLensFocusExperiment(): Experiment {
           focusDistance: state.focusDistance,
         },
         {
-          entrancePupilX: opticsOffset + lensMm(analysis.entrancePupil.z),
-          exitPupilX: opticsOffset + lensMm(analysis.exitPupil.z),
+          // O feixe entra no primeiro vértice e sai pelo plano principal
+          // traseiro: é desse plano que a lente fina mede v, e só assim o
+          // cone na placa mede exatamente o b(d) do motor (ver ray-fans.ts).
+          entrancePupilX: opticsOffset,
+          exitPupilX:
+            opticsOffset + lensMm(opticalLength(LENS_50MM_F2.surfaces) + analysis.rearPrincipal),
+          projectionCenterX: SENSOR_CAMERA_X,
           rearPrincipalX:
             opticsOffset + lensMm(opticalLength(LENS_50MM_F2.surfaces) + analysis.rearPrincipal),
           imagePlaneX,
@@ -324,6 +339,7 @@ export function createLensFocusExperiment(): Experiment {
           diameterMm: image.blurMm,
           color: image.color,
           heightMm: image.heightMm,
+          lateralMm: image.lateralMm,
         })),
       );
     }
@@ -398,8 +414,10 @@ export function createLensFocusExperiment(): Experiment {
       for (const object of diorama.glowing) ctx.addGlow(object);
 
       // --- Plano de foco, placa de vidro e raios ----------------------------
-      focusPlane = createFocusPlane();
-      focusPlane.group.position.y = -DIORAMA_DROP + 0.03;
+      // A lâmina cobre a bandeja inteira e sobe até o pico da montanha.
+      const slab = { width: TRAY_WIDTH + 0.04, height: MOUNTAIN.height + 0.08 };
+      focusPlane = createFocusPlane(slab);
+      focusPlane.group.position.y = -DIORAMA_DROP + slab.height / 2 - 0.03;
       root.add(focusPlane.group);
       ctx.addGlow(focusPlane.group);
 
@@ -465,14 +483,15 @@ export function createLensFocusExperiment(): Experiment {
         layer: SENSOR_LAYER,
         cameraX: SENSOR_CAMERA_X,
         sceneUnitsPerMm: SCENE_UNITS_PER_MM,
-        thumbnailSize: Math.max(160, Math.round(quality.sensorTargetSize / 4)),
+        // As miniaturas cresceram 3× (ADR 0006): meia resolução do sensor.
+        thumbnailSize: Math.max(256, Math.round(quality.sensorTargetSize / 2)),
         samples: 16,
         onPickFocus: (millimeters) => store.set({ focusDistance: millimeters }),
       });
       // Em pé na face frontal da bancada, de frente para quem está diante
       // dela, embaixo do meio do conjunto.
       consoleScreens.group.position.set(
-        CONSOLE_PLACEMENT.x,
+        consoleX(),
         -(axisHeight + CONSOLE_PLACEMENT.belowRail),
         CONSOLE_PLACEMENT.z,
       );
@@ -503,13 +522,13 @@ export function createLensFocusExperiment(): Experiment {
       ctx.labels.add({
         id: 'focus-plane',
         anchor: focusPlane.blade,
-        offset: { x: 0, y: 0.1, z: 0 },
+        offset: { x: 0, y: MOUNTAIN.height / 2 + 0.06, z: 0 },
         text: '',
       });
       ctx.labels.add({
         id: 'zone',
         anchor: focusPlane.blade,
-        offset: { x: 0, y: -0.07, z: 0.27 },
+        offset: { x: 0, y: -MOUNTAIN.height / 2 + 0.02, z: TRAY_WIDTH / 2 + 0.02 },
         text: '',
       });
       disposers.push(() => {
@@ -897,18 +916,18 @@ export function createLensFocusExperiment(): Experiment {
           // câmera. O alvo fica abaixo do eixo para o conjunto sair de baixo
           // do painel de controles.
           position: {
-            x: origin.x + 0.195,
+            x: origin.x - 0.115,
             y: origin.y + 0.445,
-            z: origin.z + 3.05,
+            z: origin.z + 3.7,
           },
-          target: { x: origin.x - 0.335, y: origin.y - 0.185, z: origin.z },
+          target: { x: origin.x - 0.265, y: origin.y - 0.375, z: origin.z },
           fov: 40,
           // No retrato, de viés pela direita: o trilho recua na diagonal e
           // vale, objetiva e console cabem entre o HUD e a gaveta.
           portrait: {
-            position: { x: origin.x + 1.145, y: origin.y + 0.895, z: origin.z + 3.4 },
-            target: { x: origin.x - 0.355, y: origin.y - 0.405, z: origin.z },
-            fov: 56,
+            position: { x: origin.x + 1.385, y: origin.y + 1.045, z: origin.z + 4.2 },
+            target: { x: origin.x - 0.215, y: origin.y - 0.455, z: origin.z },
+            fov: 58,
           },
         },
         {
@@ -929,9 +948,9 @@ export function createLensFocusExperiment(): Experiment {
           label: { 'pt-BR': 'Imagem no sensor', en: 'Sensor image' },
           // De trás e de frente para o vidro fosco: é onde a imagem invertida
           // aparece, com os anéis de cada objeto.
-          position: { x: plateX + 0.95, y: origin.y + 0.06, z: origin.z + 0.18 },
+          position: { x: plateX + 2.4, y: origin.y + 0.1, z: origin.z + 0.35 },
           target: { x: plateX, y: origin.y, z: origin.z },
-          fov: 22,
+          fov: 20,
         },
         {
           id: 'console',
@@ -939,23 +958,23 @@ export function createLensFocusExperiment(): Experiment {
           // De frente e um pouco de cima: é como alguém diante da bancada lê
           // as telas.
           position: {
-            x: origin.x + CONSOLE_PLACEMENT.x,
-            y: origin.y - axisHeight - CONSOLE_PLACEMENT.belowRail + 0.3,
-            z: origin.z + CONSOLE_PLACEMENT.z + 0.95,
+            x: origin.x + consoleX(),
+            y: origin.y - axisHeight - CONSOLE_PLACEMENT.belowRail + 0.45,
+            z: origin.z + CONSOLE_PLACEMENT.z + 2.6,
           },
           target: {
-            x: origin.x + CONSOLE_PLACEMENT.x,
+            x: origin.x + consoleX(),
             y: origin.y - axisHeight - CONSOLE_PLACEMENT.belowRail,
             z: origin.z + CONSOLE_PLACEMENT.z,
           },
-          fov: 32,
+          fov: 46,
         },
         {
           id: 'plate',
           label: { 'pt-BR': 'Plano da imagem', en: 'Image plane' },
           // Três quartos por trás: os cones chegando e a imagem na placa.
-          position: { x: plateX + 0.6, y: origin.y + 0.35, z: origin.z + 0.95 },
-          target: { x: plateX - 0.12, y: origin.y, z: origin.z },
+          position: { x: plateX + 1.0, y: origin.y + 0.45, z: origin.z + 1.5 },
+          target: { x: plateX - 0.15, y: origin.y, z: origin.z },
           fov: 34,
         },
         {
@@ -963,9 +982,9 @@ export function createLensFocusExperiment(): Experiment {
           label: { 'pt-BR': 'Diorama de perto', en: 'Diorama close-up' },
           // Pela frente e de cima, no meio da bandeja: o bosque, a cabana e o
           // plano de foco cortando o vale.
-          position: { x: valleyMidX + 0.25, y: trayY + 0.42, z: origin.z + 0.95 },
-          target: { x: valleyMidX + 0.1, y: trayY + 0.02, z: origin.z },
-          fov: 34,
+          position: { x: valleyMidX + 0.35, y: trayY + 0.75, z: origin.z + 1.55 },
+          target: { x: valleyMidX + 0.05, y: trayY + 0.14, z: origin.z },
+          fov: 38,
         },
         {
           id: 'lens-three-quarter',

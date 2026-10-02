@@ -31,13 +31,15 @@ export interface FocusPlane {
   dispose(): void;
 }
 
-/** Altura e largura da lâmina, em unidades de cena. */
-const SLAB = { height: 0.17, width: 0.54 };
+/** Altura e largura padrão da lâmina, em unidades de cena. */
+const DEFAULT_SLAB = { height: 0.17, width: 0.54 };
 
 /** Espessura mínima desenhada, para a lâmina não sumir em f/2. */
 const MIN_THICKNESS = 0.004;
 
-export function createFocusPlane(): FocusPlane {
+export function createFocusPlane(
+  SLAB: { readonly width: number; readonly height: number } = DEFAULT_SLAB,
+): FocusPlane {
   const group = new THREE.Group();
   group.name = 'focus-plane';
 
