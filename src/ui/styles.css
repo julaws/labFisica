@@ -702,6 +702,122 @@ button {
   color: #fff;
 }
 
+/* --- Navegação: cruz e zoom no canto inferior direito ---------------------- */
+
+.nav-pad {
+  position: absolute;
+  right: 24px;
+  bottom: 22px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  pointer-events: auto;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  box-shadow: 0 18px 50px -20px rgba(0, 0, 0, 0.67);
+}
+
+.nav-pad__cross {
+  display: grid;
+  grid-template-columns: repeat(3, 32px);
+  grid-template-rows: repeat(3, 32px);
+  gap: 2px;
+  grid-template-areas:
+    '. up .'
+    'left center right'
+    '. down .';
+}
+
+.nav-pad__zoom {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.nav-pad__button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #dfe4f3;
+  cursor: pointer;
+  touch-action: none;
+  transition: background 150ms ease;
+}
+
+.nav-pad__button:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.nav-pad__button:active {
+  background: #eef4ff;
+  color: #101626;
+}
+
+.nav-pad__button svg {
+  width: 14px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.nav-pad__button--up {
+  grid-area: up;
+}
+
+.nav-pad__button--left {
+  grid-area: left;
+}
+
+.nav-pad__button--center {
+  grid-area: center;
+  background: transparent;
+  color: var(--muted);
+}
+
+.nav-pad__button--right {
+  grid-area: right;
+}
+
+.nav-pad__button--down {
+  grid-area: down;
+}
+
+.nav-pad__button--in,
+.nav-pad__button--out {
+  height: 48px;
+}
+
+.nav-pad__sign {
+  position: absolute;
+  bottom: 5px;
+  font: 600 13px/1 var(--font-mono);
+  color: #dfe4f3;
+}
+
+.nav-pad__button--in svg {
+  margin-bottom: 14px;
+}
+
+.nav-pad__button--out svg {
+  margin-top: 14px;
+}
+
+.nav-pad__button--out .nav-pad__sign {
+  top: 6px;
+  bottom: auto;
+}
+
 /* --- Foco visível (SPEC §9) ------------------------------------------------ */
 
 .ui :focus-visible,
@@ -904,6 +1020,12 @@ kbd {
 /* Celular e tablet em retrato: título compacto em cima, controles embaixo
    (SPEC §3.3). O que é ajuste fino fica atrás de "Mais ajustes". */
 @media (max-width: 820px) {
+  /* No celular o toque já navega (arrastar, pinça) e a base da tela é da
+     gaveta de controles. */
+  .nav-pad {
+    display: none;
+  }
+
   #app::after {
     background:
       linear-gradient(180deg, rgba(7, 10, 19, 0.72), transparent 30%),

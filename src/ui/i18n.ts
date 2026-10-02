@@ -85,6 +85,13 @@ const STRINGS = {
     reset: 'Resetar vista',
     moreSettings: 'Mais ajustes',
     fewerSettings: 'Menos ajustes',
+    navigation: 'Navegação da vista',
+    moveUp: 'Mover a vista para cima',
+    moveDown: 'Mover a vista para baixo',
+    moveLeft: 'Mover a vista para a esquerda',
+    moveRight: 'Mover a vista para a direita',
+    zoomIn: 'Aproximar',
+    zoomOut: 'Afastar',
   },
   en: {
     loading: 'Polishing the glass…',
@@ -99,6 +106,13 @@ const STRINGS = {
     reset: 'Reset view',
     moreSettings: 'More settings',
     fewerSettings: 'Fewer settings',
+    navigation: 'View navigation',
+    moveUp: 'Move the view up',
+    moveDown: 'Move the view down',
+    moveLeft: 'Move the view left',
+    moveRight: 'Move the view right',
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
   },
 } as const;
 

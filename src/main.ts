@@ -19,6 +19,7 @@ import { createLabelLayer } from './scene/labels';
 import { createCinematicCycle, createIdleTour, createKeyboardFlight } from './core/camera';
 import { createHud } from './ui/hud';
 import { createPanel } from './ui/panel';
+import { createNavPad } from './ui/nav-pad';
 import { createModal } from './ui/modal';
 import { type Locale, preferredLocale, rememberLocale } from './ui/i18n';
 
@@ -138,7 +139,7 @@ async function boot(): Promise<void> {
     if (ui.classList.contains('ui--hidden')) return [];
     const origin = canvas.getBoundingClientRect();
     const rects: DOMRect[] = [];
-    for (const element of ui.querySelectorAll<HTMLElement>('.hud, .control-panel')) {
+    for (const element of ui.querySelectorAll<HTMLElement>('.hud, .control-panel, .nav-pad')) {
       const r = element.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
       rects.push(new DOMRect(r.left - origin.left, r.top - origin.top, r.width, r.height));
@@ -254,8 +255,26 @@ async function boot(): Promise<void> {
         document.documentElement.lang = next;
         experiment.setLocale(next);
         panel.setLocale(next);
+        navPad.setLocale(next);
         refresh();
       },
+    });
+
+    // Cruz de navegação e zoom, no canto inferior direito. A velocidade é
+    // proporcional à distância da câmera ao alvo: o mesmo toque anda pouco
+    // de perto e bastante de longe, sempre na mesma fração da tela.
+    const navPad = createNavPad({
+      parent: ui,
+      locale,
+      onPan: (x, y, dt) => {
+        const step = controls.distance * 0.22 * dt;
+        // truck(+y) desce a câmera; "para cima" sobe.
+        void controls.truck(x * step, -y * step, true);
+      },
+      onZoom: (direction, dt) => {
+        void controls.dolly(direction * controls.distance * 0.45 * dt, true);
+      },
+      onReset: () => cinematic.reset(),
     });
 
     // Tudo o que depende do estado é redesenhado a partir do experimento: a

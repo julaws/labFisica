@@ -24,7 +24,7 @@ testes; a cena é three.js com materiais PBR, HDRI e pós-processamento.
 | Escolher os raios | caixas Pinheiro · Cabana · Pico no painel (todas marcadas ao abrir) |
 | Trocar a objetiva | Gauss duplo · convergente · divergente no painel, ou `L` |
 | Focar numa miniatura | clicar nela, no console da bancada |
-| Passear | arrastar para orbitar, botão direito para pan, roda para zoom, `W A S D` e `Q E` |
+| Passear | arrastar para orbitar, botão direito para pan, roda para zoom, `W A S D` e `Q E`, ou a cruz e as setas de zoom no canto inferior direito |
 | Câmeras cinematográficas | `C`; `R` volta à vista padrão |
 | Esconder a interface | `/` |
 | Apresentação | a câmera passeia devagar ao abrir a página e depois de 1 minuto parado; mexer o mouse devolve o controle |
