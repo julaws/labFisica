@@ -243,4 +243,5 @@ dele é **f/1,73**, e não o f/1,76 registrado no ADR 0003.
 | Prescrição da objetiva | Gauss duplo da patente US 2.532.751, documentado (§6 e §7), ADR 0005 | 01/10/2026 ✔ |
 | Ampliação de desenho da objetiva | 12×, declarada em `src/scene/scale.ts` e no modal "?" | 01/10/2026 ✔ |
 | Limite real de abertura | f/2, a nominal da patente (§7) | 01/10/2026 ✔ |
-| Mapa logarítmico de profundidade do diorama | `offset(d) = folga + k·ln(d/300 mm)`, k = 0,328 un/ln, folga 0,40 un, declarado em `src/scene/scale.ts` e no modal "?" | F4 ✔ |
+| Mapa logarítmico de profundidade do diorama | `offset(d) = folga + k·ln(d/300 mm)`, k = 0,242 un/ln (bandeja de 0,85 un desde a ADR 0006), folga 0,40 un, declarado em `src/scene/scale.ts` e no modal "?" | F4 ✔ |
+| Ampliação do plano da imagem | 2× sobre a escala da lente, com a chegada dos cones ajustada para o cone seguir batendo com o anel de CoC (ADR 0006) | 02/10/2026 ✔ |
