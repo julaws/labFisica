@@ -62,6 +62,23 @@ export function createPanel({
   element.className = 'control-panel';
   element.setAttribute('aria-label', t('controls', locale));
 
+  // Alça da gaveta, só no celular: o painel começa recolhido para a cena
+  // ocupar a tela, e abre ao toque. No desktop o CSS a esconde e o painel
+  // fica sempre aberto.
+  let open = false;
+  const handle = document.createElement('button');
+  handle.type = 'button';
+  handle.className = 'control-panel__handle';
+  const handleLabel = document.createElement('span');
+  const handleIcon = document.createElement('span');
+  handleIcon.className = 'control-panel__chevron';
+  handleIcon.setAttribute('aria-hidden', 'true');
+  handle.append(handleLabel, handleIcon);
+  handle.addEventListener('click', () => {
+    open = !open;
+    syncHandle();
+  });
+
   const body = document.createElement('div');
   body.className = 'control-panel__body';
 
@@ -75,11 +92,17 @@ export function createPanel({
     syncMore();
   });
 
-  element.append(body, more);
+  element.append(handle, body, more);
   parent.appendChild(element);
 
   const syncers: (() => void)[] = [];
   let numbersBody: HTMLElement | null = null;
+
+  function syncHandle(): void {
+    element.classList.toggle('control-panel--open', open);
+    handle.setAttribute('aria-expanded', String(open));
+    handleLabel.textContent = t('controls', locale);
+  }
 
   function syncMore(): void {
     more.textContent = t(expanded ? 'fewerSettings' : 'moreSettings', locale);
@@ -90,6 +113,7 @@ export function createPanel({
     body.replaceChildren();
     syncers.length = 0;
     syncMore();
+    syncHandle();
 
     const schema: PanelSchema = experiment.ui();
 

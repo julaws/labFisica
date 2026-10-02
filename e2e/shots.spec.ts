@@ -10,6 +10,18 @@ async function openLab(page: Page, query = ''): Promise<void> {
   await page.waitForTimeout(900);
 }
 
+/**
+ * No celular o painel começa recolhido (gaveta). Abre a gaveta se a alça
+ * estiver à vista; no desktop a alça não existe e nada acontece.
+ */
+async function openControls(page: Page): Promise<void> {
+  const handle = page.getByRole('button', { name: 'Controles' });
+  if (await handle.isVisible()) {
+    await handle.click();
+    await page.waitForTimeout(300);
+  }
+}
+
 /** Espera as animações do experimento (montada ↔ explodida leva 0,8 s). */
 async function settle(page: Page): Promise<void> {
   await page.waitForTimeout(1400);
@@ -109,6 +121,7 @@ test('critério 5: em f/16 a zona nítida cresce', async ({ page }) => {
 
 test('modal de ajuda', async ({ page }, testInfo) => {
   await openLab(page, '?focus=600');
+  await openControls(page);
   await page.getByRole('button', { name: 'Ajuda' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Sobre as escalas' })).toBeVisible();
@@ -118,6 +131,11 @@ test('modal de ajuda', async ({ page }, testInfo) => {
 test('ajustes finos no celular', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile', 'no desktop todos os controles ficam à vista');
   await openLab(page, '?focus=600');
+  // A gaveta começa recolhida: só a alça aparece.
+  await expect(page.getByText('Distância')).toBeHidden();
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-19-drawer-closed.png` });
+  await openControls(page);
+  await expect(page.getByText('Distância')).toBeVisible();
   // Stops completos e círculo admissível ficam atrás de "Mais ajustes".
   await expect(page.getByText('Stops completos')).toBeHidden();
   await page.getByRole('button', { name: 'Mais ajustes' }).click();
@@ -128,6 +146,7 @@ test('ajustes finos no celular', async ({ page }, testInfo) => {
 
 test('troca de objetiva', async ({ page }, testInfo) => {
   await openLab(page, '?shot=optical-path&focus=600');
+  await openControls(page);
   // Convergente simples: forma imagem, mas a aberração aparece na frase.
   await page.getByRole('radio', { name: 'Convergente' }).click();
   await expect(page.locator('.hud__sentence')).toContainText('aberração esférica');
