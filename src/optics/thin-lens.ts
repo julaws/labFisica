@@ -68,7 +68,8 @@ export function magnification(f: number, u: number): number {
 
 /** Diâmetro da pupila de entrada: D = f / N, mm. */
 export function pupilDiameter(f: number, N: number): number {
-  return f / N;
+  // Em módulo: a pupila de uma lente divergente tem diâmetro positivo.
+  return Math.abs(f) / N;
 }
 
 /**
@@ -150,4 +151,37 @@ export function convergence(f: number, s: number, d: number, tolerance = 1e-9): 
 export function halfFieldAngle(f: number, u: number, sensorDimension: number): number {
   const v = Number.isFinite(imageDistance(f, u)) ? imageDistance(f, u) : f;
   return Math.atan(sensorDimension / 2 / v);
+}
+
+/**
+ * Distância do plano principal traseiro ao sensor, mm, para uma câmera com o
+ * sensor parado em `homePlate` e a objetiva andando para focar (ADR 0007).
+ *
+ * Lente convergente: a objetiva estende até o sensor ficar a `v(s)` dela, que
+ * é a definição de estar focada em `s`. Lente divergente: não existe `s` que
+ * forme imagem real, então nada se mexe e o sensor fica em casa.
+ */
+export function plateDistance(f: number, focusDistance: number, homePlate: number): number {
+  if (f <= 0) return homePlate;
+  return imageDistance(f, focusDistance);
+}
+
+/**
+ * Diâmetro do disco que um ponto a `d` mm deixa num sensor a `p` mm do plano
+ * principal traseiro, com pupila D = |f|/N (ADR 0007):
+ *
+ *     b = D · |p − v_d| / |v_d|
+ *
+ * Vale para as duas lentes. Numa convergente focada (p = v_s) é exatamente
+ * `blurDiameter`. Numa divergente v_d é negativo — a imagem é virtual, à
+ * frente da lente — e os raios chegam ao sensor abrindo: `p − v_d` soma a
+ * distância até o sensor com a distância até a imagem virtual, e o disco
+ * passa do tamanho do próprio sensor.
+ */
+export function plateBlurDiameter(f: number, N: number, p: number, d: number): number {
+  const D = Math.abs(f) / N;
+  const v = imageDistance(f, d);
+  if (!Number.isFinite(v)) return D;
+  if (v === 0) return Infinity;
+  return (D * Math.abs(p - v)) / Math.abs(v);
 }

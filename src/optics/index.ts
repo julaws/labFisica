@@ -15,3 +15,5 @@ export * from './trace';
 export * from './aperture';
 export * from './prescriptions/symmetric-double-doublet';
 export * from './prescriptions/baker-double-gauss';
+export * from './prescriptions/singlets';
+export * from './lenses';

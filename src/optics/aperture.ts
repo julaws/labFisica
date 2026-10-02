@@ -11,7 +11,9 @@ import { analyze } from './paraxial';
  */
 export function widestFNumber(prescription: Prescription): number {
   const analysis = analyze(prescription);
-  return analysis.efl / analysis.entrancePupil.diameter;
+  // Em módulo: numa lente divergente a EFL é negativa, mas o número f
+  // continua sendo a razão entre a focal e o diâmetro da pupila.
+  return Math.abs(analysis.efl) / analysis.entrancePupil.diameter;
 }
 
 /**
@@ -28,9 +30,10 @@ export function withFNumber(prescription: Prescription, fNumber: number): Prescr
   const stop = prescription.surfaces.find((s) => s.isStop);
   if (!stop) throw new Error('A prescrição não declara stop');
 
-  const limited = Math.max(fNumber, analysis.efl / analysis.entrancePupil.diameter);
+  const focal = Math.abs(analysis.efl);
+  const limited = Math.max(fNumber, focal / analysis.entrancePupil.diameter);
   const pupilMagnification = analysis.entrancePupil.diameter / (2 * stop.semiDiameter);
-  const wantedPupilDiameter = analysis.efl / limited;
+  const wantedPupilDiameter = focal / limited;
   const stopSemiDiameter = wantedPupilDiameter / 2 / pupilMagnification;
 
   return {
