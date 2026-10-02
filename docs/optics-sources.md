@@ -229,6 +229,33 @@ O par simétrico de dubletos acromáticos (ADR 0002) continua em
 não é mais a lente do experimento. Com a correção das pupilas (§4), a abertura máxima
 dele é **f/1,73**, e não o f/1,76 registrado no ADR 0003.
 
+## 8. Lentes simples da troca de objetiva (ADR 0007)
+
+`src/optics/prescriptions/singlets.ts`. Testes em `tests/optics/lens-swap.test.ts`.
+
+Duas lentes de N-BK7 (vidro já do catálogo, §3), simétricas (R₂ = −R₁), com o diafragma
+2 mm à frente. Escolhas declaradas: semidiâmetro livre 13,5 mm (cabe a pupila de f/2 de
+uma 50 mm, 25 mm), stop de 12,5 mm, espessura mínima 1,5 mm (borda da convexa, centro da
+côncava). O raio sai por bissecção até a EFL paraxial da lente espessa dar ±50 mm.
+
+| Lente | R₁ | Espessura central | EFL | Abertura máxima |
+|---|---|---|---|---|
+| Biconvexa | +50,79 mm | 5,15 mm | +50,000 mm | f/2 |
+| Bicôncava | −51,93 mm | 1,50 mm | −50,000 mm | f/2 |
+
+**Aberração esférica no melhor foco** (`aberrationSpotDiameter` em `src/optics/lenses.ts`):
+traça 24 raios reais paralelos ao eixo, uniformes em área na pupila de f/N, e busca o plano
+de menor raio do feixe. Diâmetro do borrão, em mm:
+
+| f/N | 2 | 2,8 | 4 | 5,6 | 8 | 11 | 16 |
+|---|---|---|---|---|---|---|---|
+| Gauss duplo | 0,022 | 0,019 | 0,009 | 0,004 | 0,001 | 0,000 | 0,000 |
+| Biconvexa | 0,706 | 0,236 | 0,078 | 0,028 | 0,009 | 0,004 | 0,001 |
+
+**Desfoque com o sensor parado:** `b = (|f|/N)·|p − v_d|/|v_d|`, com `p` a distância do
+plano principal traseiro ao sensor. Para a convergente focada `p = v_s` e coincide com a
+§2; para a divergente `v_d < 0` (imagem virtual).
+
 ---
 
 ## Situação por tema
@@ -244,4 +271,5 @@ dele é **f/1,73**, e não o f/1,76 registrado no ADR 0003.
 | Ampliação de desenho da objetiva | 12×, declarada em `src/scene/scale.ts` e no modal "?" | 01/10/2026 ✔ |
 | Limite real de abertura | f/2, a nominal da patente (§7) | 01/10/2026 ✔ |
 | Mapa logarítmico de profundidade do diorama | `offset(d) = folga + k·ln(d/300 mm)`, k = 0,242 un/ln (bandeja de 0,85 un desde a ADR 0006), folga 0,40 un, declarado em `src/scene/scale.ts` e no modal "?" | F4 ✔ |
+| Troca de objetiva (biconvexa e bicôncava simples, aberração esférica medida) | documentado (§8) e testado, ADR 0007 | 02/10/2026 ✔ |
 | Ampliação do plano da imagem | 2× sobre a escala da lente, com a chegada dos cones ajustada para o cone seguir batendo com o anel de CoC (ADR 0006) | 02/10/2026 ✔ |

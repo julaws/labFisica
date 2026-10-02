@@ -21,6 +21,7 @@ testes; a cena é three.js com materiais PBR, HDRI e pós-processamento.
 | Focar | arrastar o anel de foco, o slider de distância, ou `1` `2` `3` e `[` `]` |
 | Abrir e fechar o diafragma | botões f/2 · f/5,6 · f/16, slider de stops, ou `F` |
 | Abrir a objetiva | `X` (montada ↔ explodida) |
+| Trocar a objetiva | Gauss duplo · convergente · divergente no painel, ou `L` |
 | Focar numa miniatura | clicar nela, no console da bancada |
 | Passear | arrastar para orbitar, botão direito para pan, roda para zoom, `W A S D` e `Q E` |
 | Câmeras cinematográficas | `C`; `R` volta à vista padrão |
@@ -42,9 +43,11 @@ por quê, lendo os fatores direto do código:
    exatamente quando a física diz que o objeto está nítido. Os objetos do vale
    são de maquete no tamanho, mas cada um fica na posição da sua distância real.
 
-A objetiva é um **Gauss duplo de seis elementos, 50 mm f/2**, da patente
+A objetiva padrão é um **Gauss duplo de seis elementos, 50 mm f/2**, da patente
 americana 2.532.751 (James G. Baker, 1950), com os vidros trocados pelos
-equivalentes do catálogo SCHOTT atual (ADR 0005).
+equivalentes do catálogo SCHOTT atual (ADR 0005). Dá para trocá-la por uma
+lente **convergente simples** (+50 mm, com a aberração esférica medida pelo
+traçador) ou **divergente simples** (−50 mm, que não forma imagem real) — ADR 0007.
 
 ## Requisitos
 
