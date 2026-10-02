@@ -36,7 +36,9 @@ test('diorama de perto', async ({ page }, testInfo) => {
 });
 
 test('objetiva de perto', async ({ page }, testInfo) => {
-  await openLab(page, '?shot=lens-three-quarter');
+  // A lente abre explodida; esta captura é a da lente montada.
+  await openLab(page, '?shot=lens-three-quarter&lens=assembled');
+  await settle(page);
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-02-lens.png` });
 });
 
@@ -138,6 +140,22 @@ test('troca de objetiva', async ({ page }, testInfo) => {
   await expect(page.locator('.chip[data-id="zone"] .chip__value')).toHaveText('—');
   await settle(page);
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-17-diverging.png` });
+});
+
+test('seleção de raios', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'mobile', 'no celular as caixas ficam em "Mais ajustes"');
+  await openLab(page, '?shot=optical-path&focus=600');
+  // Abre com tudo marcado e a lente explodida.
+  for (const name of ['Pinheiro', 'Cabana', 'Pico']) {
+    await expect(page.getByRole('checkbox', { name })).toBeChecked();
+  }
+  await expect(page.getByRole('radio', { name: 'Explodida' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('checkbox', { name: 'Pinheiro' }).uncheck();
+  await page.getByRole('checkbox', { name: 'Pico' }).uncheck();
+  await expect(page.getByRole('checkbox', { name: 'Pinheiro' })).not.toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Cabana' })).toBeChecked();
+  await settle(page);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-18-rays-cabin-only.png` });
 });
 
 test('foco no fundo', async ({ page }, testInfo) => {

@@ -52,7 +52,13 @@ import {
   elementIndices,
   lensMm,
 } from './lens-model';
-import { type LensFocusStore, createLensFocusStore, stepFNumber } from './state';
+import {
+  type LensFocusStore,
+  RAY_SUBJECTS,
+  type RaySubject,
+  createLensFocusStore,
+  stepFNumber,
+} from './state';
 import { type Diorama, MOUNTAIN, TRAY_WIDTH, createDiorama } from './diorama';
 import { millimetersToRailX } from '../../scene/bench';
 import { type RayBundle, createRayBundle } from '../../scene/rays';
@@ -188,10 +194,11 @@ export function createLensFocusExperiment(): Experiment {
   let fanInputs: Parameters<typeof buildRayFans> | null = null;
 
   /** 0 = montada, 1 = explodida. Animado com easing próprio. */
-  let explodeProgress = 0;
-  let explodeTarget = 0;
+  // Começa na pose do estado inicial (explodida), sem animar na abertura.
+  let explodeProgress = store.get().lensMode === 'exploded' ? 1 : 0;
+  let explodeTarget = explodeProgress;
   /** Força uma pose dos vidros mesmo sem animação (troca de objetiva). */
-  let explodeDirty = false;
+  let explodeDirty = true;
 
   // O barril, o carrinho e a placa são medidos pelo Gauss duplo, a objetiva de
   // casa. Trocar a objetiva troca só os vidros (ADR 0007).
@@ -440,10 +447,13 @@ export function createLensFocusExperiment(): Experiment {
       // Os pontos do diorama estão no espaço do próprio diorama; os raios
       // vivem no espaço do experimento, então sobem pelo deslocamento da
       // bandeja antes de entrar na conta.
-      const subjects = diorama.subjects.map((subject) => ({
-        ...subject,
-        samplePoint: subject.samplePoint.clone().setY(subject.samplePoint.y - DIORAMA_DROP),
-      }));
+      // Só os objetos marcados no painel emitem raios (e ganham anel).
+      const subjects = diorama.subjects
+        .filter((subject) => state.rays[subject.id])
+        .map((subject) => ({
+          ...subject,
+          samplePoint: subject.samplePoint.clone().setY(subject.samplePoint.y - DIORAMA_DROP),
+        }));
 
       fanInputs = [
         subjects,
@@ -806,6 +816,13 @@ export function createLensFocusExperiment(): Experiment {
         case 'coc':
           store.set({ coc: Number(value) });
           break;
+        case 'rays.foreground':
+        case 'rays.midground':
+        case 'rays.background': {
+          const subject = id.slice('rays.'.length) as RaySubject;
+          store.set({ rays: { ...store.get().rays, [subject]: Boolean(value) } });
+          break;
+        }
         case 'lens': {
           const id = (LENS_IDS as readonly string[]).includes(String(value))
             ? (value as LensId)
@@ -836,6 +853,10 @@ export function createLensFocusExperiment(): Experiment {
           return state.coc;
         case 'lens':
           return state.lens;
+        case 'rays.foreground':
+        case 'rays.midground':
+        case 'rays.background':
+          return state.rays[id.slice('rays.'.length) as RaySubject];
         // Limites da zona nítida, para a faixa desenhada no slider de
         // distância. Leitura só: vêm do motor, como o resto.
         case 'dofNear':
@@ -1046,22 +1067,37 @@ export function createLensFocusExperiment(): Experiment {
                   { value: 'biconcave', label: en ? 'Diverging' : 'Divergente' },
                 ],
               },
-            ],
-          },
-          {
-            id: 'lens',
-            label: { 'pt-BR': 'Lente', en: 'Lens' },
-            hint: { 'pt-BR': 'X', en: 'X' },
-            controls: [
               {
                 kind: 'segmented',
                 id: 'lensMode',
-                label: { 'pt-BR': 'Modo', en: 'Mode' },
+                label: { 'pt-BR': 'Lente · X', en: 'Lens · X' },
                 options: [
                   { value: 'assembled', label: en ? 'Assembled' : 'Montada' },
                   { value: 'exploded', label: en ? 'Exploded' : 'Explodida' },
                 ],
                 // No celular cede o lugar ao seletor de objetiva (tecla X).
+                secondary: true,
+              },
+            ],
+          },          {
+            id: 'rays',
+            label: { 'pt-BR': 'Raios', en: 'Rays' },
+            controls: [
+              {
+                kind: 'checkboxes',
+                id: 'rays',
+                label: { 'pt-BR': 'Raios', en: 'Rays' },
+                options: RAY_SUBJECTS.map((subject) => ({
+                  value: subject,
+                  label: {
+                    foreground: en ? 'Pine' : 'Pinheiro',
+                    midground: en ? 'Cabin' : 'Cabana',
+                    background: en ? 'Peak' : 'Pico',
+                  }[subject],
+                  // A cor do leque de cada objeto (SPEC §6.5).
+                  tone: ({ foreground: 'focus', midground: 'warm', background: 'cool' } as const)[subject],
+                })),
+                // No celular fica em "Mais ajustes", para a gaveta não crescer.
                 secondary: true,
               },
               {
