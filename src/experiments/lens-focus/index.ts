@@ -938,7 +938,7 @@ export function createLensFocusExperiment(): Experiment {
           position: {
             x: (valleyNearX + plateX) / 2 - 0.15,
             y: origin.y + 0.22,
-            z: origin.z + 2.3,
+            z: origin.z + 3.3,
           },
           target: { x: (valleyNearX + plateX) / 2 - 0.15, y: origin.y - 0.03, z: origin.z },
           fov: 34,
