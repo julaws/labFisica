@@ -34,6 +34,22 @@ export const sceneToMm = (units: number): number => units / SCENE_UNITS_PER_MM;
 export const LENS_EXAGGERATION: number = 12;
 
 /**
+ * Ampliação extra do **plano da imagem**, sobre a escala da lente (ADR 0006).
+ *
+ * A placa de vidro fosco e tudo o que se desenha nela — a imagem projetada, os
+ * anéis de círculo de confusão e a chegada dos cones de raios — aparecem
+ * **2× maiores** que na escala da lente. Dobrar a lente inteira de novo faria
+ * o barril passar de um metro.
+ *
+ * Para o cone continuar batendo com o anel (critério 4, SPEC §10), cada raio
+ * passa a terminar no ponto da placa com altura multiplicada pelo fator. Os
+ * raios de um objeto continuam se encontrando num ponto só, do mesmo lado da
+ * placa; a distância desse ponto à placa é que aparece ampliada — o exagero de
+ * `v_d − v_s` que a SPEC §6.2 prevê, desde que declarado. Ver `ray-fans.ts`.
+ */
+export const IMAGE_PLANE_MAGNIFICATION: number = 2;
+
+/**
  * Mapa de profundidade do diorama (SPEC §6.2).
  *
  *     offset(d) = k · ln(d / d_min)
@@ -52,8 +68,12 @@ export const DIORAMA_DEPTH = {
   minMm: 300,
   /** Distância física representada pela borda distante, mm. */
   maxMm: 10_000,
-  /** Comprimento da bandeja em unidades de cena. */
-  spanScene: 1.15,
+  /**
+   * Comprimento da bandeja em unidades de cena. Era 1,15 até a ADR 0006; o
+   * vale mais curto aproxima o céu da montanha e a montanha das árvores, sem
+   * tirar ninguém do lugar relativo: o mapa só fica mais comprimido.
+   */
+  spanScene: 0.85,
   /**
    * Folga entre o elemento frontal da objetiva e a borda próxima, em
    * unidades. Abre espaço para a extensão dianteira do barril, onde fica o
@@ -119,6 +139,25 @@ export function activeScaleDisclosures(locale: 'pt-BR' | 'en' = 'pt-BR'): ScaleD
           'visíveis. É um fator único aplicado ao conjunto: as curvaturas, as espessuras e o ' +
           'curso do foco guardam as proporções corretas entre si. As distâncias ópticas ' +
           'continuam vindo do motor, em milímetros reais.',
+    });
+  }
+
+  if (IMAGE_PLANE_MAGNIFICATION !== 1) {
+    disclosures.push({
+      id: 'image-plane',
+      label: en ? 'Image plane' : 'Plano da imagem',
+      factor: IMAGE_PLANE_MAGNIFICATION,
+      explanation: en
+        ? `On top of that, the ground glass and everything drawn on it — the projected image, the circles ` +
+          `of confusion and the arriving cones — are drawn ${IMAGE_PLANE_MAGNIFICATION}× larger. To keep each ` +
+          'cone matching its ring, the distance from the glass to the point where the cone closes is ' +
+          'enlarged too. Which side of the glass it closes on, and the size of every disc relative to the ' +
+          'others, are unchanged.'
+        : `Além disso, o vidro fosco e tudo o que se desenha nele — a imagem projetada, os círculos de ` +
+          `confusão e a chegada dos cones — aparecem ${IMAGE_PLANE_MAGNIFICATION}× maiores. Para cada cone ` +
+          'continuar batendo com o seu anel, a distância entre o vidro e o ponto onde o cone se fecha ' +
+          'também aparece ampliada. De que lado do vidro ele se fecha, e o tamanho de cada disco em ' +
+          'relação aos outros, não mudam.',
     });
   }
 

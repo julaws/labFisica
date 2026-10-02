@@ -2,15 +2,20 @@ import * as THREE from 'three';
 import type { RayPath } from '../../scene/rays';
 import { convergence, imageDistance, pupilDiameter } from '../../optics/thin-lens';
 import { lensMm } from './lens-model';
+import { IMAGE_PLANE_MAGNIFICATION } from '../../scene/scale';
 import type { DioramaSubject } from './diorama';
 
 /**
  * Leques de raios dos objetos do diorama (SPEC §6.5).
  *
- * Cada objeto emite um cone de 16 a 32 raios que amostram o **anel da pupila
- * de entrada**, atravessam a lente e convergem num ponto cuja posição vem de
- * `convergence()`: sobre a placa de vidro para o objeto em foco, à frente para
- * os mais distantes, atrás para os mais próximos.
+ * Cada objeto emite um cone de 16 a 32 raios que amostram um anel do
+ * **diâmetro da pupila de entrada** (D = f/N), atravessam a lente como um
+ * cilindro — do primeiro vértice ao plano principal traseiro — e convergem num
+ * ponto cuja posição vem de `convergence()`: sobre a placa de vidro para o
+ * objeto em foco, à frente para os mais distantes, atrás para os mais
+ * próximos. Dentro da lente o desenho é esquemático: as pupilas e os planos
+ * principais de um Gauss duplo são cruzados, e mirá-los faria o feixe andar
+ * para trás.
  *
  * ## Por que não há fator de exagero aqui
  *
@@ -28,15 +33,42 @@ import type { DioramaSubject } from './diorama';
  * O que continua sendo esquemático, e está declarado no modal: o lado do
  * objeto vive no espaço comprimido do diorama, e o lado da imagem na escala
  * ampliada da lente. O ângulo do raio principal é o da cena, não o da física.
+ *
+ * ## A placa ampliada (ADR 0006)
+ *
+ * O plano da imagem é desenhado `M = IMAGE_PLANE_MAGNIFICATION` vezes maior
+ * que a lente. Cada raio sai da pupila de saída no lugar de sempre e passa a
+ * mirar o ponto da placa com altura `M` vezes a original. Como o ponto da
+ * placa é uma combinação afim do ponto de saída e do ponto de convergência,
+ * os raios redirecionados continuam concorrentes num ponto só, do mesmo lado
+ * da placa, e o cone na placa mede exatamente `M · b`. Só a distância desse
+ * ponto à placa muda (fica ~M vezes maior): o exagero declarado de `v_d − v_s`.
  */
 
 export interface RayFanGeometry {
-  /** Plano da pupila de entrada, em x de cena (já com o deslocamento do foco). */
+  /**
+   * Onde o feixe entra na objetiva, em x de cena (já com o deslocamento do
+   * foco). O experimento usa o primeiro vértice.
+   */
   readonly entrancePupilX: number;
-  /** Plano da pupila de saída, em x de cena. */
+  /**
+   * Onde o feixe sai da objetiva, em x de cena. Para o cone na placa medir
+   * exatamente `b(d)`, este plano precisa ser o **plano principal traseiro**:
+   * é dele que a lente fina mede `v`. (Até 02/10/2026 era a pupila de saída;
+   * no Gauss duplo da patente ela fica 9 mm à frente do plano principal, e o
+   * cone saía ~13% mais estreito que o anel. Ver ADR 0006.)
+   */
   readonly exitPupilX: number;
   /** Plano principal traseiro, de onde sai o raio principal. */
   readonly rearPrincipalX: number;
+  /**
+   * Centro de projeção do lado do objeto: a posição da câmera virtual do
+   * sensor. A altura da imagem é `h · v / u`, com `u` medido daqui, que é
+   * exatamente como a câmera virtual projeta a cena na placa. Assim o ponto
+   * onde o cone de um objeto se fecha cai em cima do próprio objeto na imagem
+   * projetada.
+   */
+  readonly projectionCenterX: number;
   /** Posição fixa da placa de vidro, em x de cena. */
   readonly imagePlaneX: number;
 }
@@ -53,6 +85,8 @@ export interface SubjectImage {
   readonly blurMm: number;
   /** Altura da imagem no sensor, em mm (negativa = invertida). */
   readonly heightMm: number;
+  /** Deslocamento lateral da imagem no sensor, em mm (também invertido). */
+  readonly lateralMm: number;
   readonly color: number;
   readonly side: 'front' | 'on' | 'behind';
 }
@@ -89,17 +123,25 @@ export function buildRayFans(
     // ampliada da lente. Sem fator de exagero (ver o bloco acima).
     const convergeX = geometry.imagePlaneX + lensMm(meeting.offset);
 
-    // Raio principal: passa pelo plano principal traseiro sem desviar e sai
-    // do outro lado invertido. É a construção clássica da lente fina.
-    const principal = new THREE.Vector3(geometry.rearPrincipalX, 0, 0);
-    const toPrincipal = new THREE.Vector3().subVectors(principal, object);
-    const chiefScale =
-      toPrincipal.x === 0 ? 0 : (convergeX - principal.x) / toPrincipal.x;
+    // Altura da imagem pela magnificação da lente fina, −v/u: v é a distância
+    // do plano principal traseiro ao ponto de convergência, na escala da
+    // lente; u é a distância do objeto ao centro de projeção, na cena.
+    const u = geometry.projectionCenterX - object.x;
+    const v = convergeX - geometry.rearPrincipalX;
+    const magnification = u === 0 ? 0 : -v / u;
     const converge = new THREE.Vector3(
       convergeX,
-      principal.y + toPrincipal.y * chiefScale,
-      principal.z + toPrincipal.z * chiefScale,
+      object.y * magnification,
+      object.z * magnification,
     );
+
+    // Placa ampliada: α diz onde a placa cai entre a saída (0) e o ponto de
+    // convergência (1); o novo ponto comum fica no parâmetro t = 1/(1 − M(1 − α)).
+    const plateScale = IMAGE_PLANE_MAGNIFICATION;
+    const span = convergeX - geometry.exitPupilX;
+    const alpha = span === 0 ? 1 : (geometry.imagePlaneX - geometry.exitPupilX) / span;
+    const denominator = 1 - plateScale * (1 - alpha);
+    const meetT = Math.abs(denominator) < 1e-6 ? 1e6 : 1 / denominator;
 
     for (let i = 0; i < RAYS_PER_SUBJECT; i += 1) {
       const angle = (i / RAYS_PER_SUBJECT) * Math.PI * 2;
@@ -109,14 +151,23 @@ export function buildRayFans(
       const entry = new THREE.Vector3(geometry.entrancePupilX, offsetY, offsetZ);
       const exit = new THREE.Vector3(geometry.exitPupilX, offsetY, offsetZ);
 
+      // Onde o raio original cruza a placa, e o mesmo ponto na placa ampliada.
+      const atPlate = new THREE.Vector3().lerpVectors(exit, converge, alpha);
+      const onPlate = new THREE.Vector3(
+        geometry.imagePlaneX,
+        atPlate.y * plateScale,
+        atPlate.z * plateScale,
+      );
+      const meet = new THREE.Vector3().subVectors(onPlate, exit).multiplyScalar(meetT).add(exit);
+
       // Depois de convergir, o raio continua e volta a divergir.
       const beyond = new THREE.Vector3()
-        .subVectors(converge, exit)
+        .subVectors(meet, exit)
         .multiplyScalar(OVERSHOOT)
-        .add(converge);
+        .add(meet);
 
       paths.push({
-        points: [object, entry, exit, converge, beyond],
+        points: [object, entry, exit, meet, beyond],
         color: subject.color,
         opacity: meeting.side === 'on' ? 0.9 : 0.62,
       });
@@ -125,11 +176,13 @@ export function buildRayFans(
     // Altura da imagem no sensor: vem da própria construção do raio principal,
     // convertida de volta para milímetros de física.
     const heightMm = converge.y / lensMm(1);
+    const lateralMm = converge.z / lensMm(1);
 
     images.push({
       id: subject.id,
       blurMm: blurAtPlate(f, N, imageDistanceMm, meeting.v),
       heightMm,
+      lateralMm,
       color: subject.color,
       side: meeting.side,
     });

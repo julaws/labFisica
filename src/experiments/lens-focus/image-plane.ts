@@ -2,17 +2,20 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from '../../scene/materials';
 import { lensMm } from './lens-model';
+import { IMAGE_PLANE_MAGNIFICATION } from '../../scene/scale';
+
+/** mm de física → cena, na escala do plano da imagem (lente × ampliação). */
+export const plateMm = (millimeters: number): number =>
+  lensMm(millimeters) * IMAGE_PLANE_MAGNIFICATION;
 
 /**
  * Plano da imagem: a placa de vidro fosco atrás da objetiva (SPEC §3.1 e §6.5).
  *
  * É aqui que os raios terminam e onde os **anéis de círculo de confusão** são
  * desenhados, um por objeto do diorama, com diâmetro igual ao `b(d)` que o
- * motor calcula — na escala ampliada da lente, a mesma dos raios. O objeto em
- * foco vira um ponto brilhante, porque `b` vale zero para ele.
- *
- * A imagem projetada de verdade entra na F6; por ora a placa é o difusor e o
- * anteparo dos raios.
+ * motor calcula — na escala do plano da imagem (a da lente vezes
+ * `IMAGE_PLANE_MAGNIFICATION`), a mesma em que os raios chegam a ela. O objeto
+ * em foco vira um ponto brilhante, porque `b` vale zero para ele.
  */
 
 export interface ConfusionRing {
@@ -22,6 +25,8 @@ export interface ConfusionRing {
   readonly color: number;
   /** Altura da imagem no sensor, em mm (negativa = invertida). */
   readonly heightMm: number;
+  /** Deslocamento lateral da imagem no sensor, em mm. */
+  readonly lateralMm?: number;
 }
 
 export interface ImagePlane {
@@ -57,8 +62,8 @@ export function createImagePlane({ materials, x, sensor }: ImagePlaneOptions): I
   const ownedMaterials: THREE.Material[] = [];
   const ownedTextures: THREE.Texture[] = [];
 
-  const width = lensMm(sensor.w);
-  const height = lensMm(sensor.h);
+  const width = plateMm(sensor.w);
+  const height = plateMm(sensor.h);
 
   // --- Vidro fosco -----------------------------------------------------------
   const screenGeometry = new THREE.PlaneGeometry(width, height);
@@ -136,10 +141,16 @@ export function createImagePlane({ materials, x, sensor }: ImagePlaneOptions): I
       // textura de um render target para girá-la não funciona: o clone
       // compartilha a imagem mas perde o vínculo com o framebuffer, e a placa
       // passa a mostrar uma textura vazia.
+      //
+      // O plano nasce olhando para +z e é girado para olhar o eixo; nesse giro
+      // o u da textura já troca de lado. Por isso só o v é invertido aqui: o
+      // resultado, visto de trás da placa, é a imagem girada 180° — invertida
+      // nos dois sentidos, como num vidro fosco de verdade, e do mesmo lado
+      // em que os raios de cada objeto se fecham.
       const uv = screenGeometry.attributes.uv!;
       if (!screenGeometry.userData.inverted) {
         for (let i = 0; i < uv.count; i += 1) {
-          uv.setXY(i, 1 - uv.getX(i), 1 - uv.getY(i));
+          uv.setXY(i, uv.getX(i), 1 - uv.getY(i));
         }
         uv.needsUpdate = true;
         screenGeometry.userData.inverted = true;
@@ -158,7 +169,7 @@ export function createImagePlane({ materials, x, sensor }: ImagePlaneOptions): I
       clearRings();
 
       for (const ring of rings) {
-        const radius = lensMm(ring.diameterMm / 2);
+        const radius = plateMm(ring.diameterMm / 2);
         const material = new THREE.MeshBasicMaterial({
           color: ring.color,
           transparent: true,
@@ -170,16 +181,17 @@ export function createImagePlane({ materials, x, sensor }: ImagePlaneOptions): I
         ringMaterials.push(material);
 
         // Abaixo de um limiar o disco é um ponto: é o objeto em foco.
-        const point = radius < lensMm(0.02);
+        const point = radius < plateMm(0.02);
         const geometry = point
-          ? new THREE.CircleGeometry(lensMm(0.35), 16)
-          : new THREE.RingGeometry(Math.max(radius - lensMm(0.12), radius * 0.72), radius, 48);
+          ? new THREE.CircleGeometry(plateMm(0.35), 16)
+          : new THREE.RingGeometry(Math.max(radius - plateMm(0.12), radius * 0.72), radius, 48);
         geometry.rotateY(-Math.PI / 2);
         ringGeometries.push(geometry);
 
         const mesh = new THREE.Mesh(geometry, material);
         // A imagem é invertida: altura negativa aponta para baixo no sensor.
-        mesh.position.y = lensMm(ring.heightMm);
+        mesh.position.y = plateMm(ring.heightMm);
+        mesh.position.z = plateMm(ring.lateralMm ?? 0);
         ringGroup.add(mesh);
       }
     },

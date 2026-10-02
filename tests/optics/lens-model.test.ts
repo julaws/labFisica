@@ -1,8 +1,12 @@
+import * as THREE from 'three';
+import { buildRayFans } from '../../src/experiments/lens-focus/ray-fans';
+import { plateMm } from '../../src/experiments/lens-focus/image-plane';
+import { IMAGE_PLANE_MAGNIFICATION } from '../../src/scene/scale';
 import { describe, expect, it } from 'vitest';
 import { LENS_50MM_F2 } from '../../src/optics/prescriptions/baker-double-gauss';
 import { widestFNumber, withFNumber } from '../../src/optics/aperture';
 import { FOCUS_RANGE_MM } from '../../src/optics/constants';
-import { elementProfile, surfaceSag } from '../../src/experiments/lens-focus/lens-model';
+import { elementProfile, lensMm, surfaceSag } from '../../src/experiments/lens-focus/lens-model';
 import {
   DEFAULT_IRIS,
   apertureArea,
@@ -202,5 +206,68 @@ describe('desenho dos raios versus o motor (critério 4 da SPEC §10)', () => {
   it('o objeto em foco fecha o cone exatamente sobre a placa', () => {
     const vs = imageDistance(50, 600);
     expect(blurAtPlate(50, 2, vs, vs)).toBe(0);
+  });
+});
+
+describe('placa ampliada (ADR 0006)', () => {
+  // Três objetos de mentira, nas distâncias do diorama, acima do eixo.
+  const subjects = (
+    [
+      ['foreground', 370, 0.05],
+      ['midground', 600, 0.08],
+      ['background', 2000, 0.12],
+    ] as const
+  ).map(([id, distanceMm, height]) => ({
+    id,
+    distanceMm,
+    samplePoint: new THREE.Vector3(-0.5, height, 0.02),
+    object: new THREE.Object3D(),
+    color: 0xffffff,
+    label: { 'pt-BR': id, en: id },
+  }));
+  // Como no experimento: o feixe sai pelo plano principal traseiro, e a placa
+  // fica a v_s dele.
+  const geometry = {
+    entrancePupilX: 0,
+    exitPupilX: 0.2,
+    rearPrincipalX: 0.2,
+    projectionCenterX: 0.05,
+    imagePlaneX: 0.2 + lensMm(imageDistance(50, 600)),
+  };
+
+  it('o cone cruza a placa com M vezes o círculo de confusão, e os raios se encontram num ponto', () => {
+    for (const fNumber of [2, 5.6, 16]) {
+      const state = { focalLength: 50, fNumber, focusDistance: 600 };
+      const { paths, images } = buildRayFans(subjects, state, geometry);
+      subjects.forEach((subject, s) => {
+        const rays = paths.slice(s * 18, (s + 1) * 18);
+        // Altura de cada raio no plano da placa.
+        const heights = rays.map((ray) => {
+          const exit = ray.points[2]!;
+          const meet = ray.points[3]!;
+          const t = (geometry.imagePlaneX - exit.x) / (meet.x - exit.x);
+          return exit.y + t * (meet.y - exit.y);
+        });
+        const width = Math.max(...heights) - Math.min(...heights);
+        expect(width).toBeCloseTo(plateMm(images[s]!.blurMm), 6);
+
+        // Concorrentes: todos os raios do objeto passam pelo mesmo ponto.
+        const first = rays[0]!.points[3]!;
+        for (const ray of rays) {
+          const p = ray.points[3]!;
+          expect(Math.hypot(p.x - first.x, p.y - first.y, p.z - first.z)).toBeLessThan(1e-9);
+        }
+
+        // Do lado certo da placa: atrás para quem está mais perto que o foco.
+        const behind = subject.distanceMm < 600;
+        const inFocus = subject.distanceMm === 600;
+        if (!inFocus) expect(first.x > geometry.imagePlaneX).toBe(behind);
+      });
+    }
+  });
+
+  it('desenha a placa M vezes maior que o sensor na escala da lente', () => {
+    expect(plateMm(36)).toBeCloseTo(lensMm(36) * IMAGE_PLANE_MAGNIFICATION, 12);
+    expect(IMAGE_PLANE_MAGNIFICATION).toBe(2);
   });
 });
