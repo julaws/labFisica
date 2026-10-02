@@ -1167,11 +1167,12 @@ export function createLensFocusExperiment(): Experiment {
           target: { x: origin.x - 0.265, y: origin.y - 0.375, z: origin.z },
           fov: 40,
           // No retrato, de viés pela direita: o trilho recua na diagonal e
-          // vale, objetiva e console cabem entre o HUD e a gaveta.
+          // vale, objetiva, placa e console cabem entre o HUD e a alça da
+          // gaveta, que começa recolhida.
           portrait: {
-            position: { x: origin.x + 1.385, y: origin.y + 1.045, z: origin.z + 4.2 },
-            target: { x: origin.x - 0.215, y: origin.y - 0.455, z: origin.z },
-            fov: 58,
+            position: { x: origin.x + 1.784, y: origin.y + 0.896, z: origin.z + 3.4 },
+            target: { x: origin.x - 0.066, y: origin.y - 0.234, z: origin.z },
+            fov: 60,
           },
         },
         {
