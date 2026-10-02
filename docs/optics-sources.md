@@ -256,6 +256,54 @@ de menor raio do feixe. Diâmetro do borrão, em mm:
 plano principal traseiro ao sensor. Para a convergente focada `p = v_s` e coincide com a
 §2; para a divergente `v_d < 0` (imagem virtual).
 
+## 9. Dupla fenda com elétrons (ADR 0009)
+
+Código em `src/optics/waves/double-slit.ts`, testes em `tests/optics/double-slit.test.ts`.
+
+**Constantes** (CODATA 2018; h, e e c são exatas no SI desde 2019):
+h = 6,626 070 15 × 10⁻³⁴ J·s, e = 1,602 176 634 × 10⁻¹⁹ C,
+mₑ = 9,109 383 7015 × 10⁻³¹ kg, c = 299 792 458 m/s.
+Fonte: NIST, *CODATA Recommended Values of the Fundamental Physical Constants: 2018*.
+
+**Comprimento de onda de de Broglie com correção relativística:**
+
+    p = √(2·mₑ·e·V·(1 + e·V/(2·mₑ·c²))),   λ = h / p
+
+A 50 kV: λ = 5,3553 pm (sem a correção seria 5,4847 pm). Velocidade:
+γ = 1 + e·V/(mₑ·c²), v/c = √(1 − 1/γ²) = 0,4127.
+
+**Difração de Fresnel de uma fenda longa** (Hecht, *Optics*, 5.ª ed., §10.3; Born e Wolf,
+*Principles of Optics*, §8.7). Onda plana incidente, aproximação paraxial, problema
+unidimensional. Amplitude no ponto X do anteparo, à distância L, de uma fenda de x₁ a x₂:
+
+    U(X) = (1/√2)·{[C(w₂) − C(w₁)] + i·[S(w₂) − S(w₁)]},   w = (x − X)·√(2/(λL))
+
+com C e S as integrais de Fresnel. A normalização dá |U| = 1 para abertura infinita
+(C(±∞) = S(±∞) = ±½).
+
+**Integrais de Fresnel:** C(x) = ∫₀ˣ cos(πt²/2) dt, S(x) = ∫₀ˣ sin(πt²/2) dt. Tabela por
+Simpson cumulativo, passo 1/2000, de 0 a 8, com interpolação linear; acima de 8, a forma
+assintótica com as funções auxiliares (Abramowitz e Stegun, *Handbook of Mathematical
+Functions*, 7.3.9–10 e 7.3.27–28):
+
+    f(x) ≈ (1/(πx))·(1 − 3/(πx²)²),   g(x) ≈ (1/(π²x³))·(1 − 15/(πx²)²)
+    C(x) = ½ + f·sin(πx²/2) − g·cos(πx²/2),   S(x) = ½ − f·cos(πx²/2) − g·sin(πx²/2)
+
+Conferidas contra os valores tabelados: C(1) = 0,779 893, S(1) = 0,438 259;
+C(2) = 0,488 253, S(2) = 0,343 416.
+
+**Com e sem detector** (Feynman, *Lectures on Physics*, vol. III, cap. 1): sem informação
+de caminho somam-se amplitudes, I = |U₁ + U₂|²; com ela somam-se probabilidades,
+I = |U₁|² + |U₂|². Experimento de referência: C. Jönsson, *Zeitschrift für Physik* 161,
+454 (1961), elétrons de 50 kV.
+
+**Espaçamento das franjas** (limite de Fraunhofer): Δy = λL/d. **Número de Fresnel** de
+uma fenda: N_F = a²/(λL); N_F ≫ 1 perto (cada fenda projeta a sua sombra), N_F ≪ 1 longe.
+
+Valores na geometria padrão (a = 1,2 µm, d = 8 µm, L = 1,40 m): Δy = 0,937 µm,
+N_F = 0,19, 19 máximos acima de 15% do maior sem detector, duas faixas em ±4,2 µm com
+detector (vale central a 39% do pico).
+
 ---
 
 ## Situação por tema
@@ -273,3 +321,4 @@ plano principal traseiro ao sensor. Para a convergente focada `p = v_s` e coinci
 | Mapa logarítmico de profundidade do diorama | `offset(d) = folga + k·ln(d/300 mm)`, k = 0,242 un/ln (bandeja de 0,85 un desde a ADR 0006), folga 0,40 un, declarado em `src/scene/scale.ts` e no modal "?" | F4 ✔ |
 | Troca de objetiva (biconvexa e bicôncava simples, aberração esférica medida) | documentado (§8) e testado, ADR 0007 | 02/10/2026 ✔ |
 | Ampliação do plano da imagem | 2× sobre a escala da lente, com a chegada dos cones ajustada para o cone seguir batendo com o anel de CoC (ADR 0006) | 02/10/2026 ✔ |
+| Dupla fenda com elétrons (de Broglie relativístico, Fresnel de fendas longas, detector) | documentado (§9) e testado, ADR 0009 | 02/10/2026 ✔ |
