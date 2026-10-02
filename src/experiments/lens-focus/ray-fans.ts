@@ -77,6 +77,11 @@ export interface RayFanState {
   /** Distância focal, mm, com sinal: negativa numa lente divergente. */
   readonly focalLength: number;
   readonly fNumber: number;
+  /**
+   * Giro do anel de raios em volta do eixo, em radianos. Puramente visual:
+   * qualquer giro amostra o mesmo cone, com a mesma largura na placa.
+   */
+  readonly spin?: number;
 }
 
 export interface SubjectImage {
@@ -159,7 +164,7 @@ export function buildRayFans(
     const meetT = Math.abs(denominator) < 1e-6 ? 1e6 : 1 / denominator;
 
     for (let i = 0; i < RAYS_PER_SUBJECT; i += 1) {
-      const angle = (i / RAYS_PER_SUBJECT) * Math.PI * 2;
+      const angle = (i / RAYS_PER_SUBJECT) * Math.PI * 2 + (state.spin ?? 0);
       const offsetY = Math.cos(angle) * pupilRadius;
       const offsetZ = Math.sin(angle) * pupilRadius;
 

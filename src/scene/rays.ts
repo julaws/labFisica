@@ -154,6 +154,7 @@ export function createRayBundle({
     group,
 
     setPaths(next: readonly RayPath[]): void {
+      const previousCount = paths.length;
       paths = next;
       cumulative.length = 0;
 
@@ -178,7 +179,31 @@ export function createRayBundle({
         cumulative.push(lengths);
       }
 
-      // O número de segmentos muda com o estado; trocar a geometria é mais
+      // Mesmo número de segmentos (o caso do giro lento, a cada quadro):
+      // escreve por cima dos buffers que já estão na GPU, sem realocar.
+      const start = lineGeometry.getAttribute('instanceStart') as
+        | THREE.InterleavedBufferAttribute
+        | undefined;
+      const colorStart = lineGeometry.getAttribute('instanceColorStart') as
+        | THREE.InterleavedBufferAttribute
+        | undefined;
+      if (
+        start &&
+        colorStart &&
+        start.data.array.length === positions.length &&
+        colorStart.data.array.length === colors.length
+      ) {
+        (start.data.array as Float32Array).set(positions);
+        start.data.needsUpdate = true;
+        (colorStart.data.array as Float32Array).set(colors);
+        colorStart.data.needsUpdate = true;
+        // As partículas leem `paths` a cada quadro; só o número delas
+        // precisa bater com o buffer.
+        if (next.length !== previousCount) rebuildParticles();
+        return;
+      }
+
+      // O número de segmentos mudou com o estado; trocar a geometria é mais
       // simples e seguro que redimensionar os atributos instanciados.
       lineGeometry.dispose();
       lineGeometry = new LineSegmentsGeometry();
