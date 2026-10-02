@@ -17,7 +17,6 @@ import {
 } from '../../optics/lenses';
 import { widestFNumber, withFNumber } from '../../optics/aperture';
 import { analyze } from '../../optics/paraxial';
-import { focusExtension } from '../../optics/thin-lens';
 import { opticalLength, stopIndex, vertexPositions } from '../../optics/prescription';
 import {
   COC_MM,
@@ -72,7 +71,9 @@ import {
   imageDistance,
   magnification,
   plateBlurDiameter,
+  plateDistance,
   pupilDiameter,
+  ringExtension,
 } from '../../optics/thin-lens';
 import { type Facts, buildCopy } from './copy';
 import { describeHighlights, describeState } from './describe';
@@ -299,7 +300,12 @@ export function createLensFocusExperiment(): Experiment {
       lens: state.lens,
       converging: lens.converging,
       aberrationSpot: aberrationSpotDiameter(state.lens, state.fNumber),
-      plateBlurPine: plateBlurDiameter(f, state.fNumber, HOME_PLATE_MM, foreground),
+      plateBlurPine: plateBlurDiameter(
+        f,
+        state.fNumber,
+        plateDistance(f, s, HOME_PLATE_MM),
+        foreground,
+      ),
       focalLength: f,
       fNumber: state.fNumber,
       widestFNumber: widestFNumber(lens.prescription),
@@ -308,7 +314,7 @@ export function createLensFocusExperiment(): Experiment {
       dofNear: dof.near,
       dofFar: dof.far,
       coc: state.coc,
-      extension: focusExtension(f, s),
+      extension: ringExtension(f, s, HOME_PLATE_MM),
       pupilDiameter: pupilDiameter(f, state.fNumber),
       blurPine: blurDiameter(f, state.fNumber, s, foreground),
       blurCabin: blurDiameter(f, state.fNumber, s, midground),
@@ -416,10 +422,10 @@ export function createLensFocusExperiment(): Experiment {
     iris?.setClearRadius(stopSemiDiameter(state.fNumber));
 
     // Foco por deslocamento unitário: o grupo óptico inteiro anda para a
-    // frente pela extensão e = v − f, que vem do motor (SPEC §5.3). Uma
-    // lente divergente não forma imagem real em lugar nenhum: não há para
-    // onde andar, e ela fica em casa (ADR 0007).
-    const extension = lens.converging ? focusExtension(state.focalLength, state.focusDistance) : 0;
+    // frente pela extensão e = v − f, que vem do motor (SPEC §5.3). Numa
+    // lente divergente o anel é a mesma rosca: ela anda o mesmo curso, mas
+    // nenhuma posição forma imagem real (ADR 0007).
+    const extension = ringExtension(state.focalLength, state.focusDistance, HOME_PLATE_MM);
     if (opticsGroup) opticsGroup.position.x = lensBaseX(lens) - lensMm(extension);
 
     if (barrel) barrel.focusRing.rotation.x = distanceToRingAngle(state.focusDistance);
@@ -952,7 +958,7 @@ export function createLensFocusExperiment(): Experiment {
         {
           id: 'extension',
           label: en ? 'Focus extension' : 'Extensão do foco',
-          value: real ? formatMillimeters(focusExtension(f, s), locale) : dash,
+          value: formatMillimeters(ringExtension(f, s, HOME_PLATE_MM), locale),
           hint: 'e = v − f',
         },
         {

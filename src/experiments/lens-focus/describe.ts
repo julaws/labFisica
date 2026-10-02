@@ -1,5 +1,11 @@
-import { blurDiameter, dofLimits, plateBlurDiameter } from '../../optics/thin-lens';
-import { type Locale, formatCentimeters, formatFNumber, formatMillimeters } from '../../ui/i18n';
+import { blurDiameter, dofLimits, plateBlurDiameter, plateDistance } from '../../optics/thin-lens';
+import {
+  type Locale,
+  formatCentimeters,
+  formatDistance,
+  formatFNumber,
+  formatMillimeters,
+} from '../../ui/i18n';
 
 /**
  * Frase dinâmica do HUD (SPEC §6.7), gerada a partir do estado.
@@ -46,8 +52,8 @@ interface Grammar {
   none(smallest: Noun, blur: string, zone: string): string;
   infinity(closest: Noun, closestBlur: string, farthest: Noun, farthestBlur: string): string;
   stoppedDown(fNumber: string, zone: string): string;
-  /** Lente divergente: não forma imagem real. */
-  diverging(smallest: Noun, blur: string): string;
+  /** Lente divergente: não forma imagem real em nenhuma posição do anel. */
+  diverging(smallest: Noun, blur: string, ring: string): string;
   /** Lente simples aberta: a aberração esférica passa do círculo admissível. */
   aberration(spot: string, coc: string): string;
 }
@@ -95,10 +101,11 @@ const PT: Grammar = {
   stoppedDown(fNumber, zone) {
     return `Em ${fNumber} o cone de luz afina, todos os discos encolhem e a zona nítida cresce para ${zone}.`;
   },
-  diverging(smallest, blur) {
+  diverging(smallest, blur, ring) {
     return (
       `Lente divergente: os raios saem abrindo, como se viessem de um ponto à frente dela — a imagem virtual. ` +
-      `Nada se forma no vidro: até ${smallest.the} chega como um disco de ${blur}, maior que o sensor.`
+      `Com o anel em ${ring} a lente andou, mas nada se forma no vidro: até ${smallest.the} chega como um ` +
+      `disco de ${blur}, maior que o sensor. Gire o anel: nenhuma posição forma imagem.`
     );
   },
   aberration(spot, coc) {
@@ -145,10 +152,11 @@ const EN: Grammar = {
   stoppedDown(fNumber, zone) {
     return `At ${fNumber} the cone of light narrows, every disc shrinks and the sharp zone grows to ${zone}.`;
   },
-  diverging(smallest, blur) {
+  diverging(smallest, blur, ring) {
     return (
       `Diverging lens: the rays leave it spreading out, as if they came from a point in front of it — the ` +
-      `virtual image. Nothing forms on the glass: even ${smallest.the} arrives as a ${blur} disc, wider than the sensor.`
+      `virtual image. With the ring at ${ring} the lens has moved, but nothing forms on the glass: even ` +
+      `${smallest.the} arrives as a ${blur} disc, wider than the sensor. Turn the ring: no position forms an image.`
     );
   },
   aberration(spot, coc) {
@@ -175,12 +183,14 @@ export function describeState(
   // Lente divergente: não há plano de foco nem zona nítida, só discos.
   if (state.focalLength < 0) {
     const home = state.homePlate ?? Math.abs(f);
+    const plate = plateDistance(f, state.focusDistance, home);
     const smallest = [...subjects]
-      .map((subject) => ({ subject, blur: plateBlurDiameter(f, N, home, subject.distanceMm) }))
+      .map((subject) => ({ subject, blur: plateBlurDiameter(f, N, plate, subject.distanceMm) }))
       .sort((a, b) => a.blur - b.blur)[0]!;
     return grammar.diverging(
       grammar.nouns[smallest.subject.id],
       formatMillimeters(smallest.blur, locale),
+      formatDistance(state.focusDistance, locale),
     );
   }
 

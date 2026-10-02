@@ -158,12 +158,25 @@ export function halfFieldAngle(f: number, u: number, sensorDimension: number): n
  * sensor parado em `homePlate` e a objetiva andando para focar (ADR 0007).
  *
  * Lente convergente: a objetiva estende até o sensor ficar a `v(s)` dela, que
- * é a definição de estar focada em `s`. Lente divergente: não existe `s` que
- * forme imagem real, então nada se mexe e o sensor fica em casa.
+ * é a definição de estar focada em `s`.
+ *
+ * Lente divergente: não existe `s` que forme imagem real, mas o anel de foco é
+ * mecânico — uma rosca gravada para uma objetiva de `homePlate` mm. Girá-lo
+ * leva a objetiva pelo mesmo curso, `v(s) − homePlate` dessa objetiva: a lente
+ * anda, o sensor se afasta dela, e a imagem continua sem se formar.
  */
 export function plateDistance(f: number, focusDistance: number, homePlate: number): number {
-  if (f <= 0) return homePlate;
+  if (f <= 0) return imageDistance(homePlate, focusDistance);
   return imageDistance(f, focusDistance);
+}
+
+/**
+ * Quanto a objetiva anda à frente da posição de casa, mm, com o anel em
+ * `focusDistance` (ADR 0007). É `plateDistance − homePlate`: o mesmo curso
+ * para qualquer objetiva de casa `homePlate`, convergente ou não.
+ */
+export function ringExtension(f: number, focusDistance: number, homePlate: number): number {
+  return plateDistance(f, focusDistance, homePlate) - homePlate;
 }
 
 /**

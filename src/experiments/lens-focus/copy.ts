@@ -138,7 +138,8 @@ function swapText(facts: Facts, locale: Locale): string {
       facts.lens === 'biconcave'
         ? `With the diverging lens mounted, the pine reaches the glass as a ${pine} disc — wider than the whole ` +
           `36 mm sensor. The rays leave the lens spreading out, as if they came from a point in front of it: the ` +
-          `virtual image, drawn faint. There is nothing to focus.`
+          `virtual image, drawn faint. The focus ring still moves the lens, by the same travel as a 50 mm, but no ` +
+          `position brings anything to a point.`
         : `With this lens at ${fN}, spherical aberration alone spreads a perfectly focused point into a ${spot} ` +
           `disc${facts.aberrationSpot > facts.coc ? `, more than the ${coc} acceptable circle: nothing is truly sharp until you stop down.` : `, below the ${coc} acceptable circle.`}`;
     return (
@@ -158,7 +159,8 @@ ${now}`
     facts.lens === 'biconcave'
       ? `Com a divergente montada, o pinheiro chega ao vidro como um disco de ${pine} — mais largo que o sensor ` +
         `inteiro, de 36 mm. Os raios saem da lente abrindo, como se viessem de um ponto à frente dela: a imagem ` +
-        `virtual, desenhada apagada. Não há o que focar.`
+        `virtual, desenhada apagada. O anel de foco continua movendo a lente, pelo mesmo curso de uma 50 mm, mas ` +
+        `nenhuma posição leva nada a um ponto.`
       : `Com esta lente em ${fN}, só a aberração esférica já espalha um ponto perfeitamente focado num disco de ` +
         `${spot}${facts.aberrationSpot > facts.coc ? `, maior que o círculo admissível de ${coc}: nada fica realmente nítido até fechar o diafragma.` : `, menor que o círculo admissível de ${coc}.`}`;
   return (

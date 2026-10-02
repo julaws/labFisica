@@ -88,3 +88,13 @@ pupila negativos. Passaram a usar |EFL|. `pupilDiameter` também.
 - O motor ganhou o caso divergente de ponta a ponta, coberto por testes
   (`tests/optics/lens-swap.test.ts`).
 - O orçamento de draw calls não muda: trocar a objetiva troca malhas, não acrescenta.
+
+## Revisão de 02/10/2026: a divergente acompanha o anel
+
+A pedido do responsável, a lente divergente deixou de ficar parada. O anel de foco é uma
+rosca mecânica, gravada para uma objetiva de 50 mm; girá-lo leva **qualquer** objetiva pelo
+mesmo curso, `v(s) − 50` dessa objetiva (`ringExtension` em `thin-lens.ts`). Na divergente
+a lente anda, o sensor se afasta dela, e o desfoque muda — mas nenhuma posição do anel leva
+um ponto a um ponto: em todas, cada objeto do vale chega ao sensor como um disco maior que
+o próprio sensor (teste em `lens-swap.test.ts`). A frase do HUD diz isso com a posição atual
+do anel.

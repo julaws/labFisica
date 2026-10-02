@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { analyze } from '../../src/optics/paraxial';
-import { blurDiameter, imageDistance, plateBlurDiameter, plateDistance } from '../../src/optics/thin-lens';
+import {
+  blurDiameter,
+  imageDistance,
+  plateBlurDiameter,
+  plateDistance,
+  ringExtension,
+} from '../../src/optics/thin-lens';
 import { widestFNumber, withFNumber } from '../../src/optics/aperture';
 import { BICONCAVE_50, BICONVEX_50, DEFAULT_SINGLET } from '../../src/optics/prescriptions/singlets';
 import { LENS_IDS, aberrationSpotDiameter, lensFacts } from '../../src/optics/lenses';
@@ -91,8 +97,24 @@ describe('desfoque com o sensor parado', () => {
     }
   });
 
-  it('na lente divergente o sensor não se mexe e todo ponto vira um disco maior que o sensor', () => {
-    expect(plateDistance(-50, 600, 50)).toBe(50);
+  it('na lente divergente o anel move a objetiva pelo mesmo curso de uma 50 mm', () => {
+    for (const s of [370, 600, 2000, Infinity]) {
+      expect(plateDistance(-50, s, 50)).toBeCloseTo(plateDistance(50, s, 50), 9);
+      expect(ringExtension(-50, s, 50)).toBeCloseTo(imageDistance(50, s) - 50, 9);
+    }
+    expect(ringExtension(-50, Infinity, 50)).toBeCloseTo(0, 9);
+  });
+
+  it('na lente divergente nenhuma posição do anel forma imagem: todo disco passa do sensor', () => {
+    for (const s of [300, 370, 600, 2000, 10_000, Infinity]) {
+      const p = plateDistance(-50, s, 50);
+      for (const d of [370, 600, 2000]) {
+        expect(plateBlurDiameter(-50, 2, p, d)).toBeGreaterThan(36);
+      }
+    }
+  });
+
+  it('na lente divergente todo ponto vira um disco maior que o sensor', () => {
     for (const d of [370, 600, 2000]) {
       const b = plateBlurDiameter(-50, 2, 50, d);
       expect(b).toBeGreaterThan(36);
