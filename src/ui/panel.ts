@@ -306,6 +306,40 @@ export function createPanel({
         break;
       }
 
+      case 'checkboxes': {
+        const group = document.createElement('div');
+        group.className = 'checks';
+        group.setAttribute('role', 'group');
+        group.setAttribute('aria-labelledby', label.id);
+
+        const boxes = control.options.map((option) => {
+          const key = `${control.id}.${option.value}`;
+          const item = document.createElement('label');
+          item.className = 'check';
+          if (option.tone) item.dataset.tone = option.tone;
+
+          const input = document.createElement('input');
+          input.type = 'checkbox';
+          input.className = 'check__input';
+          input.addEventListener('change', () => experiment.set(key, input.checked));
+
+          const text = document.createElement('span');
+          text.className = 'check__label';
+          text.textContent = option.label;
+
+          item.append(input, text);
+          group.appendChild(item);
+          return { input, key };
+        });
+
+        syncers.push(() => {
+          for (const { input, key } of boxes) input.checked = Boolean(experiment.get(key));
+        });
+
+        wrapper.appendChild(group);
+        break;
+      }
+
       case 'toggle': {
         const button = document.createElement('button');
         button.type = 'button';

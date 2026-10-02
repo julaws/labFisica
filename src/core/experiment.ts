@@ -103,6 +103,16 @@ export type PanelControl = PanelControlCommon &
       }
     | { kind: 'toggle'; id: string; label: Record<Locale, string> }
     | {
+        /**
+         * Caixas de seleção independentes: cada opção é lida e escrita como
+         * `${id}.${value}`, booleano. Mais de uma pode ficar marcada.
+         */
+        kind: 'checkboxes';
+        id: string;
+        label: Record<Locale, string>;
+        options: readonly { value: string; label: string; tone?: 'focus' | 'warm' | 'cool' }[];
+      }
+    | {
         kind: 'stops';
         id: string;
         label: Record<Locale, string>;
