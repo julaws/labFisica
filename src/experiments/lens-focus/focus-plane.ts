@@ -149,6 +149,8 @@ export function createFocusPlane(
 export interface IntersectionPatch {
   /** Atualiza a faixa acesa. Distâncias físicas em mm. */
   setZone(focusMm: number, nearMm: number, farMm: number): void;
+  /** Liga ou apaga a faixa (some com uma lente divergente, ADR 0007). */
+  setEnabled(enabled: boolean): void;
   dispose(): void;
 }
 
@@ -184,6 +186,7 @@ export function attachIntersectionPatch(
     uFocusX: { value: 0 },
     uSharpColor: { value: new THREE.Color(PALETTE.focus) },
     uOriginX: { value: 0 },
+    uSharpStrength: { value: 1 },
   };
 
   for (const material of materials) {
@@ -193,6 +196,7 @@ export function attachIntersectionPatch(
       shader.uniforms.uFocusX = uniforms.uFocusX;
       shader.uniforms.uSharpColor = uniforms.uSharpColor;
       shader.uniforms.uOriginX = uniforms.uOriginX;
+      shader.uniforms.uSharpStrength = uniforms.uSharpStrength;
 
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\nvarying float vOpticalX;')
@@ -216,6 +220,7 @@ export function attachIntersectionPatch(
            uniform float uFarX;
            uniform float uFocusX;
            uniform float uOriginX;
+           uniform float uSharpStrength;
            uniform vec3 uSharpColor;`,
         )
         .replace(
@@ -235,7 +240,7 @@ export function attachIntersectionPatch(
              // Linha fina no plano de foco exato: diz onde, com largura fixa.
              float cut = 1.0 - smoothstep(0.0, ${CUT_LINE_HALF_WIDTH.toFixed(5)}, abs(local - uFocusX));
 
-             gl_FragColor.rgb += uSharpColor * (inside * 0.9 + cut * 1.6);
+             gl_FragColor.rgb += uSharpColor * (inside * 0.9 + cut * 1.6) * uSharpStrength;
            }`,
         );
     };
@@ -261,6 +266,9 @@ export function attachIntersectionPatch(
       uniforms.uFocusX.value = distanceToSceneX(focusMm);
       uniforms.uNearX.value = distanceToSceneX(nearMm);
       uniforms.uFarX.value = distanceToSceneX(farMm);
+    },
+    setEnabled(enabled: boolean): void {
+      uniforms.uSharpStrength.value = enabled ? 1 : 0;
     },
     dispose(): void {
       for (const material of materials) {

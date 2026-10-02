@@ -1,4 +1,4 @@
-import { blurDiameter, dofLimits } from '../../optics/thin-lens';
+import { blurDiameter, dofLimits, plateBlurDiameter } from '../../optics/thin-lens';
 import { type Locale, formatCentimeters, formatFNumber, formatMillimeters } from '../../ui/i18n';
 
 /**
@@ -20,10 +20,15 @@ export interface DescribedSubject {
 }
 
 export interface DescribeState {
+  /** Distância focal, mm, com sinal: negativa numa lente divergente. */
   readonly focalLength: number;
   readonly fNumber: number;
   readonly focusDistance: number;
   readonly coc: number;
+  /** Borrão de aberração esférica no melhor foco, mm (ADR 0007). */
+  readonly aberrationSpot?: number;
+  /** Distância de casa do sensor ao plano principal traseiro, mm. */
+  readonly homePlate?: number;
 }
 
 /** Artigo e gênero de cada objeto, para a concordância do português. */
@@ -41,6 +46,10 @@ interface Grammar {
   none(smallest: Noun, blur: string, zone: string): string;
   infinity(closest: Noun, closestBlur: string, farthest: Noun, farthestBlur: string): string;
   stoppedDown(fNumber: string, zone: string): string;
+  /** Lente divergente: não forma imagem real. */
+  diverging(smallest: Noun, blur: string): string;
+  /** Lente simples aberta: a aberração esférica passa do círculo admissível. */
+  aberration(spot: string, coc: string): string;
 }
 
 const PT: Grammar = {
@@ -86,6 +95,18 @@ const PT: Grammar = {
   stoppedDown(fNumber, zone) {
     return `Em ${fNumber} o cone de luz afina, todos os discos encolhem e a zona nítida cresce para ${zone}.`;
   },
+  diverging(smallest, blur) {
+    return (
+      `Lente divergente: os raios saem abrindo, como se viessem de um ponto à frente dela — a imagem virtual. ` +
+      `Nada se forma no vidro: até ${smallest.the} chega como um disco de ${blur}, maior que o sensor.`
+    );
+  },
+  aberration(spot, coc) {
+    return (
+      `Mas esta lente simples tem aberração esférica: mesmo no plano, um ponto vira um disco de ${spot}, ` +
+      `maior que os ${coc} admissíveis. Feche o diafragma para a nitidez voltar.`
+    );
+  },
 };
 
 const EN: Grammar = {
@@ -124,6 +145,18 @@ const EN: Grammar = {
   stoppedDown(fNumber, zone) {
     return `At ${fNumber} the cone of light narrows, every disc shrinks and the sharp zone grows to ${zone}.`;
   },
+  diverging(smallest, blur) {
+    return (
+      `Diverging lens: the rays leave it spreading out, as if they came from a point in front of it — the ` +
+      `virtual image. Nothing forms on the glass: even ${smallest.the} arrives as a ${blur} disc, wider than the sensor.`
+    );
+  },
+  aberration(spot, coc) {
+    return (
+      `But this simple lens has spherical aberration: even on the plane, a point becomes a ${spot} disc, ` +
+      `larger than the acceptable ${coc}. Stop down and sharpness comes back.`
+    );
+  },
 };
 
 const GRAMMARS: Record<Locale, Grammar> = { 'pt-BR': PT, en: EN };
@@ -132,6 +165,35 @@ const GRAMMARS: Record<Locale, Grammar> = { 'pt-BR': PT, en: EN };
 const STOPPED_DOWN_FROM = 11;
 
 export function describeState(
+  state: DescribeState,
+  subjects: readonly DescribedSubject[],
+  locale: Locale,
+): string {
+  const grammar = GRAMMARS[locale];
+  const { focalLength: f, fNumber: N, coc } = state;
+
+  // Lente divergente: não há plano de foco nem zona nítida, só discos.
+  if (state.focalLength < 0) {
+    const home = state.homePlate ?? Math.abs(f);
+    const smallest = [...subjects]
+      .map((subject) => ({ subject, blur: plateBlurDiameter(f, N, home, subject.distanceMm) }))
+      .sort((a, b) => a.blur - b.blur)[0]!;
+    return grammar.diverging(
+      grammar.nouns[smallest.subject.id],
+      formatMillimeters(smallest.blur, locale),
+    );
+  }
+
+  const sentence = describeConverging(state, subjects, locale);
+  const spot = state.aberrationSpot ?? 0;
+  if (spot > coc) {
+    return `${sentence} ${grammar.aberration(formatMillimeters(spot, locale), formatMillimeters(coc, locale))}`;
+  }
+  return sentence;
+}
+
+/** Frase de uma lente convergente (a de sempre). */
+function describeConverging(
   state: DescribeState,
   subjects: readonly DescribedSubject[],
   locale: Locale,

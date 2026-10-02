@@ -124,6 +124,22 @@ test('ajustes finos no celular', async ({ page }, testInfo) => {
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-15-drawer.png` });
 });
 
+test('troca de objetiva', async ({ page }, testInfo) => {
+  await openLab(page, '?shot=optical-path&focus=600');
+  // Convergente simples: forma imagem, mas a aberração aparece na frase.
+  await page.getByRole('radio', { name: 'Convergente' }).click();
+  await expect(page.locator('.hud__sentence')).toContainText('aberração esférica');
+  await expect(page.locator('.chip[data-id="zone"] .chip__value')).toHaveText('1,9 cm');
+  await settle(page);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-16-converging.png` });
+  // Divergente: não há imagem real, nem foco, nem zona nítida.
+  await page.getByRole('radio', { name: 'Divergente' }).click();
+  await expect(page.locator('.hud__sentence')).toContainText('Lente divergente');
+  await expect(page.locator('.chip[data-id="zone"] .chip__value')).toHaveText('—');
+  await settle(page);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-17-diverging.png` });
+});
+
 test('foco no fundo', async ({ page }, testInfo) => {
   // No pico a linha de corte fica isolada, longe do bosque: é a captura que
   // mostra se a faixa acende onde a física manda.

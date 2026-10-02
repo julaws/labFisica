@@ -161,7 +161,7 @@ export function createConsoleScreens({
     group.add(mesh);
   });
 
-  let lastFNumber = Number.NaN;
+  let lastKey = '';
 
   return {
     group,
@@ -169,9 +169,11 @@ export function createConsoleScreens({
     setState(state: SensorState): void {
       main.setState(state);
 
-      // Só a abertura invalida as miniaturas: cada uma tem foco próprio.
-      if (state.fNumber !== lastFNumber) {
-        lastFNumber = state.fNumber;
+      // Só a abertura e a objetiva invalidam as miniaturas: cada uma tem
+      // foco próprio.
+      const key = `${state.fNumber}|${state.focalLength}|${state.aberrationMm}`;
+      if (key !== lastKey) {
+        lastKey = key;
         thumbnails.forEach((thumbnail, index) => {
           thumbnail.setState({ ...state, focusDistance: THUMBNAIL_FOCUS_MM[index]! });
         });

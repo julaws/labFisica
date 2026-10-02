@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { RayPath } from '../../scene/rays';
-import { convergence, imageDistance, pupilDiameter } from '../../optics/thin-lens';
+import { imageDistance, plateBlurDiameter, pupilDiameter } from '../../optics/thin-lens';
 import { lensMm } from './lens-model';
 import { IMAGE_PLANE_MAGNIFICATION } from '../../scene/scale';
 import type { DioramaSubject } from './diorama';
@@ -74,9 +74,9 @@ export interface RayFanGeometry {
 }
 
 export interface RayFanState {
+  /** Distância focal, mm, com sinal: negativa numa lente divergente. */
   readonly focalLength: number;
   readonly fNumber: number;
-  readonly focusDistance: number;
 }
 
 export interface SubjectImage {
@@ -88,7 +88,8 @@ export interface SubjectImage {
   /** Deslocamento lateral da imagem no sensor, em mm (também invertido). */
   readonly lateralMm: number;
   readonly color: number;
-  readonly side: 'front' | 'on' | 'behind';
+  /** Onde o cone se fecha; `virtual` numa lente divergente. */
+  readonly side: 'front' | 'on' | 'behind' | 'virtual';
 }
 
 export interface RayFanResult {
@@ -107,21 +108,33 @@ export function buildRayFans(
   state: RayFanState,
   geometry: RayFanGeometry,
 ): RayFanResult {
-  const { focalLength: f, fNumber: N, focusDistance: s } = state;
+  const { focalLength: f, fNumber: N } = state;
 
   const pupilRadius = lensMm(pupilDiameter(f, N) / 2);
-  const imageDistanceMm = imageDistance(f, s);
+  // Distância do plano principal traseiro ao sensor, em mm de física: é ela
+  // que decide onde cada cone está quando chega à placa (ADR 0007).
+  const plateMmFromPrincipal = (geometry.imagePlaneX - geometry.rearPrincipalX) / lensMm(1);
+  const converging = f > 0;
 
   const paths: RayPath[] = [];
   const images: SubjectImage[] = [];
 
   for (const subject of subjects) {
     const object = subject.samplePoint;
-    const meeting = convergence(f, s, subject.distanceMm);
+    const vd = imageDistance(f, subject.distanceMm);
 
-    // Onde o cone se fecha: a placa mais a diferença de conjugado, na escala
-    // ampliada da lente. Sem fator de exagero (ver o bloco acima).
-    const convergeX = geometry.imagePlaneX + lensMm(meeting.offset);
+    // Onde o cone se fecha: v_d atrás do plano principal traseiro, na escala
+    // da lente. Numa lente divergente v_d é negativo e o ponto fica à frente
+    // da lente: é a imagem virtual, de onde os raios parecem vir.
+    const convergeX = geometry.rearPrincipalX + lensMm(vd);
+    const offsetMm = vd - plateMmFromPrincipal;
+    const side: SubjectImage['side'] = !converging
+      ? 'virtual'
+      : Math.abs(offsetMm) <= 1e-6
+        ? 'on'
+        : offsetMm > 0
+          ? 'behind'
+          : 'front';
 
     // Altura da imagem pela magnificação da lente fina, −v/u: v é a distância
     // do plano principal traseiro ao ponto de convergência, na escala da
@@ -137,7 +150,9 @@ export function buildRayFans(
 
     // Placa ampliada: α diz onde a placa cai entre a saída (0) e o ponto de
     // convergência (1); o novo ponto comum fica no parâmetro t = 1/(1 − M(1 − α)).
-    const plateScale = IMAGE_PLANE_MAGNIFICATION;
+    // A divergente não tem ponto comum atrás da lente; ali os raios só
+    // atravessam a placa, sem a ampliação (ADR 0007).
+    const plateScale = converging ? IMAGE_PLANE_MAGNIFICATION : 1;
     const span = convergeX - geometry.exitPupilX;
     const alpha = span === 0 ? 1 : (geometry.imagePlaneX - geometry.exitPupilX) / span;
     const denominator = 1 - plateScale * (1 - alpha);
@@ -151,8 +166,23 @@ export function buildRayFans(
       const entry = new THREE.Vector3(geometry.entrancePupilX, offsetY, offsetZ);
       const exit = new THREE.Vector3(geometry.exitPupilX, offsetY, offsetZ);
 
-      // Onde o raio original cruza a placa, e o mesmo ponto na placa ampliada.
+      // Onde o raio original cruza a placa.
       const atPlate = new THREE.Vector3().lerpVectors(exit, converge, alpha);
+
+      if (!converging) {
+        // Divergente: o raio sai abrindo, na direção oposta à imagem virtual,
+        // atravessa a placa e segue. Um traço apagado liga a saída à imagem
+        // virtual, à frente da lente: é de lá que o raio "parece" vir.
+        const beyond = new THREE.Vector3()
+          .subVectors(atPlate, exit)
+          .multiplyScalar(1 + OVERSHOOT)
+          .add(exit);
+        paths.push({ points: [object, entry, exit, atPlate, beyond], color: subject.color, opacity: 0.55 });
+        paths.push({ points: [converge, exit], color: subject.color, opacity: 0.22 });
+        continue;
+      }
+
+      // Convergente: o mesmo ponto na placa ampliada e o novo ponto comum.
       const onPlate = new THREE.Vector3(
         geometry.imagePlaneX,
         atPlate.y * plateScale,
@@ -169,7 +199,7 @@ export function buildRayFans(
       paths.push({
         points: [object, entry, exit, meet, beyond],
         color: subject.color,
-        opacity: meeting.side === 'on' ? 0.9 : 0.62,
+        opacity: side === 'on' ? 0.9 : 0.62,
       });
     }
 
@@ -180,11 +210,11 @@ export function buildRayFans(
 
     images.push({
       id: subject.id,
-      blurMm: blurAtPlate(f, N, imageDistanceMm, meeting.v),
+      blurMm: plateBlurDiameter(f, N, plateMmFromPrincipal, subject.distanceMm),
       heightMm,
       lateralMm,
       color: subject.color,
-      side: meeting.side,
+      side,
     });
   }
 

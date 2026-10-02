@@ -911,6 +911,11 @@ kbd {
     flex-grow: 1.4;
   }
 
+  /* Três nomes de objetiva não cabem ao lado da abertura: linha própria. */
+  .control-row[data-group='objective'] .control--segmented {
+    flex-basis: 100%;
+  }
+
   .control-row[data-group='focus'] .control--segmented {
     order: 1;
     flex-basis: 100%;

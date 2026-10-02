@@ -1,6 +1,7 @@
 import { COC_MM, DEFAULT_FOCAL_LENGTH_MM, F_STOPS, FULL_FRAME_SENSOR } from '../../optics/constants';
 import { type Store, createStore } from '../../core/store';
 import { clamp } from '../../optics/units';
+import type { LensId } from '../../optics/lenses';
 
 /** Estado central do experimento 1 (SPEC §6.3). */
 export interface LensFocusState {
@@ -14,7 +15,12 @@ export interface LensFocusState {
   uiHidden: boolean;
   /** Círculo de confusão admissível, em mm. */
   coc: number;
-  /** Distância focal da objetiva, em mm. */
+  /** Objetiva montada (ADR 0007). */
+  lens: LensId;
+  /**
+   * Distância focal da objetiva montada, em mm, com sinal: negativa numa
+   * lente divergente. Acompanha `lens`.
+   */
   focalLength: number;
   sensor: { w: number; h: number };
 }
@@ -28,6 +34,7 @@ export const INITIAL_STATE: LensFocusState = {
   cinematic: false,
   uiHidden: false,
   coc: COC_MM.reference,
+  lens: 'double-gauss',
   focalLength: DEFAULT_FOCAL_LENGTH_MM,
   sensor: { ...FULL_FRAME_SENSOR },
 };

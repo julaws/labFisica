@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { DIORAMA_DEPTH, DIORAMA_K } from '../../scene/scale';
-import { imageDistance } from '../../optics/thin-lens';
+import { plateDistance } from '../../optics/thin-lens';
 
 /**
  * Imagem no sensor (SPEC §6.6) — o diferencial deste laboratório.
@@ -25,6 +25,17 @@ import { imageDistance } from '../../optics/thin-lens';
  * mas não revela o que está exatamente atrás dele, porque essa informação não
  * existe num único buffer. Separar camadas near/far resolveria e fica como
  * item de polimento.
+ *
+ * ## Troca de objetiva (ADR 0007)
+ *
+ * O disco de cada pixel usa a forma geral `b = D·|p − v_d|/|v_d|`, com o
+ * sensor parado a `p` do plano principal traseiro, e soma em quadratura o
+ * borrão de aberração esférica da objetiva (`aberrationMm`). Assim a mesma
+ * conta serve ao Gauss duplo, à lente simples (que borra mesmo focada) e à
+ * divergente (cujo disco passa do tamanho do sensor). Quando o disco fica
+ * maior que o kernel consegue amostrar, a cor vai para a média da cena: é a
+ * luz espalhada sem imagem que um vidro fosco atrás de uma lente divergente
+ * recebe de verdade.
  */
 
 export interface SensorRender {
@@ -45,12 +56,16 @@ export interface SensorRender {
 }
 
 export interface SensorState {
-  /** Distância focal, mm. */
+  /** Distância focal, mm, com sinal: negativa numa lente divergente. */
   readonly focalLength: number;
   readonly fNumber: number;
   /** Distância de foco, mm. */
   readonly focusDistance: number;
   readonly sensor: { w: number; h: number };
+  /** Distância de casa do sensor ao plano principal traseiro, mm. */
+  readonly homePlateMm: number;
+  /** Borrão de aberração esférica no melhor foco, mm. */
+  readonly aberrationMm: number;
 }
 
 export interface SensorRenderOptions {
@@ -123,7 +138,8 @@ export function createSensorRender({
       uFar: { value: camera.far },
       uFocal: { value: 50 },
       uFNumber: { value: 2 },
-      uFocusMm: { value: 600 },
+      uPlateMm: { value: 54.5 },
+      uAberrationMm: { value: 0 },
       uSensorWidthMm: { value: 36 },
       uCameraX: { value: cameraX },
       uSceneUnitsPerMm: { value: sceneUnitsPerMm },
@@ -150,7 +166,8 @@ export function createSensorRender({
       uniform float uFar;
       uniform float uFocal;
       uniform float uFNumber;
-      uniform float uFocusMm;
+      uniform float uPlateMm;
+      uniform float uAberrationMm;
       uniform float uSensorWidthMm;
       uniform float uCameraX;
       uniform float uSceneUnitsPerMm;
@@ -185,17 +202,37 @@ export function createSensorRender({
         return clamp(d, uDioramaMinMm, uDioramaMaxMm);
       }
 
-      /** Diâmetro do círculo de confusão em mm, igual ao do motor óptico. */
+      /**
+       * Diâmetro do disco no sensor em mm, igual ao do motor óptico
+       * (plateBlurDiameter): b = D·|p − v|/|v|, mais a aberração esférica
+       * da objetiva somada em quadratura.
+       */
       float confusionDiameter(float d) {
-        float scale = (uFocal * uFocal) / (uFNumber * (uFocusMm - uFocal));
-        return scale * abs(d - uFocusMm) / max(d, 1.0);
+        float v = uFocal * d / (d - uFocal);
+        float defocus = abs(uFocal) / uFNumber * abs(uPlateMm - v) / max(abs(v), 1e-3);
+        return sqrt(defocus * defocus + uAberrationMm * uAberrationMm);
+      }
+
+      /** Raio do disco em pixels, sem o teto do kernel. */
+      float rawRadiusPixels(vec2 uv) {
+        float d = physicalDistance(viewDistance(uv));
+        return (confusionDiameter(d) * 0.5 / uSensorWidthMm) * uResolution.x;
       }
 
       /** Raio do disco de confusão em pixels do render target. */
       float radiusPixels(vec2 uv) {
-        float d = physicalDistance(viewDistance(uv));
-        float b = confusionDiameter(d);
-        return min((b * 0.5 / uSensorWidthMm) * uResolution.x, uMaxRadiusPx);
+        return min(rawRadiusPixels(uv), uMaxRadiusPx);
+      }
+
+      /** Média grosseira da cena: a cor da luz espalhada sem imagem. */
+      vec3 sceneAverage() {
+        vec3 sum = vec3(0.0);
+        for (int y = 0; y < 4; y++) {
+          for (int x = 0; x < 6; x++) {
+            sum += texture2D(tColor, vec2((float(x) + 0.5) / 6.0, (float(y) + 0.5) / 4.0)).rgb;
+          }
+        }
+        return sum / 24.0;
       }
 
       /**
@@ -251,7 +288,12 @@ export function createSensorRender({
           weight += w;
         }
 
-        gl_FragColor = vec4(sum / weight, 1.0);
+        vec3 gathered = sum / weight;
+
+        // Disco muito maior que o kernel: a luz de cada ponto cobre quase
+        // o sensor inteiro, e o que sobra é a média da cena (ADR 0007).
+        float spread = smoothstep(uMaxRadiusPx, uMaxRadiusPx * 6.0, rawRadiusPixels(vUv));
+        gl_FragColor = vec4(mix(gathered, sceneAverage(), spread), 1.0);
       }
     `,
     depthTest: false,
@@ -268,13 +310,15 @@ export function createSensorRender({
     fNumber: 2,
     focusDistance: 600,
     sensor: { w: 36, h: 24 },
+    homePlateMm: 50,
+    aberrationMm: 0,
   };
 
   function applyState(): void {
-    const v = imageDistance(state.focalLength, state.focusDistance);
-    const distance = Number.isFinite(v) ? v : state.focalLength;
+    const plate = plateDistance(state.focalLength, state.focusDistance, state.homePlateMm);
+    const distance = Number.isFinite(plate) ? plate : Math.abs(state.focalLength);
 
-    // Meio ângulo vertical do campo: atan(altura/2 / v). É o FOV que uma
+    // Meio ângulo vertical do campo: atan(altura/2 / p). É o FOV que uma
     // objetiva com esta extensão realmente cobre.
     camera.fov = (2 * Math.atan(state.sensor.h / 2 / distance) * 180) / Math.PI;
     camera.aspect = state.sensor.w / state.sensor.h;
@@ -283,9 +327,8 @@ export function createSensorRender({
     const uniforms = blurMaterial.uniforms;
     uniforms.uFocal!.value = state.focalLength;
     uniforms.uFNumber!.value = state.fNumber;
-    uniforms.uFocusMm!.value = Number.isFinite(state.focusDistance)
-      ? state.focusDistance
-      : DIORAMA_DEPTH.maxMm * 100;
+    uniforms.uPlateMm!.value = distance;
+    uniforms.uAberrationMm!.value = state.aberrationMm;
     uniforms.uSensorWidthMm!.value = state.sensor.w;
   }
 

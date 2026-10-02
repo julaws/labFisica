@@ -7,12 +7,21 @@ import type {
   PanelSchema,
 } from '../../core/experiment';
 import { LENS_50MM_F2 } from '../../optics/prescriptions/baker-double-gauss';
+import {
+  LENSES,
+  LENS_IDS,
+  type LensFacts,
+  type LensId,
+  aberrationSpotDiameter,
+  lensFacts,
+} from '../../optics/lenses';
 import { widestFNumber, withFNumber } from '../../optics/aperture';
 import { analyze } from '../../optics/paraxial';
 import { focusExtension } from '../../optics/thin-lens';
 import { opticalLength, stopIndex, vertexPositions } from '../../optics/prescription';
 import {
   COC_MM,
+  DEFAULT_FOCAL_LENGTH_MM,
   DEFAULT_SUBJECT_DISTANCES_MM,
   FOCUS_RANGE_MM,
   F_STOPS,
@@ -56,6 +65,7 @@ import {
   hyperfocal,
   imageDistance,
   magnification,
+  plateBlurDiameter,
   pupilDiameter,
 } from '../../optics/thin-lens';
 import { type Facts, buildCopy } from './copy';
@@ -168,17 +178,46 @@ export function createLensFocusExperiment(): Experiment {
   /** 0 = montada, 1 = explodida. Animado com easing próprio. */
   let explodeProgress = 0;
   let explodeTarget = 0;
+  /** Força uma pose dos vidros mesmo sem animação (troca de objetiva). */
+  let explodeDirty = false;
 
-  const analysis = analyze(LENS_50MM_F2);
+  // O barril, o carrinho e a placa são medidos pelo Gauss duplo, a objetiva de
+  // casa. Trocar a objetiva troca só os vidros (ADR 0007).
   const lengthMm = opticalLength(LENS_50MM_F2.surfaces);
 
-  /** Posição do stop na prescrição, em mm de física. */
+  /** Posição do stop do Gauss duplo, em mm de física. */
   const stopZMm = vertexPositions(LENS_50MM_F2.surfaces)[stopIndex(LENS_50MM_F2.surfaces)]!;
 
-  /** Maior semidiâmetro livre entre os vidros, mm: é ele que dá o barril. */
+  /**
+   * Maior semidiâmetro livre entre os vidros de **todas** as objetivas, mm:
+   * é ele que dá o barril, que fica o mesmo na troca.
+   */
   const clearSemiDiameterMm = Math.max(
-    ...LENS_50MM_F2.surfaces.filter((surface) => !surface.isStop).map((surface) => surface.semiDiameter),
+    ...LENS_IDS.flatMap((id) =>
+      LENSES[id].surfaces.filter((surface) => !surface.isStop).map((surface) => surface.semiDiameter),
+    ),
   );
+
+  /**
+   * Distância de casa do sensor ao plano principal traseiro, mm: a de uma
+   * objetiva de 50 mm focada no infinito. O sensor é o corpo da câmera; ele
+   * não muda quando a objetiva muda.
+   */
+  const HOME_PLATE_MM = DEFAULT_FOCAL_LENGTH_MM;
+
+  /** Objetiva montada agora. */
+  let lens: LensFacts = lensFacts(store.get().lens);
+  let lensStopZMm = vertexPositions(lens.prescription.surfaces)[stopIndex(lens.prescription.surfaces)]!;
+
+  /**
+   * Onde fica o primeiro vértice da objetiva montada, em x de cena dentro do
+   * grupo do experimento, com ela em casa (foco no infinito). Cada objetiva é
+   * posta com o plano principal traseiro a `HOME_PLATE_MM` da placa, que é
+   * onde uma câmera real a teria. Para o Gauss duplo dá zero.
+   */
+  function lensBaseX(facts: LensFacts): number {
+    return imagePlaneX - lensMm(HOME_PLATE_MM + facts.length + facts.rearPrincipal);
+  }
 
   /** Altura do eixo óptico acima do topo do carrinho, em unidades de cena. */
   let axisHeight = 0;
@@ -193,7 +232,7 @@ export function createLensFocusExperiment(): Experiment {
    * funciona, com o sensor parado e a objetiva estendendo.
    */
   const imagePlaneX = lensMm(
-    opticalLength(LENS_50MM_F2.surfaces) + analyze(LENS_50MM_F2).rearPrincipal + 50,
+    opticalLength(LENS_50MM_F2.surfaces) + analyze(LENS_50MM_F2).rearPrincipal + DEFAULT_FOCAL_LENGTH_MM,
   );
 
   /**
@@ -238,9 +277,13 @@ export function createLensFocusExperiment(): Experiment {
     const { foreground, midground, background } = DEFAULT_SUBJECT_DISTANCES_MM;
 
     return {
+      lens: state.lens,
+      converging: lens.converging,
+      aberrationSpot: aberrationSpotDiameter(state.lens, state.fNumber),
+      plateBlurPine: plateBlurDiameter(f, state.fNumber, HOME_PLATE_MM, foreground),
       focalLength: f,
       fNumber: state.fNumber,
-      widestFNumber: widestFNumber(LENS_50MM_F2),
+      widestFNumber: widestFNumber(lens.prescription),
       focusDistance: s,
       dofTotal: dof.total,
       dofNear: dof.near,
@@ -251,7 +294,7 @@ export function createLensFocusExperiment(): Experiment {
       blurPine: blurDiameter(f, state.fNumber, s, foreground),
       blurCabin: blurDiameter(f, state.fNumber, s, midground),
       blurPeak: blurDiameter(f, state.fNumber, s, background),
-      eflPrescription: analysis.efl,
+      eflPrescription: lens.efl,
       lensExaggeration: LENS_EXAGGERATION,
     };
   }
@@ -265,20 +308,68 @@ export function createLensFocusExperiment(): Experiment {
 
   /** Semidiâmetro do stop que o motor calcula para o f/N atual. */
   function stopSemiDiameter(fNumber: number): number {
-    const adjusted = withFNumber(LENS_50MM_F2, fNumber);
+    const adjusted = withFNumber(lens.prescription, fNumber);
     return adjusted.surfaces.find((surface) => surface.isStop)!.semiDiameter;
+  }
+
+  /** Vidros e hastes da objetiva montada agora; trocados na troca de objetiva. */
+  const lensGeometries: THREE.BufferGeometry[] = [];
+  const lensMaterials: THREE.Material[] = [];
+
+  /**
+   * Monta os vidros de uma objetiva no grupo óptico (ADR 0007). Os vidros da
+   * anterior são descartados; o barril, a íris e a placa ficam.
+   */
+  function buildLensElements(id: LensId): void {
+    if (!opticsGroup) return;
+    for (const element of elements) element.group.removeFromParent();
+    posts?.mesh.removeFromParent();
+    for (const geometry of lensGeometries) geometry.dispose();
+    for (const material of lensMaterials) material.dispose();
+    lensGeometries.length = 0;
+    lensMaterials.length = 0;
+    elements = [];
+
+    lens = lensFacts(id);
+    const prescription = lens.prescription;
+    lensStopZMm = vertexPositions(prescription.surfaces)[stopIndex(prescription.surfaces)]!;
+
+    for (const [front, back] of elementIndices(prescription)) {
+      const element = createLensElement(prescription, front, back);
+      elements.push(element);
+      lensGeometries.push(...element.geometries);
+      lensMaterials.push(...element.materials);
+      opticsGroup.add(element.group);
+    }
+
+    // Hastes do modo explodido: uma malha instanciada para todos os vidros.
+    posts = createElementPosts(elements.length);
+    lensGeometries.push(...posts.geometries);
+    lensMaterials.push(...posts.materials);
+    opticsGroup.add(posts.mesh);
+
+    // A íris mora no stop da prescrição.
+    if (iris) iris.group.position.x = lensMm(lensStopZMm);
+
+    // Recalcula a pose explodida dos vidros novos no próximo quadro.
+    explodeDirty = true;
   }
 
   /** Aplica o estado à cena: íris, deslocamento de foco e rotação do anel. */
   function applyState(): void {
     const state = store.get();
 
+    // Troca de objetiva: os vidros novos entram antes de qualquer conta.
+    if (lens.prescription !== LENSES[state.lens]) buildLensElements(state.lens);
+
     iris?.setClearRadius(stopSemiDiameter(state.fNumber));
 
     // Foco por deslocamento unitário: o grupo óptico inteiro anda para a
-    // frente pela extensão e = v − f, que vem do motor (SPEC §5.3).
-    const extension = focusExtension(state.focalLength, state.focusDistance);
-    if (opticsGroup) opticsGroup.position.x = -lensMm(extension);
+    // frente pela extensão e = v − f, que vem do motor (SPEC §5.3). Uma
+    // lente divergente não forma imagem real em lugar nenhum: não há para
+    // onde andar, e ela fica em casa (ADR 0007).
+    const extension = lens.converging ? focusExtension(state.focalLength, state.focusDistance) : 0;
+    if (opticsGroup) opticsGroup.position.x = lensBaseX(lens) - lensMm(extension);
 
     if (barrel) barrel.focusRing.rotation.x = distanceToRingAngle(state.focusDistance);
 
@@ -287,14 +378,20 @@ export function createLensFocusExperiment(): Experiment {
     updateLabels();
 
     // --- Zona nítida: tudo vem do motor -------------------------------------
-    const dof = dofLimits(state.focalLength, state.fNumber, state.coc, state.focusDistance);
-    focusPlane?.setZone(state.focusDistance, dof.near, dof.far);
-    intersection?.setZone(state.focusDistance, dof.near, dof.far);
+    // Sem imagem real não há plano de foco: a lâmina e a faixa somem.
+    if (lens.converging) {
+      const dof = dofLimits(state.focalLength, state.fNumber, state.coc, state.focusDistance);
+      focusPlane?.setZone(state.focusDistance, dof.near, dof.far);
+      intersection?.setZone(state.focusDistance, dof.near, dof.far);
+    }
+    focusPlane?.setVisible(lens.converging);
+    if (focusPlane) focusPlane.blade.visible = lens.converging;
+    intersection?.setEnabled(lens.converging);
 
     // --- Leques de raios e anéis de círculo de confusão ---------------------
     if (diorama && rays && imagePlane && opticsGroup) {
       const opticsOffset = opticsGroup.position.x;
-      const analysis = analyze(LENS_50MM_F2);
+      const rearPrincipalX = opticsOffset + lensMm(lens.length + lens.rearPrincipal);
 
       // Os pontos do diorama estão no espaço do próprio diorama; os raios
       // vivem no espaço do experimento, então sobem pelo deslocamento da
@@ -306,21 +403,15 @@ export function createLensFocusExperiment(): Experiment {
 
       const { paths, images } = buildRayFans(
         subjects,
-        {
-          focalLength: state.focalLength,
-          fNumber: state.fNumber,
-          focusDistance: state.focusDistance,
-        },
+        { focalLength: state.focalLength, fNumber: state.fNumber },
         {
           // O feixe entra no primeiro vértice e sai pelo plano principal
           // traseiro: é desse plano que a lente fina mede v, e só assim o
           // cone na placa mede exatamente o b(d) do motor (ver ray-fans.ts).
           entrancePupilX: opticsOffset,
-          exitPupilX:
-            opticsOffset + lensMm(opticalLength(LENS_50MM_F2.surfaces) + analysis.rearPrincipal),
+          exitPupilX: rearPrincipalX,
           projectionCenterX: SENSOR_CAMERA_X,
-          rearPrincipalX:
-            opticsOffset + lensMm(opticalLength(LENS_50MM_F2.surfaces) + analysis.rearPrincipal),
+          rearPrincipalX,
           imagePlaneX,
         },
       );
@@ -332,9 +423,12 @@ export function createLensFocusExperiment(): Experiment {
         fNumber: state.fNumber,
         focusDistance: state.focusDistance,
         sensor: state.sensor,
+        homePlateMm: HOME_PLATE_MM,
+        aberrationMm: aberrationSpotDiameter(state.lens, state.fNumber),
       });
+      // Anéis só onde há imagem real: o disco da divergente passa do sensor.
       imagePlane.setRings(
-        images.map((image) => ({
+        images.filter((image) => image.side !== 'virtual').map((image) => ({
           id: image.id,
           diameterMm: image.blurMm,
           color: image.color,
@@ -358,27 +452,12 @@ export function createLensFocusExperiment(): Experiment {
       opticsGroup = new THREE.Group();
       opticsGroup.name = 'optics';
 
-      for (const [front, back] of elementIndices(LENS_50MM_F2)) {
-        const element = createLensElement(LENS_50MM_F2, front, back);
-        elements.push(element);
-        geometries.push(...element.geometries);
-        materials.push(...element.materials);
-        opticsGroup.add(element.group);
-      }
-
-      // Hastes do modo explodido: uma malha instanciada para os seis vidros.
-      posts = createElementPosts(elements.length);
-      geometries.push(...posts.geometries);
-      materials.push(...posts.materials);
-      opticsGroup.add(posts.mesh);
-
       iris = createIris();
-      // O stop da prescrição fica na superfície 4; a íris mora nele.
-      iris.group.position.x = lensMm(stopZMm);
       geometries.push(...iris.geometries);
       materials.push(...iris.materials);
       opticsGroup.add(iris.group);
 
+      buildLensElements(store.get().lens);
       root.add(opticsGroup);
 
       // --- Barril e anéis ---------------------------------------------------
@@ -568,6 +647,11 @@ export function createLensFocusExperiment(): Experiment {
           const next = stepFNumber(fNumber, 1);
           store.set({ fNumber: next === fNumber ? F_STOP_PRESETS[0] : next });
         }),
+        ctx.onKey('l', () => {
+          const current = LENS_IDS.indexOf(store.get().lens);
+          const next = LENS_IDS[(current + 1) % LENS_IDS.length]!;
+          store.set({ lens: next, focalLength: lensFacts(next).efl });
+        }),
         ctx.onKey('x', () => {
           const exploded = store.get().lensMode === 'exploded';
           store.set({ lensMode: exploded ? 'assembled' : 'exploded' });
@@ -590,7 +674,8 @@ export function createLensFocusExperiment(): Experiment {
       // cena inteira a mais por vez, o item mais caro desta fase.
       if (context) consoleScreens?.render(context.renderer, context.scene);
 
-      if (explodeProgress === explodeTarget) return;
+      if (explodeProgress === explodeTarget && !explodeDirty) return;
+      explodeDirty = false;
 
       const step = dt / EXPLODE_SECONDS;
       explodeProgress =
@@ -602,7 +687,9 @@ export function createLensFocusExperiment(): Experiment {
       const t = explodeProgress;
       const eased = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 
-      const center = lengthMm / 2;
+      // Centro do conjunto montado, em mm a partir do primeiro vértice da
+      // objetiva atual.
+      const center = lens.length / 2;
       const lerp = (from: number, to: number): number => from + eased * (to - from);
 
       elements.forEach((element, index) => {
@@ -616,7 +703,7 @@ export function createLensFocusExperiment(): Experiment {
       if (posts) posts.mesh.visible = eased > 0.01;
 
       if (iris) {
-        iris.group.position.x = lensMm(lerp(stopZMm, center));
+        iris.group.position.x = lensMm(lerp(lensStopZMm, center));
       }
 
       if (barrel) {
@@ -628,11 +715,18 @@ export function createLensFocusExperiment(): Experiment {
         barrel.liner.scale.copy(barrel.shell.scale);
 
         // Os anéis vão para as pontas, cada um no seu suporte.
-        const span = ((elements.length - 1) / 2) * EXPLODE_SPREAD_MM;
+        // Meia abertura mínima: com um vidro só (lente simples), os anéis
+        // ainda se afastam o bastante para não esconder o elemento.
+        const span = Math.max(((elements.length - 1) / 2) * EXPLODE_SPREAD_MM, 20);
         // O anel de foco vai para a frente e o flange vai para trás.
         const gap = EXPLODE_RING_GAP_MM;
-        barrel.focusRing.position.x = lensMm(lerp(barrel.restMm.focusRing, center - span - gap.focus));
-        barrel.flange.position.x = lensMm(lerp(barrel.restMm.flange, center + span + gap.flange));
+        // O barril vive no grupo do experimento, medido do vértice do Gauss
+        // duplo; a objetiva atual pode estar deslocada dali (ADR 0007).
+        const base = lensBaseX(lens) / lensMm(1);
+        barrel.focusRing.position.x = lensMm(
+          lerp(barrel.restMm.focusRing, base + center - span - gap.focus),
+        );
+        barrel.flange.position.x = lensMm(lerp(barrel.restMm.flange, base + center + span + gap.flange));
       }
 
       context?.invalidate();
@@ -659,6 +753,13 @@ export function createLensFocusExperiment(): Experiment {
         case 'coc':
           store.set({ coc: Number(value) });
           break;
+        case 'lens': {
+          const id = (LENS_IDS as readonly string[]).includes(String(value))
+            ? (value as LensId)
+            : 'double-gauss';
+          store.set({ lens: id, focalLength: lensFacts(id).efl });
+          break;
+        }
         default:
           throw new Error(`Controle desconhecido: ${id}`);
       }
@@ -680,6 +781,8 @@ export function createLensFocusExperiment(): Experiment {
           return state.showNumbers;
         case 'coc':
           return state.coc;
+        case 'lens':
+          return state.lens;
         // Limites da zona nítida, para a faixa desenhada no slider de
         // distância. Leitura só: vêm do motor, como o resto.
         case 'dofNear':
@@ -699,12 +802,19 @@ export function createLensFocusExperiment(): Experiment {
       const state = store.get();
       const copy = buildCopy(facts());
       const dof = dofLimits(state.focalLength, state.fNumber, state.coc, state.focusDistance);
-      const zone = Number.isFinite(dof.total) ? formatCentimeters(dof.total, locale) : '∞';
+      // Sem imagem real não há foco nem zona nítida para mostrar.
+      const zone = !lens.converging
+        ? '—'
+        : Number.isFinite(dof.total)
+          ? formatCentimeters(dof.total, locale)
+          : '∞';
       const described = {
         focalLength: state.focalLength,
         fNumber: state.fNumber,
         focusDistance: state.focusDistance,
         coc: state.coc,
+        aberrationSpot: aberrationSpotDiameter(state.lens, state.fNumber),
+        homePlate: HOME_PLATE_MM,
       };
 
       return {
@@ -714,7 +824,7 @@ export function createLensFocusExperiment(): Experiment {
           {
             id: 'focus',
             label: locale === 'en' ? 'Focus' : 'Foco',
-            value: formatDistance(state.focusDistance, locale),
+            value: lens.converging ? formatDistance(state.focusDistance, locale) : '—',
           },
           {
             id: 'aperture',
@@ -735,34 +845,57 @@ export function createLensFocusExperiment(): Experiment {
       const dof = dofLimits(f, state.fNumber, state.coc, s);
       const en = locale === 'en';
 
+      const dash = '—';
+      const real = lens.converging;
+      const lensNames: Record<LensId, string> = en
+        ? { 'double-gauss': 'Double Gauss, 6 elements', biconvex: 'Simple biconvex', biconcave: 'Simple biconcave' }
+        : { 'double-gauss': 'Gauss duplo, 6 elementos', biconvex: 'Biconvexa simples', biconcave: 'Bicôncava simples' };
+
       return [
+        {
+          id: 'objective',
+          label: en ? 'Objective' : 'Objetiva',
+          value: lensNames[state.lens],
+        },
+        {
+          id: 'efl',
+          label: en ? 'Focal length f' : 'Distância focal f',
+          value: formatMillimeters(lens.efl, locale),
+          hint: en ? 'Negative: diverging lens' : 'Negativa: lente divergente',
+        },
+        {
+          id: 'aberration',
+          label: en ? 'Spherical aberration (disc)' : 'Aberração esférica (disco)',
+          value: real ? formatMillimeters(aberrationSpotDiameter(state.lens, state.fNumber), locale) : dash,
+          hint: en ? 'Smallest blur of a point at best focus' : 'Menor borrão de um ponto no melhor foco',
+        },
         {
           id: 'v',
           label: en ? 'Image distance v' : 'Distância da imagem v',
           value: formatMillimeters(imageDistance(f, s), locale),
-          hint: 'v = f·u / (u − f)',
+          hint: real ? 'v = f·u / (u − f)' : en ? 'Negative: virtual image' : 'Negativa: imagem virtual',
         },
         {
           id: 'extension',
           label: en ? 'Focus extension' : 'Extensão do foco',
-          value: formatMillimeters(focusExtension(f, s), locale),
+          value: real ? formatMillimeters(focusExtension(f, s), locale) : dash,
           hint: 'e = v − f',
         },
         {
           id: 'hyperfocal',
           label: en ? 'Hyperfocal' : 'Hiperfocal',
-          value: formatDistance(hyperfocal(f, state.fNumber, state.coc), locale),
+          value: real ? formatDistance(hyperfocal(f, state.fNumber, state.coc), locale) : dash,
           hint: 'H = f² / (N·c) + f',
         },
         {
           id: 'near',
           label: en ? 'Near limit' : 'Limite próximo',
-          value: formatDistance(dof.near, locale),
+          value: real ? formatDistance(dof.near, locale) : dash,
         },
         {
           id: 'far',
           label: en ? 'Far limit' : 'Limite distante',
-          value: formatDistance(dof.far, locale),
+          value: real ? formatDistance(dof.far, locale) : dash,
         },
         {
           id: 'magnification',
@@ -784,7 +917,7 @@ export function createLensFocusExperiment(): Experiment {
         {
           id: 'widest',
           label: en ? 'Widest aperture' : 'Abertura máxima',
-          value: `f/${formatNumber(widestFNumber(LENS_50MM_F2), 2, locale)}`,
+          value: `f/${formatNumber(widestFNumber(lens.prescription), 2, locale)}`,
         },
       ];
     },
@@ -846,6 +979,23 @@ export function createLensFocusExperiment(): Experiment {
             ],
           },
           {
+            id: 'objective',
+            label: { 'pt-BR': 'Objetiva', en: 'Objective' },
+            hint: { 'pt-BR': 'L', en: 'L' },
+            controls: [
+              {
+                kind: 'segmented',
+                id: 'lens',
+                label: { 'pt-BR': 'Objetiva', en: 'Objective' },
+                options: [
+                  { value: 'double-gauss', label: en ? 'Double Gauss' : 'Gauss duplo' },
+                  { value: 'biconvex', label: en ? 'Converging' : 'Convergente' },
+                  { value: 'biconcave', label: en ? 'Diverging' : 'Divergente' },
+                ],
+              },
+            ],
+          },
+          {
             id: 'lens',
             label: { 'pt-BR': 'Lente', en: 'Lens' },
             hint: { 'pt-BR': 'X', en: 'X' },
@@ -858,6 +1008,8 @@ export function createLensFocusExperiment(): Experiment {
                   { value: 'assembled', label: en ? 'Assembled' : 'Montada' },
                   { value: 'exploded', label: en ? 'Exploded' : 'Explodida' },
                 ],
+                // No celular cede o lugar ao seletor de objetiva (tecla X).
+                secondary: true,
               },
               {
                 kind: 'segmented',
@@ -1034,8 +1186,12 @@ export function createLensFocusExperiment(): Experiment {
 
       for (const geometry of geometries) geometry.dispose();
       for (const material of materials) material.dispose();
+      for (const geometry of lensGeometries) geometry.dispose();
+      for (const material of lensMaterials) material.dispose();
       geometries.length = 0;
       materials.length = 0;
+      lensGeometries.length = 0;
+      lensMaterials.length = 0;
 
       root.removeFromParent();
       root.clear();

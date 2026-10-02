@@ -1,4 +1,5 @@
 import type { ExperimentCopy, Locale } from '../../core/experiment';
+import type { LensId } from '../../optics/lenses';
 import { activeScaleDisclosures } from '../../scene/scale';
 import {
   formatCentimeters,
@@ -17,6 +18,14 @@ import {
  */
 
 export interface Facts {
+  /** Objetiva montada (ADR 0007). */
+  readonly lens: LensId;
+  /** True quando a objetiva forma imagem real. */
+  readonly converging: boolean;
+  /** Borrão de aberração esférica no melhor foco, mm. */
+  readonly aberrationSpot: number;
+  /** Disco do pinheiro no sensor parado (vale também para a divergente), mm. */
+  readonly plateBlurPine: number;
   readonly focalLength: number;
   readonly fNumber: number;
   readonly widestFNumber: number;
@@ -62,9 +71,104 @@ export function buildCopy(facts: Facts): ExperimentCopy {
       section('aperture', 'A abertura', 'The aperture'),
       section('upside-down', 'De cabeça para baixo?', 'Upside down?'),
       section('scales', 'Sobre as escalas', 'About the scales'),
+      section('swap', 'Trocar a objetiva', 'Swapping the objective'),
       section('lens', 'Que lente é esta', 'Which lens is this'),
     ],
   };
+}
+
+/** Descrição de cada objetiva, com os números do motor. */
+function lensText(facts: Facts, locale: Locale): string {
+  const n = (value: number, decimals: number): string => formatNumber(value, decimals, locale);
+  const f = n(Math.abs(facts.eflPrescription), 1);
+  if (locale === 'en') {
+    switch (facts.lens) {
+      case 'biconvex':
+        return (
+          `A single symmetric biconvex lens of N-BK7, +${f} mm, designed here: the radius is solved so the ` +
+          `thick lens has exactly that focal length. It corrects nothing — no second element to cancel the ` +
+          `aberrations — which is exactly what the comparison with the double Gauss shows.`
+        );
+      case 'biconcave':
+        return (
+          `A single symmetric biconcave lens of N-BK7, −${f} mm, designed the same way. Its focal length is ` +
+          `negative: it spreads light instead of gathering it, and on its own it never forms a real image.`
+        );
+      default:
+        return (
+          `A six-element double Gauss of ${f} mm f/2, from US patent 2,532,751 ` +
+          `(James G. Baker, 1950), scaled to 50 mm. The patent's glasses were swapped for the closest ones in ` +
+          `today's SCHOTT catalogue. The patent gives neither the clear diameters nor the stop position: the ` +
+          `diameters are derived here from the f/2 marginal ray and the 10° chief ray, and the stop sits where the ` +
+          `patent drawing puts it, in the middle of the central air space.`
+        );
+    }
+  }
+  switch (facts.lens) {
+    case 'biconvex':
+      return (
+        `Uma lente biconvexa simples e simétrica de N-BK7, +${f} mm, projetada aqui: o raio é resolvido para ` +
+        `a lente espessa ter exatamente essa distância focal. Ela não corrige nada — não há um segundo ` +
+        `elemento para cancelar as aberrações —, e é isso que a comparação com o Gauss duplo mostra.`
+      );
+    case 'biconcave':
+      return (
+        `Uma lente bicôncava simples e simétrica de N-BK7, −${f} mm, projetada do mesmo jeito. A distância ` +
+        `focal é negativa: ela espalha a luz em vez de juntar, e sozinha nunca forma imagem real.`
+      );
+    default:
+      return (
+        `Um Gauss duplo de seis elementos, ${f} mm f/2, da patente americana ` +
+        `2.532.751 (James G. Baker, 1950), escalado para 50 mm. Os vidros da patente foram trocados pelos mais ` +
+        `próximos do catálogo SCHOTT atual. A patente não dá os diâmetros nem a posição do diafragma: os ` +
+        `diâmetros são derivados aqui do raio marginal em f/2 e do raio principal a 10°, e o diafragma fica onde o ` +
+        `desenho da patente o põe, no meio do espaço de ar central.`
+      );
+  }
+}
+
+/** Seção "Trocar a objetiva": o que muda de uma lente para outra. */
+function swapText(facts: Facts, locale: Locale): string {
+  const spot = mm(facts.aberrationSpot, locale);
+  const coc = mm(facts.coc, locale);
+  const fN = formatFNumber(facts.fNumber, locale);
+  const pine = mm(facts.plateBlurPine, locale);
+  if (locale === 'en') {
+    const now =
+      facts.lens === 'biconcave'
+        ? `With the diverging lens mounted, the pine reaches the glass as a ${pine} disc — wider than the whole ` +
+          `36 mm sensor. The rays leave the lens spreading out, as if they came from a point in front of it: the ` +
+          `virtual image, drawn faint. There is nothing to focus.`
+        : `With this lens at ${fN}, spherical aberration alone spreads a perfectly focused point into a ${spot} ` +
+          `disc${facts.aberrationSpot > facts.coc ? `, more than the ${coc} acceptable circle: nothing is truly sharp until you stop down.` : `, below the ${coc} acceptable circle.`}`;
+    return (
+      `The double Gauss and the simple converging lens have the same +50 mm focal length, so focus, sharp zone ` +
+      `and circles of confusion are the same. What changes is aberration: a single lens bends the rays at the ` +
+      `edge of the pupil too much, they meet short of the rest, and a point becomes a small disc even in focus. ` +
+      `The six elements of the double Gauss cancel most of that.
+
+` +
+      `The diverging lens has a −50 mm focal length. It forms no real image anywhere: whatever you turn, the ` +
+      `ground glass only receives spread light.
+
+${now}`
+    );
+  }
+  const now =
+    facts.lens === 'biconcave'
+      ? `Com a divergente montada, o pinheiro chega ao vidro como um disco de ${pine} — mais largo que o sensor ` +
+        `inteiro, de 36 mm. Os raios saem da lente abrindo, como se viessem de um ponto à frente dela: a imagem ` +
+        `virtual, desenhada apagada. Não há o que focar.`
+      : `Com esta lente em ${fN}, só a aberração esférica já espalha um ponto perfeitamente focado num disco de ` +
+        `${spot}${facts.aberrationSpot > facts.coc ? `, maior que o círculo admissível de ${coc}: nada fica realmente nítido até fechar o diafragma.` : `, menor que o círculo admissível de ${coc}.`}`;
+  return (
+    `O Gauss duplo e a lente convergente simples têm a mesma distância focal, +50 mm: o foco, a zona nítida e ` +
+    `os círculos de confusão são os mesmos. O que muda é a aberração: uma lente simples desvia demais os raios ` +
+    `da borda da pupila, eles se encontram antes dos outros, e um ponto vira um pequeno disco mesmo focado. Os ` +
+    `seis elementos do Gauss duplo cancelam quase tudo isso.\n\n` +
+    `A lente divergente tem distância focal de −50 mm. Ela não forma imagem real em lugar nenhum: gire o que ` +
+    `girar, o vidro fosco só recebe luz espalhada.\n\n${now}`
+  );
 }
 
 function sectionsFor(facts: Facts, locale: Locale): Record<string, string> {
@@ -117,12 +221,8 @@ function sectionsFor(facts: Facts, locale: Locale): Record<string, string> {
         `each cone closes, and the width of the cone at the glass, are not exaggerated at all.\n\n` +
         `The thin line where the focus plane cuts the valley has a fixed width so it stays visible; the wide band ` +
         `around it is the real sharp zone.`,
-      lens:
-        `A six-element double Gauss of ${n(facts.eflPrescription, 1)} mm f/2, from US patent 2,532,751 ` +
-        `(James G. Baker, 1950), scaled to 50 mm. The patent's glasses were swapped for the closest ones in ` +
-        `today's SCHOTT catalogue. The patent gives neither the clear diameters nor the stop position: the ` +
-        `diameters are derived here from the f/2 marginal ray and the 10° chief ray, and the stop sits where the ` +
-        `patent drawing puts it, in the middle of the central air space.`,
+      swap: swapText(facts, locale),
+      lens: lensText(facts, locale),
     };
   }
 
@@ -158,12 +258,8 @@ function sectionsFor(facts: Facts, locale: Locale): Record<string, string> {
       `fecha, e a largura do cone no vidro, não têm exagero nenhum.\n\n` +
       `A linha fina onde o plano de foco corta o vale tem largura fixa, para continuar visível; a faixa larga em ` +
       `volta dela é a zona nítida real.`,
-    lens:
-      `Um Gauss duplo de seis elementos, ${n(facts.eflPrescription, 1)} mm f/2, da patente americana ` +
-      `2.532.751 (James G. Baker, 1950), escalado para 50 mm. Os vidros da patente foram trocados pelos mais ` +
-      `próximos do catálogo SCHOTT atual. A patente não dá os diâmetros nem a posição do diafragma: os ` +
-      `diâmetros são derivados aqui do raio marginal em f/2 e do raio principal a 10°, e o diafragma fica onde o ` +
-      `desenho da patente o põe, no meio do espaço de ar central.`,
+    swap: swapText(facts, locale),
+    lens: lensText(facts, locale),
   };
 }
 
@@ -173,6 +269,7 @@ export const SHORTCUTS = [
   { keys: '[ ]', description: { 'pt-BR': 'ajuste fino do foco', en: 'fine focus' } },
   { keys: 'F', description: { 'pt-BR': 'próxima abertura', en: 'next aperture' } },
   { keys: 'X', description: { 'pt-BR': 'lente montada ou explodida', en: 'assembled or exploded lens' } },
+  { keys: 'L', description: { 'pt-BR': 'trocar a objetiva', en: 'swap the objective' } },
   { keys: 'C', description: { 'pt-BR': 'câmeras cinematográficas', en: 'cinematic cameras' } },
   { keys: 'R', description: { 'pt-BR': 'resetar a vista', en: 'reset view' } },
   { keys: '/', description: { 'pt-BR': 'esconder a interface', en: 'hide the interface' } },
