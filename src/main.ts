@@ -16,7 +16,7 @@ import { createExperimentRegistry, experimentIdFromHash } from './core/experimen
 import { createLensFocusExperiment } from './experiments/lens-focus';
 import { SHORTCUTS } from './experiments/lens-focus/copy';
 import { createLabelLayer } from './scene/labels';
-import { createCinematicCycle, createKeyboardFlight } from './core/camera';
+import { createCinematicCycle, createIdleTour, createKeyboardFlight } from './core/camera';
 import { createHud } from './ui/hud';
 import { createPanel } from './ui/panel';
 import { createModal } from './ui/modal';
@@ -149,6 +149,18 @@ async function boot(): Promise<void> {
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const cinematic = createCinematicCycle(rig, defaultView, () => reducedMotion.matches);
 
+  // Passeio de apresentação: na abertura e depois de 1 minuto parado. Fica
+  // desligado com movimento reduzido, numa vista pedida pela URL e nas
+  // capturas automáticas, que precisam de um quadro estável; ?tour=1 força.
+  const tourParams = new URLSearchParams(window.location.search);
+  const tourForced = tourParams.get('tour') === '1';
+  const tourBlocked =
+    !tourForced && (tourParams.has('shot') || tourParams.get('tour') === '0' || navigator.webdriver);
+  const tour = createIdleTour(rig, {
+    idleSeconds: 60,
+    disabled: () => tourBlocked || reducedMotion.matches,
+  });
+
   // --- Loop -----------------------------------------------------------------
   const loop = createLoop({
     onFrame: (dt, elapsed) => {
@@ -157,6 +169,7 @@ async function boot(): Promise<void> {
         post.setSize(canvas.clientWidth, canvas.clientHeight);
       }
       flight.update(dt);
+      tour.update(dt);
       rig.update(dt);
       // O foco da câmera principal segue o alvo da órbita (SPEC §3.1).
       controls.getTarget(post.focusTarget);
@@ -349,6 +362,7 @@ async function boot(): Promise<void> {
     loop.stop();
     experiment?.dispose();
     flight.dispose();
+    tour.dispose();
     labels.dispose();
     input.dispose();
     post.dispose();
@@ -362,6 +376,8 @@ async function boot(): Promise<void> {
   });
 
   loop.start();
+  // A apresentação começa com a página: a câmera já entra se mexendo.
+  tour.start();
 
   // Espera dois quadros: o primeiro compila os shaders, o segundo já é o real.
   requestAnimationFrame(() => {

@@ -26,6 +26,7 @@ testes; a cena é three.js com materiais PBR, HDRI e pós-processamento.
 | Passear | arrastar para orbitar, botão direito para pan, roda para zoom, `W A S D` e `Q E` |
 | Câmeras cinematográficas | `C`; `R` volta à vista padrão |
 | Esconder a interface | `/` |
+| Apresentação | a câmera passeia devagar ao abrir a página e depois de 1 minuto parado; mexer o mouse devolve o controle |
 | Ajuda e "Sobre as escalas" | `?` |
 
 Cada número na tela sai do motor: a zona nítida de **1,9 cm** a 60 cm em f/2, o

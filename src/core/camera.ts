@@ -181,3 +181,99 @@ export function createKeyboardFlight(rig: CameraRig, speed = 0.9, turnSpeed = 1.
     },
   };
 }
+
+export interface IdleTour {
+  /** Avança o passeio. Chamado a cada quadro, antes de `rig.update`. */
+  update(dt: number): void;
+  /** Começa o passeio agora, sem esperar a ociosidade (abertura da página). */
+  start(): void;
+  readonly active: boolean;
+  dispose(): void;
+}
+
+export interface IdleTourOptions {
+  /** Segundos sem mexer no mouse, no toque ou no teclado até o passeio começar. */
+  readonly idleSeconds?: number;
+  /** Quando true, o passeio não roda (movimento reduzido, capturas automáticas). */
+  readonly disabled?: () => boolean;
+}
+
+/**
+ * Passeio de apresentação: depois de um tempo sem interação, a câmera balança
+ * devagar em volta da vista em que está — um pouco de órbita, um pouco de
+ * altura, um leve avanço —, como uma vitrine. Qualquer movimento do mouse,
+ * toque, roda ou tecla devolve o controle na hora, sem salto: a câmera fica
+ * onde o passeio a deixou.
+ *
+ * Todo deslocamento entra por uma rampa suave e é uma soma de senoides em
+ * torno da pose inicial, então o passeio nunca se afasta da cena.
+ */
+export function createIdleTour(
+  rig: CameraRig,
+  { idleSeconds = 60, disabled = () => false }: IdleTourOptions = {},
+): IdleTour {
+  const controls = rig.controls;
+  let idle = 0;
+  let active = false;
+  let time = 0;
+  let base = { azimuth: 0, polar: 0, distance: 1 };
+
+  const begin = (): void => {
+    active = true;
+    time = 0;
+    base = { azimuth: controls.azimuthAngle, polar: controls.polarAngle, distance: controls.distance };
+  };
+
+  const onInput = (): void => {
+    idle = 0;
+    active = false;
+  };
+
+  const events = ['pointermove', 'pointerdown', 'wheel', 'keydown', 'touchstart'] as const;
+  for (const name of events) window.addEventListener(name, onInput, { passive: true });
+
+  const smoothstep = (edge: number, x: number): number => {
+    const t = Math.min(Math.max(x / edge, 0), 1);
+    return t * t * (3 - 2 * t);
+  };
+
+  return {
+    get active(): boolean {
+      return active;
+    },
+
+    start(): void {
+      if (disabled()) return;
+      idle = idleSeconds;
+      begin();
+    },
+
+    update(dt: number): void {
+      if (disabled()) {
+        active = false;
+        return;
+      }
+      if (!active) {
+        idle += dt;
+        if (idle >= idleSeconds) begin();
+        return;
+      }
+
+      time += dt;
+      const ramp = smoothstep(6, time);
+      const tau = Math.PI * 2;
+      // ±12,6° de órbita num ciclo de 56 s (no máximo ~1,4°/s), ±2,3° de
+      // altura e até 6% de avanço: perceptível, sem chamar atenção.
+      const azimuth = base.azimuth + ramp * 0.22 * Math.sin((tau * time) / 56);
+      const polar = base.polar + ramp * 0.04 * Math.sin((tau * time) / 33 + 1.1);
+      const distance = base.distance * (1 - ramp * 0.06 * (0.5 - 0.5 * Math.cos((tau * time) / 41)));
+
+      void controls.rotateTo(azimuth, polar, false);
+      void controls.dollyTo(distance, false);
+    },
+
+    dispose(): void {
+      for (const name of events) window.removeEventListener(name, onInput);
+    },
+  };
+}
