@@ -289,12 +289,11 @@ export function createIris(config: IrisConfig = DEFAULT_IRIS): IrisMesh {
 export interface BarrelParts {
   readonly group: THREE.Group;
   readonly focusRing: THREE.Mesh;
-  readonly apertureRing: THREE.Mesh;
   readonly shell: THREE.Mesh;
   readonly liner: THREE.Mesh;
   readonly flange: THREE.Mesh;
   /** Posições de repouso ao longo do eixo, em mm de física. */
-  readonly restMm: { focusRing: number; apertureRing: number; flange: number };
+  readonly restMm: { focusRing: number; flange: number };
   readonly geometries: THREE.BufferGeometry[];
   readonly materials: THREE.Material[];
 }
@@ -304,8 +303,6 @@ export interface BarrelOptions {
   readonly clearSemiDiameter: number;
   /** Extensão axial do grupo óptico, mm. */
   readonly opticalLengthMm: number;
-  /** Posição axial do diafragma, mm a partir do primeiro vértice. */
-  readonly stopZMm: number;
   /** Textura da escala gravada no anel de foco. */
   readonly focusScaleTexture: THREE.Texture;
 }
@@ -326,10 +323,6 @@ export const BARREL_LAYOUT = {
   /** Centro e largura do anel de foco, na extensão dianteira. */
   focusRingCenterMm: -16,
   focusRingWidthMm: 14,
-  /** Largura do anel de abertura, centrado no diafragma. */
-  apertureRingWidthMm: 5,
-  /** Dentes da engrenagem de latão do anel de abertura. */
-  apertureTeeth: 60,
 } as const;
 
 /**
@@ -352,48 +345,13 @@ function hollowRing(inner: number, outer: number, width: number, segments = 96):
   return geometry;
 }
 
-/** Engrenagem oca extrudada ao longo do eixo: o anel de latão da referência. */
-function gearRing(
-  inner: number,
-  root: number,
-  tip: number,
-  width: number,
-  teeth: number,
-): THREE.BufferGeometry {
-  const shape = new THREE.Shape();
-  const steps = teeth * 4;
-  for (let i = 0; i <= steps; i += 1) {
-    const angle = (i / steps) * Math.PI * 2;
-    // Dente trapezoidal: dois pontos no topo, dois na raiz.
-    const radius = i % 4 < 2 ? tip : root;
-    const x = Math.cos(angle) * radius;
-    const y = Math.sin(angle) * radius;
-    if (i === 0) shape.moveTo(x, y);
-    else shape.lineTo(x, y);
-  }
-  const hole = new THREE.Path();
-  hole.absarc(0, 0, inner, 0, Math.PI * 2, true);
-  shape.holes.push(hole);
-
-  const geometry = new THREE.ExtrudeGeometry(shape, {
-    depth: width,
-    bevelEnabled: false,
-    curveSegments: 48,
-  });
-  geometry.translate(0, 0, -width / 2);
-  // A extrusão anda em Z; o eixo óptico é X.
-  geometry.rotateY(Math.PI / 2);
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
 /**
  * Barril, anéis e flange. No modo montado o barril tem um **corte de 90°**
  * (SPEC §6.4) para que os elementos continuem visíveis por dentro.
  */
 export function createBarrel(
   materials: MaterialLibrary,
-  { clearSemiDiameter, opticalLengthMm, stopZMm, focusScaleTexture }: BarrelOptions,
+  { clearSemiDiameter, opticalLengthMm, focusScaleTexture }: BarrelOptions,
 ): BarrelParts {
   const group = new THREE.Group();
   group.name = 'barrel';
@@ -512,22 +470,6 @@ export function createBarrel(
   focusRing.add(scaleBand);
   scaleBand.position.x = lensMm(3.6);
 
-  // Anel de abertura: engrenagem de latão no plano do diafragma.
-  const apertureRingGeometry = gearRing(
-    outerRadius * 0.995,
-    outerRadius * 1.06,
-    outerRadius * 1.1,
-    lensMm(BARREL_LAYOUT.apertureRingWidthMm),
-    BARREL_LAYOUT.apertureTeeth,
-  );
-  geometries.push(apertureRingGeometry);
-
-  const apertureRing = new THREE.Mesh(apertureRingGeometry, materials.brushedBrass);
-  apertureRing.name = 'aperture-ring';
-  apertureRing.position.x = lensMm(stopZMm);
-  apertureRing.castShadow = true;
-  group.add(apertureRing);
-
   // Flange traseiro de montagem, também oco, em latão.
   const flangeGeometry = hollowRing(outerRadius * 0.6, outerRadius * 0.86, lensMm(3));
   geometries.push(flangeGeometry);
@@ -540,13 +482,11 @@ export function createBarrel(
   return {
     group,
     focusRing,
-    apertureRing,
     shell,
     liner,
     flange,
     restMm: {
       focusRing: BARREL_LAYOUT.focusRingCenterMm,
-      apertureRing: stopZMm,
       flange: rearZ + 1.5,
     },
     geometries,

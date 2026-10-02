@@ -86,3 +86,9 @@ logarítmica não existe ponto de vista "fisicamente certo".
   meio do vale) em vez de múltiplos do tamanho da lente, para sobreviver a uma nova troca
   de escala.
 - O par de dubletos continua no repositório, testado, como referência do motor.
+
+## Revisão de 02/10/2026
+
+A engrenagem de latão do anel de abertura foi **removida** a pedido do responsável: era
+só decoração (a abertura é controlada pela íris e pelo painel) e ficava no meio da
+objetiva, por cima dos elementos. O barril mantém o anel de foco à frente e o flange atrás.

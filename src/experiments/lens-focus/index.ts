@@ -386,7 +386,6 @@ export function createLensFocusExperiment(): Experiment {
       barrel = createBarrel(ctx.materials, {
         clearSemiDiameter: clearSemiDiameterMm,
         opticalLengthMm: lengthMm,
-        stopZMm,
         focusScaleTexture: scaleTexture,
       });
       geometries.push(...barrel.geometries);
@@ -630,11 +629,9 @@ export function createLensFocusExperiment(): Experiment {
 
         // Os anéis vão para as pontas, cada um no seu suporte.
         const span = ((elements.length - 1) / 2) * EXPLODE_SPREAD_MM;
-        // O anel de foco vai para a frente; a engrenagem do diafragma acompanha
-        // a íris até o meio, entre os elementos III e IV; o flange vai atrás.
+        // O anel de foco vai para a frente e o flange vai para trás.
         const gap = EXPLODE_RING_GAP_MM;
         barrel.focusRing.position.x = lensMm(lerp(barrel.restMm.focusRing, center - span - gap.focus));
-        barrel.apertureRing.position.x = lensMm(lerp(barrel.restMm.apertureRing, center));
         barrel.flange.position.x = lensMm(lerp(barrel.restMm.flange, center + span + gap.flange));
       }
 
@@ -1008,7 +1005,7 @@ export function createLensFocusExperiment(): Experiment {
           id: 'iris',
           label: { 'pt-BR': 'Diafragma', en: 'Iris' },
           // Três quartos de perto, de cima: no modo explodido enquadra as
-          // lâminas, que ficam no centro com a engrenagem do diafragma.
+          // lâminas, que ficam no centro.
           position: { x: stopX - 0.35, y: origin.y + 0.42, z: origin.z + 0.8 },
           target: { x: stopX, y: origin.y, z: origin.z },
           fov: 30,
