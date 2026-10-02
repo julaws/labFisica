@@ -95,6 +95,14 @@ export function createHud(parent: HTMLElement): Hud {
         setText(entry.label, chip.label);
         setText(entry.value, chip.value);
       }
+
+      // Ao trocar de experimento, os chips do anterior saem.
+      const ids = new Set(model.chips.map((chip) => chip.id));
+      for (const id of [...chipElements.keys()]) {
+        if (ids.has(id)) continue;
+        chips.querySelector(`[data-id="${CSS.escape(id)}"]`)?.remove();
+        chipElements.delete(id);
+      }
     },
 
     dispose(): void {

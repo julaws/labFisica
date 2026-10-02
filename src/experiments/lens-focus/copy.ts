@@ -64,6 +64,7 @@ export function buildCopy(facts: Facts): ExperimentCopy {
         'Todo mundo percebe quando uma foto sai tremida. Quase ninguém viu o plano exato onde ela fica nítida. Gire o anel de foco e veja o plano se mover.',
       en: 'Everyone notices a blurry photo. Almost nobody has seen the exact plane where it comes into focus. Turn the focus ring and watch the plane move.',
     },
+    shortcuts: SHORTCUTS,
     sections: [
       section('sharp', 'Onde a foto fica nítida', 'Where the photo is sharp'),
       section('blur', 'Por que o resto desfoca', 'Why the rest blurs'),
@@ -272,10 +273,4 @@ export const SHORTCUTS = [
   { keys: 'F', description: { 'pt-BR': 'próxima abertura', en: 'next aperture' } },
   { keys: 'X', description: { 'pt-BR': 'lente montada ou explodida', en: 'assembled or exploded lens' } },
   { keys: 'L', description: { 'pt-BR': 'trocar a objetiva', en: 'swap the objective' } },
-  { keys: 'C', description: { 'pt-BR': 'câmeras cinematográficas', en: 'cinematic cameras' } },
-  { keys: 'R', description: { 'pt-BR': 'resetar a vista', en: 'reset view' } },
-  { keys: '/', description: { 'pt-BR': 'esconder a interface', en: 'hide the interface' } },
-  { keys: 'W A S D', description: { 'pt-BR': 'mover a câmera', en: 'move the camera' } },
-  { keys: 'Q E', description: { 'pt-BR': 'girar a câmera', en: 'turn the camera' } },
-  { keys: '?', description: { 'pt-BR': 'esta ajuda', en: 'this help' } },
 ] as const;

@@ -126,6 +126,8 @@ export interface ExperimentCopy {
   readonly subtitle: Record<Locale, string>;
   /** Seções do modal "?" (SPEC §6.7). */
   readonly sections: readonly { id: string; heading: Record<Locale, string>; body: Record<Locale, string> }[];
+  /** Atalhos do próprio experimento, listados no modal antes dos do laboratório. */
+  readonly shortcuts?: readonly { keys: string; description: Record<Locale, string> }[];
 }
 
 /** Um valor do HUD: rótulo e texto já formatados no idioma pedido. */
@@ -211,43 +213,60 @@ export interface Experiment {
   dispose(): void;
 }
 
-/** Registro de experimentos, endereçado por hash (#/lens-focus). */
+/**
+ * Registro de experimentos, endereçado por hash (#/lens-focus).
+ *
+ * Cada experimento ocupa uma **estação**: uma bancada fixa da sala (ADR 0008).
+ * O código é carregado sob demanda (`load` com `import()` dinâmico), então
+ * quem abre o laboratório num experimento não baixa os outros.
+ */
 export interface ExperimentDescriptor {
   readonly id: string;
   readonly title: Record<Locale, string>;
-  readonly create: () => Experiment;
+  /** Índice da bancada na sala, da esquerda para a direita. */
+  readonly station: number;
+  /** Carrega o módulo e devolve um experimento novo. */
+  readonly load: () => Promise<Experiment>;
+}
+
+export interface ExperimentEntry {
+  readonly id: string;
+  readonly title: Record<Locale, string>;
+  readonly station: number;
 }
 
 export interface ExperimentRegistry {
   register(descriptor: ExperimentDescriptor): void;
-  list(): { id: string; title: Record<Locale, string> }[];
-  create(id: string): Experiment | null;
-  /** Primeiro experimento registrado, usado quando o hash não casa. */
-  createDefault(): Experiment | null;
+  list(): ExperimentEntry[];
+  /** Entrada pelo id, ou a primeira registrada quando o id não casa. */
+  resolve(id: string | null): ExperimentEntry | null;
+  load(id: string): Promise<Experiment>;
 }
 
 export function createExperimentRegistry(): ExperimentRegistry {
-  const factories = new Map<string, () => Experiment>();
-  const titles = new Map<string, Record<Locale, string>>();
+  const descriptors = new Map<string, ExperimentDescriptor>();
   const order: string[] = [];
 
   return {
-    register({ id, title, create }: ExperimentDescriptor): void {
-      if (factories.has(id)) throw new Error(`Experimento duplicado: ${id}`);
-      factories.set(id, create);
-      titles.set(id, title);
-      order.push(id);
+    register(descriptor: ExperimentDescriptor): void {
+      if (descriptors.has(descriptor.id)) throw new Error(`Experimento duplicado: ${descriptor.id}`);
+      descriptors.set(descriptor.id, descriptor);
+      order.push(descriptor.id);
     },
-    list(): { id: string; title: Record<Locale, string> }[] {
-      return order.map((id) => ({ id, title: titles.get(id)! }));
+    list(): ExperimentEntry[] {
+      return order.map((id) => {
+        const { title, station } = descriptors.get(id)!;
+        return { id, title, station };
+      });
     },
-    create(id: string): Experiment | null {
-      const factory = factories.get(id);
-      return factory ? factory() : null;
+    resolve(id: string | null): ExperimentEntry | null {
+      const found = (id && descriptors.get(id)) || descriptors.get(order[0] ?? '');
+      return found ? { id: found.id, title: found.title, station: found.station } : null;
     },
-    createDefault(): Experiment | null {
-      const first = order[0];
-      return first ? factories.get(first)!() : null;
+    load(id: string): Promise<Experiment> {
+      const descriptor = descriptors.get(id);
+      if (!descriptor) return Promise.reject(new Error(`Experimento desconhecido: ${id}`));
+      return descriptor.load();
     },
   };
 }

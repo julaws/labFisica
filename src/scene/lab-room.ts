@@ -22,10 +22,19 @@ export interface LabRoom {
   /** Objetos que devem receber bloom (cartazes, faixas de LED). */
   readonly glowing: THREE.Object3D[];
   applyShadowQuality(enabled: boolean, mapSize: number): void;
+  /**
+   * Leva a luz principal para a bancada ativa (ADR 0008). A sombra tem um
+   * mapa de resolução fixa; cobrir a sala inteira o deixaria borrado.
+   */
+  focusOn(x: number): void;
   dispose(): void;
 }
 
-const ROOM = { width: 9, depth: 11, height: 3.4 };
+/** Posição x das bancadas (estações) na sala, da esquerda para a direita. */
+export const STATION_X: readonly number[] = [-2.9, 2.9];
+
+// Larga o bastante para duas bancadas lado a lado (ADR 0008).
+const ROOM = { width: 13, depth: 11, height: 3.4 };
 
 export function createLabRoom(materials: MaterialLibrary): LabRoom {
   const group = new THREE.Group();
@@ -193,7 +202,8 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   // característico nos metais e no vidro (SPEC §3.1).
   const ceilingStrips = new THREE.Group();
   const housingParts: THREE.BufferGeometry[] = [];
-  for (const x of [-1.9, 1.9]) {
+  // Uma faixa de luz sobre cada bancada.
+  for (const x of STATION_X) {
     const strip = new THREE.RectAreaLight(0xcfe0ff, 1.9, 0.34, 5.2);
     strip.position.set(x, ROOM.height - 0.12, -0.4);
     strip.rotation.x = -Math.PI / 2;
@@ -231,6 +241,13 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
     group,
     keyLight,
     glowing,
+
+    focusOn(x: number): void {
+      keyLight.position.x = x + 0.6;
+      keyLight.target.position.x = x;
+      rimLight.position.x = x - 1.4;
+      rimLight.target.position.x = x;
+    },
 
     applyShadowQuality(enabled: boolean, mapSize: number): void {
       keyLight.castShadow = enabled;

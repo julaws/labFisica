@@ -129,7 +129,9 @@ export function createModal(parent: HTMLElement, shortcuts: readonly Shortcut[])
       keysHeading.textContent = t('shortcuts', locale);
       const list = document.createElement('dl');
       list.className = 'shortcuts';
-      for (const shortcut of shortcuts) {
+      // Cada experimento traz os próprios atalhos; os do laboratório (câmera,
+      // interface) vêm de quem criou o modal.
+      for (const shortcut of [...(copy.shortcuts ?? []), ...shortcuts]) {
         const term = document.createElement('dt');
         for (const key of shortcut.keys.split(' ')) {
           const kbd = document.createElement('kbd');

@@ -29,9 +29,9 @@ export interface LoadingScreen {
 export const DEFAULT_STEPS: LoadingStep[] = [
   { id: 'textures', label: 'Polindo o vidro…', weight: 1 },
   { id: 'environment', label: 'Acendendo o estúdio…', weight: 4 },
-  { id: 'room', label: 'Montando a bancada…', weight: 1.5 },
+  { id: 'room', label: 'Arrumando a sala…', weight: 1.5 },
   { id: 'post', label: 'Ajustando as lentes da câmera…', weight: 1 },
-  { id: 'experiment', label: 'Montando a objetiva e o vale…', weight: 2.5 },
+  { id: 'experiment', label: 'Montando o experimento…', weight: 2.5 },
 ];
 
 export function createLoadingScreen(steps: LoadingStep[] = DEFAULT_STEPS): LoadingScreen {

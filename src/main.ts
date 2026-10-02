@@ -8,13 +8,19 @@ import { createQualityManager, detectQualityLevel } from './core/quality';
 import { loadEnvironment } from './core/environment';
 import { createLoadingScreen } from './core/loader';
 import { createMaterialLibrary } from './scene/materials';
-import { createLabRoom } from './scene/lab-room';
+import { STATION_X, createLabRoom } from './scene/lab-room';
 import { createBench } from './scene/bench';
 import { disposeProceduralTextures } from './scene/textures/procedural';
 import { createInputSystem } from './core/input';
-import { createExperimentRegistry, experimentIdFromHash } from './core/experiment';
-import { createLensFocusExperiment } from './experiments/lens-focus';
-import { SHORTCUTS } from './experiments/lens-focus/copy';
+import {
+  type Experiment,
+  type ExperimentEntry,
+  createExperimentRegistry,
+  experimentIdFromHash,
+} from './core/experiment';
+import { LAB_SHORTCUTS } from './ui/lab-shortcuts';
+import { createStationSwitcher } from './ui/station-switcher';
+import type { Panel } from './ui/panel';
 import { createLabelLayer } from './scene/labels';
 import { createCinematicCycle, createIdleTour, createKeyboardFlight } from './core/camera';
 import { createHud } from './ui/hud';
@@ -102,15 +108,23 @@ async function boot(): Promise<void> {
   const room = createLabRoom(materials);
   scene.add(room.group);
 
-  const bench = createBench(materials);
-  scene.add(bench.group);
+  // Uma bancada por estação, lado a lado (ADR 0008). A que não está em uso
+  // fica vazia: só o experimento ativo é montado.
+  const benches = STATION_X.map((x) => {
+    const bench = createBench(materials);
+    bench.group.position.x = x;
+    scene.add(bench.group);
+    return bench;
+  });
 
   loading.complete('room');
 
   // --- Pós-processamento ----------------------------------------------------
   loading.begin('post');
   const post = createPostPipeline({ renderer, scene, camera, quality: quality.settings });
-  for (const object of [...room.glowing, ...bench.glowing]) post.bloom.selection.add(object);
+  for (const object of [...room.glowing, ...benches.flatMap((bench) => bench.glowing)]) {
+    post.bloom.selection.add(object);
+  }
   loading.complete('post');
 
   // --- Qualidade adaptativa -------------------------------------------------
@@ -139,7 +153,9 @@ async function boot(): Promise<void> {
     if (ui.classList.contains('ui--hidden')) return [];
     const origin = canvas.getBoundingClientRect();
     const rects: DOMRect[] = [];
-    for (const element of ui.querySelectorAll<HTMLElement>('.hud, .control-panel, .nav-pad')) {
+    for (const element of ui.querySelectorAll<HTMLElement>(
+      '.hud, .control-panel, .nav-pad, .station-switcher',
+    )) {
       const r = element.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
       rects.push(new DOMRect(r.left - origin.left, r.top - origin.top, r.width, r.height));
@@ -174,7 +190,7 @@ async function boot(): Promise<void> {
       rig.update(dt);
       // O foco da câmera principal segue o alvo da órbita (SPEC §3.1).
       controls.getTarget(post.focusTarget);
-      experiment?.update(dt, elapsed);
+      current?.experiment.update(dt, elapsed);
       post.render(dt);
       labels.update(camera, canvas.clientWidth, canvas.clientHeight, uiOccluders());
       quality.sample(loop.frameMs);
@@ -204,124 +220,203 @@ async function boot(): Promise<void> {
   const registry = createExperimentRegistry();
   registry.register({
     id: 'lens-focus',
-    title: { 'pt-BR': 'Lente e plano de foco', en: 'Lens and plane of focus' },
-    create: createLensFocusExperiment,
+    title: { 'pt-BR': 'Lente e foco', en: 'Lens and focus' },
+    station: 0,
+    load: async () => (await import('./experiments/lens-focus')).createLensFocusExperiment(),
   });
 
   const params = new URLSearchParams(window.location.search);
-  const requestedId = experimentIdFromHash();
-  const experiment =
-    (requestedId ? registry.create(requestedId) : null) ?? registry.createDefault();
-
-  loading.begin('experiment');
-  if (experiment) {
-    await experiment.setup({
-      renderer,
-      scene,
-      camera,
-      materials,
-      room,
-      bench,
-      quality,
-      addGlow: (object) => post.bloom.selection.add(object),
-      registerDraggable: (handle) => input.registerDraggable(handle),
-      onKey: (key, action) => input.onKey(key, action),
-      invalidate: () => loop.invalidate(),
-      labels,
-    });
-  }
-  loading.complete('experiment');
 
   // --- Interface (SPEC §3.3) -------------------------------------------------
   let locale: Locale = preferredLocale();
   document.documentElement.lang = locale;
 
-  if (experiment) {
-    const hud = createHud(ui);
-    const modal = createModal(ui, SHORTCUTS);
+  const hud = createHud(ui);
+  const modal = createModal(ui, LAB_SHORTCUTS);
 
-    const panel = createPanel({
-      parent: ui,
-      experiment,
-      locale,
-      onHelp: () => {
-        modal.render(experiment.copy(), locale);
-        modal.open();
-      },
-      onCinematic: () => cinematic.next(),
-      onLocaleChange: (next) => {
-        locale = next;
-        rememberLocale(next);
-        document.documentElement.lang = next;
-        experiment.setLocale(next);
-        panel.setLocale(next);
-        navPad.setLocale(next);
-        refresh();
-      },
-    });
+  // Cruz de navegação e zoom, no canto inferior direito. A velocidade é
+  // proporcional à distância da câmera ao alvo: o mesmo toque anda pouco
+  // de perto e bastante de longe, sempre na mesma fração da tela.
+  const navPad = createNavPad({
+    parent: ui,
+    locale,
+    onPan: (x, y, dt) => {
+      const step = controls.distance * 0.22 * dt;
+      // truck(+y) desce a câmera; "para cima" sobe.
+      void controls.truck(x * step, -y * step, true);
+    },
+    onZoom: (direction, dt) => {
+      void controls.dolly(direction * controls.distance * 0.45 * dt, true);
+    },
+    onReset: () => cinematic.reset(),
+  });
 
-    // Cruz de navegação e zoom, no canto inferior direito. A velocidade é
-    // proporcional à distância da câmera ao alvo: o mesmo toque anda pouco
-    // de perto e bastante de longe, sempre na mesma fração da tela.
-    const navPad = createNavPad({
-      parent: ui,
-      locale,
-      onPan: (x, y, dt) => {
-        const step = controls.distance * 0.22 * dt;
-        // truck(+y) desce a câmera; "para cima" sobe.
-        void controls.truck(x * step, -y * step, true);
-      },
-      onZoom: (direction, dt) => {
-        void controls.dolly(direction * controls.distance * 0.45 * dt, true);
-      },
-      onReset: () => cinematic.reset(),
-    });
-
-    // Tudo o que depende do estado é redesenhado a partir do experimento: a
-    // interface não guarda cópia de nada.
-    const refresh = (): void => {
-      hud.render(experiment.hud(locale));
-      panel.sync();
-      if (modal.isOpen) modal.render(experiment.copy(), locale);
-    };
-
-    experiment.setLocale(locale);
-    experiment.subscribe(refresh);
-    refresh();
-
-    // A vista padrão passa a ser o enquadramento do experimento: é o vale e a
-    // objetiva que importam, não a bancada vazia. No retrato vale a variante
-    // do experimento para telas altas, quando ela existe.
-    const shots = experiment.cameras();
-    cinematic.setShots(shots);
-    const overview = shots.find((shot) => shot.id === 'overview');
-    if (overview) {
-      const home = portrait && overview.portrait ? { ...overview, ...overview.portrait } : overview;
-      cinematic.setHome(home);
-      // Na abertura o corte é seco: animar do plano antigo até aqui só
-      // atrasaria o primeiro quadro útil.
-      if (!params.get('shot')) {
-        if (home.fov !== undefined) {
-          camera.fov = home.fov;
-          camera.updateProjectionMatrix();
-        }
-        const { position: p, target: t } = home;
-        void controls.setLookAt(p.x, p.y, p.z, t.x, t.y, t.z, false);
-      }
-    }
-
-    input.onKey('c', () => cinematic.next());
-    input.onKey('r', () => cinematic.reset());
-    input.onKey('/', (event) => {
-      event.preventDefault();
-      const hidden = ui.classList.toggle('ui--hidden');
-      labels.setVisible(!hidden);
-    });
-    input.onKey('?', () => {
-      modal.render(experiment.copy(), locale);
-      modal.toggle();
-    });
+  // --- Anfitrião de experimentos (ADR 0008) -----------------------------------
+  // Só um experimento fica montado por vez. Trocar desmonta o atual por
+  // inteiro — malhas, brilho, etiquetas, teclas, painel — e monta o outro na
+  // bancada dele, com a câmera voando até lá.
+  interface Mounted {
+    readonly entry: ExperimentEntry;
+    readonly experiment: Experiment;
+    readonly panel: Panel;
+    readonly unsubscribe: () => void;
+    readonly glows: THREE.Object3D[];
   }
+  let current: Mounted | null = null;
+  let mountToken = 0;
+
+  const refresh = (): void => {
+    if (!current) return;
+    const model = current.experiment.hud(locale);
+    hud.render(model);
+    // A aba do navegador acompanha a bancada.
+    const title = `${model.title} · ${locale === 'en' ? 'Optics Lab' : 'Laboratório de Óptica'}`;
+    if (document.title !== title) document.title = title;
+    current.panel.sync();
+    if (modal.isOpen) modal.render(current.experiment.copy(), locale);
+  };
+
+  const changeLocale = (next: Locale): void => {
+    locale = next;
+    rememberLocale(next);
+    document.documentElement.lang = next;
+    current?.experiment.setLocale(next);
+    current?.panel.setLocale(next);
+    navPad.setLocale(next);
+    switcher.setLocale(next);
+    refresh();
+  };
+
+  const unmount = (): void => {
+    if (!current) return;
+    current.unsubscribe();
+    current.panel.dispose();
+    current.experiment.dispose();
+    for (const object of current.glows) post.bloom.selection.delete(object);
+    current = null;
+  };
+
+  async function mount(id: string | null, animate: boolean): Promise<void> {
+    const entry = registry.resolve(id);
+    if (!entry || current?.entry.id === entry.id) return;
+    const token = ++mountToken;
+    switcher.setBusy(true);
+
+    try {
+      const experiment = await registry.load(entry.id);
+      if (token !== mountToken) {
+        experiment.dispose();
+        return;
+      }
+
+      unmount();
+
+      const glows: THREE.Object3D[] = [];
+      await experiment.setup({
+        renderer,
+        scene,
+        camera,
+        materials,
+        room,
+        bench: benches[entry.station]!,
+        quality,
+        addGlow: (object) => {
+          glows.push(object);
+          post.bloom.selection.add(object);
+        },
+        registerDraggable: (handle) => input.registerDraggable(handle),
+        onKey: (key, action) => input.onKey(key, action),
+        invalidate: () => loop.invalidate(),
+        labels,
+      });
+      room.focusOn(STATION_X[entry.station] ?? 0);
+      experiment.setLocale(locale);
+
+      const panel = createPanel({
+        parent: ui,
+        experiment,
+        locale,
+        onHelp: () => {
+          modal.render(experiment.copy(), locale);
+          modal.open();
+        },
+        onCinematic: () => cinematic.next(),
+        onLocaleChange: changeLocale,
+      });
+      const unsubscribe = experiment.subscribe(refresh);
+      current = { entry, experiment, panel, unsubscribe, glows };
+      refresh();
+      switcher.setCurrent(entry.id);
+
+      // O endereço acompanha a bancada: dá para compartilhar o link de cada
+      // experimento. replaceState não dispara hashchange.
+      const hash = `#/${entry.id}`;
+      if (window.location.hash !== hash) {
+        history.replaceState(null, '', `${window.location.pathname}${window.location.search}${hash}`);
+      }
+
+      // A vista padrão passa a ser o enquadramento do experimento. No retrato
+      // vale a variante para telas altas, quando ela existe.
+      const shots = experiment.cameras();
+      cinematic.setShots(shots);
+      const overview = shots.find((shot) => shot.id === 'overview');
+      if (overview) {
+        const home = portrait && overview.portrait ? { ...overview, ...overview.portrait } : overview;
+        cinematic.setHome(home);
+        if (animate) {
+          // Voo de uma bancada até a outra, pelo próprio camera-controls.
+          cinematic.reset();
+        } else if (!params.get('shot')) {
+          if (home.fov !== undefined) {
+            camera.fov = home.fov;
+            camera.updateProjectionMatrix();
+          }
+          const { position: p, target: t } = home;
+          void controls.setLookAt(p.x, p.y, p.z, t.x, t.y, t.z, false);
+        }
+      }
+    } finally {
+      if (token === mountToken) switcher.setBusy(false);
+    }
+  }
+
+  const entries = registry.list();
+  const firstEntry = registry.resolve(experimentIdFromHash());
+  const switcher = createStationSwitcher({
+    parent: ui,
+    entries,
+    current: firstEntry?.id ?? '',
+    locale,
+    onSelect: (id) => void mount(id, true),
+  });
+
+  const stepExperiment = (direction: 1 | -1): void => {
+    const index = entries.findIndex((entry) => entry.id === current?.entry.id);
+    const next = entries[(index + direction + entries.length) % entries.length];
+    if (next) void mount(next.id, true);
+  };
+
+  loading.begin('experiment');
+  await mount(firstEntry?.id ?? null, false);
+  loading.complete('experiment');
+
+  // Voltar e avançar no navegador, ou um link colado com outro #/id.
+  window.addEventListener('hashchange', () => void mount(experimentIdFromHash(), true));
+
+  input.onKey('arrowleft', () => stepExperiment(-1));
+  input.onKey('arrowright', () => stepExperiment(1));
+  input.onKey('c', () => cinematic.next());
+  input.onKey('r', () => cinematic.reset());
+  input.onKey('/', (event) => {
+    event.preventDefault();
+    const hidden = ui.classList.toggle('ui--hidden');
+    labels.setVisible(!hidden);
+  });
+  input.onKey('?', () => {
+    if (!current) return;
+    modal.render(current.experiment.copy(), locale);
+    modal.toggle();
+  });
 
   if (import.meta.env.DEV) {
     // Handles de depuração: só existem no servidor de desenvolvimento.
@@ -332,8 +427,9 @@ async function boot(): Promise<void> {
       renderer,
       post,
       room,
-      bench,
+      benches,
       quality,
+      mount: (id: string) => mount(id, true),
     };
   }
 
@@ -342,24 +438,33 @@ async function boot(): Promise<void> {
   });
 
   // ?lens=exploded&f=16&focus=2000 deixam a cena num estado conhecido sem
-  // depender de atalhos de teclado, que dependem de foco e de tempo.
-  if (experiment) {
-    const lens = params.get('lens');
-    if (lens) experiment.set('lensMode', lens);
-
-    const fNumber = params.get('f');
-    if (fNumber) experiment.set('fNumber', Number(fNumber));
-
-    const focus = params.get('focus');
-    if (focus) experiment.set('focusDistance', Number(focus));
+  // depender de atalhos de teclado, que dependem de foco e de tempo. Cada
+  // experimento só entende os seus; o resto é ignorado.
+  const urlControls: [string, string][] = [
+    ['lens', 'lensMode'],
+    ['f', 'fNumber'],
+    ['focus', 'focusDistance'],
+  ];
+  // `current` muda dentro de `mount`, e o TypeScript não enxerga isso: lido
+  // por uma função, ele não é estreitado para null.
+  const mounted = (): Mounted | null => current;
+  const opened = mounted();
+  for (const [param, control] of urlControls) {
+    const value = params.get(param);
+    if (value === null || !opened) continue;
+    try {
+      opened.experiment.set(control, Number.isNaN(Number(value)) ? value : Number(value));
+    } catch {
+      // Controle de outro experimento.
+    }
   }
 
   // ?shot=<id> leva a câmera direto a um enquadramento cinematográfico do
   // experimento. É o que o script de capturas usa para fotografar a objetiva
   // de perto sem depender de interação.
   const requestedShot = params.get('shot');
-  if (experiment && requestedShot) {
-    const shot = experiment.cameras().find((candidate) => candidate.id === requestedShot);
+  if (opened && requestedShot) {
+    const shot = opened.experiment.cameras().find((candidate) => candidate.id === requestedShot);
     if (shot) {
       if (shot.fov !== undefined) {
         camera.fov = shot.fov;
@@ -379,13 +484,13 @@ async function boot(): Promise<void> {
 
   window.addEventListener('beforeunload', () => {
     loop.stop();
-    experiment?.dispose();
+    unmount();
     flight.dispose();
     tour.dispose();
     labels.dispose();
     input.dispose();
     post.dispose();
-    bench.dispose();
+    for (const bench of benches) bench.dispose();
     room.dispose();
     materials.dispose();
     environment.dispose();

@@ -534,6 +534,9 @@ export function createLensFocusExperiment(): Experiment {
 
       // --- Montagem no trilho ----------------------------------------------
       const carriage = ctx.bench.mountAt(LENS_RAIL_MM);
+      // O carrinho é do experimento: sai do trilho quando ele é desmontado
+      // (troca de bancada, ADR 0008), senão sobraria um carrinho vazio.
+      disposers.push(() => carriage.group.removeFromParent());
       addNameplate(carriage.group, ctx);
       // O eixo óptico fica na altura do poste do carrinho.
       axisHeight = lensMm(barrelDiameterMm() / 2) + 0.05;

@@ -1,5 +1,5 @@
 import type { Experiment, NumberRow, PanelControl, PanelSchema } from '../core/experiment';
-import { type Locale, formatDistance, formatFNumber, t } from './i18n';
+import { type Locale, formatDistance, formatFNumber, formatNumber, t } from './i18n';
 
 /**
  * Painel de controles (SPEC §3.3), renderizado a partir do `PanelSchema`
@@ -292,7 +292,12 @@ export function createPanel({
             const to = toPosition(Number(experiment.get(band.to))) / SLIDER_STEPS;
             slider.setBand(from, to);
           }
-          aside.textContent = formatDistance(value, locale);
+          // A unidade declarada no schema escolhe a leitura: distância em
+          // mm (cm ou m na tela) ou micrômetros.
+          aside.textContent =
+            control.unit === 'µm'
+              ? `${formatNumber(value, 0, locale)} µm`
+              : formatDistance(value, locale);
           slider.input.setAttribute('aria-valuetext', aside.textContent);
         });
 
