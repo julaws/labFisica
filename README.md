@@ -1,10 +1,16 @@
 # Laboratório de Óptica
 
-Um laboratório de óptica interativo em 3D, no navegador. O primeiro experimento,
-**O plano de foco**, abre uma objetiva de 50 mm sobre uma bancada óptica: gire o
-anel de foco e veja o plano onde a foto fica nítida atravessar um vale em
-miniatura, os raios de cada objeto convergirem antes, sobre ou depois do vidro
-fosco, e a imagem invertida se formar com o desfoque que a física manda.
+Um laboratório de óptica interativo em 3D, no navegador, com uma bancada por
+experimento na mesma sala. Troque de bancada pelas abas no alto da tela, pelas
+setas `←` `→` ou pelo endereço:
+
+| Experimento | Endereço | O que mostra |
+|---|---|---|
+| **O plano de foco** | `#/lens-focus` | uma objetiva de 50 mm sobre a bancada: gire o anel de foco e veja o plano nítido atravessar um vale em miniatura, os raios convergirem antes, sobre ou depois do vidro fosco, e a imagem invertida se formar com o desfoque que a física manda |
+| **A dupla fenda** | `#/double-slit` | um canhão de elétrons de 50 kV contra duas fendas: sem detectores, os elétrons desenham franjas de interferência; com os detectores ligados, ficam duas faixas |
+
+Só a bancada ativa fica montada, e o código de cada experimento é baixado só
+quando ele abre (ADR 0008).
 
 A física vem de um motor próprio em TypeScript puro (`src/optics/`), coberto por
 testes; a cena é three.js com materiais PBR, HDRI e pós-processamento.
@@ -14,7 +20,7 @@ testes; a cena é three.js com materiais PBR, HDRI e pós-processamento.
 - Fontes de toda fórmula e constante física: [`docs/optics-sources.md`](docs/optics-sources.md)
 - Decisões de arquitetura: [`docs/adr/`](docs/adr/)
 
-## O que dá para fazer
+## O que dá para fazer: o plano de foco
 
 | Ação | Como |
 |---|---|
@@ -51,6 +57,25 @@ equivalentes do catálogo SCHOTT atual (ADR 0005). Dá para trocá-la por uma
 lente **convergente simples** (+50 mm, com a aberração esférica medida pelo
 traçador) ou **divergente simples** (−50 mm, que não forma imagem real) — ADR 0007.
 
+## O que dá para fazer: a dupla fenda
+
+| Ação | Como |
+|---|---|
+| Tampar ou abrir cada fenda | caixas Esquerda e Direita, ou `1` `2` |
+| Ligar os detectores | Desligados · Ligados no painel, ou `O` (de observar) |
+| Esconder o feixe e ver só o padrão | Visível · Só o padrão, ou `V` |
+| Trocar a cor do fósforo | verde · ciano · âmbar · violeta · branco, ou `K` |
+| Mover o anteparo (1,00 a 1,80 m) | arrastar o anteparo, o slider, ou `[` `]` |
+| Mudar a largura do anteparo (24 a 48 µm) | slider Largura ("Mais ajustes" no celular) |
+
+O padrão vem da integral de difração de Fresnel das duas fendas, com o
+comprimento de onda de de Broglie relativístico dos elétrons de 50 kV
+(λ = 5,36 pm). Sem detector somam-se amplitudes e aparecem ~19 franjas a
+0,94 µm uma da outra; com detector somam-se probabilidades e ficam duas faixas.
+Transversalmente ao feixe tudo está **10 000× maior** (1 µm vira 1 cm); ao longo
+dele, as distâncias são reais. A cor é a do fósforo do anteparo, não do elétron
+(ADR 0009). Um monitor no fundo da bancada mostra o anteparo de frente.
+
 ## Requisitos
 
 - Node 20 ou superior
@@ -75,16 +100,18 @@ npm run dev
 | `npm run typecheck` / `npm run lint` | TypeScript estrito e ESLint |
 
 As capturas aceitam estado pela URL, útil também para compartilhar uma
-configuração: `?focus=370&f=16&lens=exploded&shot=optical-path`.
+configuração: `?focus=370&f=16&lens=exploded&shot=optical-path`, ou
+`?shot=screen#/double-slit` para o anteparo da dupla fenda.
 
 ## Estrutura
 
 ```
-src/optics/       física pura, sem three.js: lente fina, Sellmeier, ABCD, traçador
+src/optics/       física pura, sem three.js: lente fina, Sellmeier, ABCD, traçador,
+                  ondas (dupla fenda de Fresnel)
 src/core/         renderer, loop, câmera, pós-processamento, qualidade, entrada
 src/scene/        sala, bancada, materiais, texturas procedurais, escalas, raios
-src/experiments/  um diretório por experimento
-src/ui/           HUD, painel, modal, i18n
+src/experiments/  um diretório por experimento (lens-focus, double-slit)
+src/ui/           HUD, painel, modal, seletor de bancadas, i18n
 tests/            Vitest
 e2e/              Playwright
 docs/             SPEC, fontes, ADRs
