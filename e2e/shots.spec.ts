@@ -145,13 +145,13 @@ test('troca de objetiva', async ({ page }, testInfo) => {
 test('seleção de raios', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === 'mobile', 'no celular as caixas ficam em "Mais ajustes"');
   await openLab(page, '?shot=optical-path&focus=600');
-  // Abre com tudo marcado e a lente explodida.
-  for (const name of ['Pinheiro', 'Cabana', 'Pico']) {
-    await expect(page.getByRole('checkbox', { name })).toBeChecked();
-  }
+  // Abre só com o pinheiro marcado e a lente explodida.
+  await expect(page.getByRole('checkbox', { name: 'Pinheiro' })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Cabana' })).not.toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Pico' })).not.toBeChecked();
   await expect(page.getByRole('radio', { name: 'Explodida' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('checkbox', { name: 'Cabana' }).check();
   await page.getByRole('checkbox', { name: 'Pinheiro' }).uncheck();
-  await page.getByRole('checkbox', { name: 'Pico' }).uncheck();
   await expect(page.getByRole('checkbox', { name: 'Pinheiro' })).not.toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Cabana' })).toBeChecked();
   await settle(page);

@@ -43,7 +43,9 @@ export const INITIAL_STATE: LensFocusState = {
   uiHidden: false,
   coc: COC_MM.reference,
   lens: 'double-gauss',
-  rays: { foreground: true, midground: true, background: true },
+  // Só o pinheiro ao abrir: um leque de cada vez se lê melhor. Os outros
+  // entram pelas caixas do painel.
+  rays: { foreground: true, midground: false, background: false },
   focalLength: DEFAULT_FOCAL_LENGTH_MM,
   sensor: { ...FULL_FRAME_SENSOR },
 };

@@ -21,7 +21,7 @@ testes; a cena é three.js com materiais PBR, HDRI e pós-processamento.
 | Focar | arrastar o anel de foco, o slider de distância, ou `1` `2` `3` e `[` `]` |
 | Abrir e fechar o diafragma | botões f/2 · f/5,6 · f/16, slider de stops, ou `F` |
 | Abrir a objetiva | `X` (montada ↔ explodida; abre explodida) |
-| Escolher os raios | caixas Pinheiro · Cabana · Pico no painel (todas marcadas ao abrir) |
+| Escolher os raios | caixas Pinheiro · Cabana · Pico no painel (só o pinheiro marcado ao abrir) |
 | Trocar a objetiva | Gauss duplo · convergente · divergente no painel, ou `L` |
 | Focar numa miniatura | clicar nela, no console da bancada |
 | Passear | arrastar para orbitar, botão direito para pan, roda para zoom, `W A S D` e `Q E`, ou a cruz e as setas de zoom no canto inferior direito |
