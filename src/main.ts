@@ -224,6 +224,12 @@ async function boot(): Promise<void> {
     station: 0,
     load: async () => (await import('./experiments/lens-focus')).createLensFocusExperiment(),
   });
+  registry.register({
+    id: 'double-slit',
+    title: { 'pt-BR': 'Dupla fenda', en: 'Double slit' },
+    station: 1,
+    load: async () => (await import('./experiments/double-slit')).createDoubleSlitExperiment(),
+  });
 
   const params = new URLSearchParams(window.location.search);
 

@@ -198,6 +198,56 @@ test('orçamento: menos de 250 draw calls e 1,5 milhão de triângulos', async (
   expect(frame!.triangles).toBeLessThan(1_500_000);
 });
 
+// --- Dupla fenda, na segunda bancada (ADR 0008 e 0009) ----------------------
+test('dupla fenda: franjas, detectores e fenda tampada', async ({ page }, testInfo) => {
+  await openLab(page, '#/double-slit');
+  // Os números vêm do motor: λ de de Broglie a 50 kV e λL/d a 1,40 m.
+  await expect(page.locator('.chip[data-id="wavelength"] .chip__value')).toHaveText('5,36 pm');
+  await expect(page.locator('.chip[data-id="spacing"] .chip__value')).toHaveText('0,94 µm');
+  await expect(page.locator('.chip[data-id="pattern"] .chip__value')).toHaveText('Ondulatório');
+  await expect(page.locator('.hud__sentence')).toContainText('19 franjas');
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-20-double-slit.png` });
+
+  await openControls(page);
+  await page.getByRole('radio', { name: 'Ligados', exact: true }).click();
+  await expect(page.locator('.chip[data-id="pattern"] .chip__value')).toHaveText('Corpuscular');
+  await expect(page.locator('.hud__sentence')).toContainText('duas faixas');
+  await page.getByRole('radio', { name: 'Só o padrão' }).click();
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-21-detectors-on.png` });
+
+  await page.getByRole('checkbox', { name: 'Esquerda' }).uncheck();
+  await expect(page.locator('.chip[data-id="pattern"] .chip__value')).toHaveText('Fenda única');
+  await expect(page.locator('.hud__sentence')).toContainText('Só a fenda direita aberta');
+});
+
+test('troca de bancada pelo seletor e pelas setas', async ({ page }) => {
+  await openLab(page);
+  await expect(page.locator('.chip[data-id="zone"]')).toHaveCount(1);
+  await page.getByRole('tab', { name: 'Dupla fenda' }).click();
+  await expect(page).toHaveURL(/#\/double-slit$/);
+  await expect(page.locator('.chip[data-id="pattern"]')).toHaveCount(1);
+  // Os chips da lente saem com ela.
+  await expect(page.locator('.chip[data-id="zone"]')).toHaveCount(0);
+  await expect(page).toHaveTitle(/dupla fenda/i);
+
+  await page.keyboard.press('ArrowLeft');
+  await expect(page).toHaveURL(/#\/lens-focus$/);
+  await expect(page.locator('.chip[data-id="zone"]')).toHaveCount(1);
+  await expect(page.locator('.chip[data-id="pattern"]')).toHaveCount(0);
+});
+
+test('orçamento da dupla fenda', async ({ page }) => {
+  await openLab(page, '#/double-slit');
+  await page.waitForTimeout(500);
+  const frame = await page.evaluate(() => window.__lab ?? null);
+  expect(frame).not.toBeNull();
+  console.info(`orçamento (dupla fenda): ${frame!.drawCalls} draw calls, ${frame!.triangles} triângulos`);
+  expect(frame!.drawCalls).toBeLessThan(250);
+  expect(frame!.triangles).toBeLessThan(1_500_000);
+});
+
 // --- Resoluções da SPEC §9 que o projeto celular/desktop não cobre -----------
 for (const [name, width, height] of [
   ['tablet', 768, 1024],
