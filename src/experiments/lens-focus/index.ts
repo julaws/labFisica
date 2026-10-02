@@ -34,7 +34,7 @@ const SUBJECT_DISTANCES = [
   { id: 'midground', distanceMm: DEFAULT_SUBJECT_DISTANCES_MM.midground },
   { id: 'background', distanceMm: DEFAULT_SUBJECT_DISTANCES_MM.background },
 ] as const;
-import { focusRingScale } from '../../scene/textures/procedural';
+import { focusRingScale, nameplateTexture } from '../../scene/textures/procedural';
 import { DIORAMA_DEPTH, LENS_EXAGGERATION } from '../../scene/scale';
 import {
   RING_SWEEP,
@@ -129,6 +129,9 @@ const CONSOLE_PLACEMENT = { z: 0.532, belowRail: 0.35, scale: 1 } as const;
 const SENSOR_STANDOFF = 0.74;
 const SENSOR_CAMERA_X = -(DIORAMA_DEPTH.gapScene - SENSOR_STANDOFF);
 
+/** Segundos por volta do giro lento dos leques de raios. */
+const RAY_SPIN_PERIOD = 72;
+
 /** Duração da transição montada ↔ explodida, em segundos (SPEC §6.3). */
 const EXPLODE_SECONDS = 0.8;
 
@@ -174,6 +177,15 @@ export function createLensFocusExperiment(): Experiment {
   let posts: ReturnType<typeof createElementPosts> | null = null;
   let barrel: ReturnType<typeof createBarrel> | null = null;
   let opticsGroup: THREE.Group | null = null;
+
+  /**
+   * Giro lento dos leques de raios em volta do eixo, como na referência:
+   * puramente visual, uma volta a cada `RAY_SPIN_PERIOD` segundos.
+   */
+  let raySpin = 0;
+  let raySpinEnabled = true;
+  /** Entradas do último leque calculado, para o giro só refazer os raios. */
+  let fanInputs: Parameters<typeof buildRayFans> | null = null;
 
   /** 0 = montada, 1 = explodida. Animado com easing próprio. */
   let explodeProgress = 0;
@@ -355,6 +367,38 @@ export function createLensFocusExperiment(): Experiment {
     explodeDirty = true;
   }
 
+  /**
+   * Base larga sob a objetiva, no carrinho, com a placa dourada de
+   * identificação na frente — como a da referência.
+   */
+  function addNameplate(carriageGroup: THREE.Object3D, ctx: LabContext): void {
+    // Funda o bastante para a frente passar da régua gravada do trilho, que
+    // avança até z ≈ 0,12: a placa fica à frente dela, sem atravessá-la.
+    const saddleGeometry = new THREE.BoxGeometry(0.36, 0.05, 0.25);
+    saddleGeometry.translate(0, 0.025, 0);
+    geometries.push(saddleGeometry);
+    const saddle = new THREE.Mesh(saddleGeometry, ctx.materials.anodizedAluminum);
+    saddle.receiveShadow = true;
+    carriageGroup.add(saddle);
+
+    const texture = nameplateTexture('@juliophisico', 'LABORATÓRIO DE ÓPTICA · 50/2');
+    const plateGeometry = new THREE.PlaneGeometry(0.29, 0.29 * (352 / 1024));
+    geometries.push(plateGeometry);
+    const plateMaterial = new THREE.MeshStandardMaterial({
+      map: texture,
+      metalness: 0.75,
+      roughness: 0.38,
+      envMapIntensity: 0.6,
+    });
+    materials.push(plateMaterial);
+    const plate = new THREE.Mesh(plateGeometry, plateMaterial);
+    plate.name = 'nameplate';
+    // Na frente da base, descendo à frente do trilho. Reta: inclinada, a borda
+    // de cima entraria na base.
+    plate.position.set(0, 0.005, 0.127);
+    carriageGroup.add(plate);
+  }
+
   /** Aplica o estado à cena: íris, deslocamento de foco e rotação do anel. */
   function applyState(): void {
     const state = store.get();
@@ -401,9 +445,9 @@ export function createLensFocusExperiment(): Experiment {
         samplePoint: subject.samplePoint.clone().setY(subject.samplePoint.y - DIORAMA_DROP),
       }));
 
-      const { paths, images } = buildRayFans(
+      fanInputs = [
         subjects,
-        { focalLength: state.focalLength, fNumber: state.fNumber },
+        { focalLength: state.focalLength, fNumber: state.fNumber, spin: raySpin },
         {
           // O feixe entra no primeiro vértice e sai pelo plano principal
           // traseiro: é desse plano que a lente fina mede v, e só assim o
@@ -414,7 +458,8 @@ export function createLensFocusExperiment(): Experiment {
           rearPrincipalX,
           imagePlaneX,
         },
-      );
+      ];
+      const { paths, images } = buildRayFans(...fanInputs);
 
       rays.setPaths(paths);
 
@@ -473,6 +518,7 @@ export function createLensFocusExperiment(): Experiment {
 
       // --- Montagem no trilho ----------------------------------------------
       const carriage = ctx.bench.mountAt(LENS_RAIL_MM);
+      addNameplate(carriage.group, ctx);
       // O eixo óptico fica na altura do poste do carrinho.
       axisHeight = lensMm(barrelDiameterMm() / 2) + 0.05;
       root.position.y = axisHeight;
@@ -523,6 +569,7 @@ export function createLensFocusExperiment(): Experiment {
       // prefers-reduced-motion desliga partículas e varredura (SPEC §9).
       const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
       const applyMotion = (): void => {
+        raySpinEnabled = !reducedMotion.matches;
         rays?.setParticlesEnabled(!reducedMotion.matches);
         focusPlane?.setAnimated(!reducedMotion.matches);
       };
@@ -667,6 +714,12 @@ export function createLensFocusExperiment(): Experiment {
     },
 
     update(dt: number, elapsed: number): void {
+      // Giro lento dos raios: só refaz o desenho, sem mexer no resto.
+      if (raySpinEnabled && fanInputs && rays) {
+        raySpin = (raySpin + (dt * Math.PI * 2) / RAY_SPIN_PERIOD) % (Math.PI * 2);
+        const [subjects, fanState, geometry] = fanInputs;
+        rays.setPaths(buildRayFans(subjects, { ...fanState, spin: raySpin }, geometry).paths);
+      }
       rays?.update(dt);
       focusPlane?.update(elapsed);
 
