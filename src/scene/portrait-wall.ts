@@ -5,12 +5,14 @@ import type { MaterialLibrary } from './materials';
 import { nameplateAtlasTexture } from './textures/procedural';
 
 /**
- * Galeria da parede do fundo: seis retratos em preto e branco, três de cada
- * lado da estante, cada um com a placa dourada do nome e dos anos de
- * nascimento e morte, e uma luminária de quadro por cima.
+ * Galeria da parede do fundo: sete retratos em preto e branco, três à
+ * esquerda da estante e quatro à direita, cada um com a placa dourada do nome
+ * e dos anos de nascimento e morte, e uma luminária de quadro por cima.
+ * Clicar num quadro abre o retrato na frente da tela (`ui/portrait-viewer.ts`).
  *
  * As fotos são de domínio público (Wikimedia Commons, ver CREDITS.md), já
- * recortadas, em tons de cinza e com o passe-partout desenhado, num JPEG só.
+ * recortadas, em tons de cinza e com o passe-partout desenhado, num JPEG só
+ * (atlas 4 × 2); cada uma tem também uma versão ampliada em `hd/`.
  * Newton morreu 112 anos antes da primeira fotografia: o dele é o retrato
  * pintado por Godfrey Kneller em 1689, também em preto e branco.
  *
@@ -20,26 +22,56 @@ import { nameplateAtlasTexture } from './textures/procedural';
  */
 
 export interface Portrait {
+  /** Nome do arquivo ampliado em `assets/portraits/hd/`. */
+  readonly id: string;
   readonly name: string;
   readonly years: string;
 }
 
-/** Da esquerda para a direita, na ordem do atlas (3 × 2 ladrilhos). */
+/** Da esquerda para a direita, na ordem do atlas (linhas de 4 ladrilhos). */
 export const PORTRAITS: readonly Portrait[] = [
   // Datas no calendário gregoriano (no juliano da Inglaterra de então,
   // 25/12/1642 a 20/3/1726).
-  { name: 'Isaac Newton', years: '1643 – 1727' },
-  { name: 'Albert Einstein', years: '1879 – 1955' },
-  { name: 'Erwin Schrödinger', years: '1887 – 1961' },
-  { name: 'Werner Heisenberg', years: '1901 – 1976' },
-  { name: 'Max Planck', years: '1858 – 1947' },
-  { name: 'Paul Dirac', years: '1902 – 1984' },
+  { id: 'newton', name: 'Isaac Newton', years: '1643 – 1727' },
+  { id: 'einstein', name: 'Albert Einstein', years: '1879 – 1955' },
+  { id: 'schrodinger', name: 'Erwin Schrödinger', years: '1887 – 1961' },
+  { id: 'heisenberg', name: 'Werner Heisenberg', years: '1901 – 1976' },
+  { id: 'planck', name: 'Max Planck', years: '1858 – 1947' },
+  { id: 'dirac', name: 'Paul Dirac', years: '1902 – 1984' },
+  { id: 'curie', name: 'Marie Curie', years: '1867 – 1934' },
 ];
+
+/**
+ * Geometria do atlas, em pixels: cada ladrilho é o passe-partout inteiro, e
+ * a foto fica na janela do meio. O visualizador usa os mesmos números para o
+ * quadro sair da parede sem mudar de desenho.
+ */
+export const PORTRAIT_ATLAS = {
+  url: portraitsUrl,
+  columns: 4,
+  rows: 2,
+  tile: { width: 520, height: 700 },
+  photo: { x: 60, y: 83.5, width: 400, height: 533 },
+} as const;
+
+/** Proporções do quadro, em metros: moldura, passe-partout e foto. */
+export const PORTRAIT_FRAME = {
+  outer: { width: 0.62, height: 0.8 },
+  mat: { width: 0.52, height: 0.7 },
+} as const;
 
 export interface PortraitWall {
   readonly group: THREE.Group;
   /** Lâmpadas das luminárias, para o bloom. */
   readonly glowing: THREE.Object3D[];
+  /** Malhas que o clique testa: fotos e molduras. */
+  readonly targets: THREE.Object3D[];
+  /** Qual retrato está mais perto deste ponto da parede (coordenadas de mundo). */
+  indexAt(point: THREE.Vector3): number;
+  /** Os quatro cantos da moldura do retrato, em coordenadas de mundo. */
+  corners(index: number): THREE.Vector3[];
+  /** Tira a foto do quadro (ela "saiu" para a frente da tela) ou a devolve. */
+  setHidden(index: number, hidden: boolean): void;
   dispose(): void;
 }
 
@@ -54,7 +86,7 @@ export interface PortraitWallOptions {
 }
 
 /** Passe-partout com a foto: o ladrilho do atlas inteiro. */
-const MAT = { width: 0.52, height: 0.7 };
+const MAT = PORTRAIT_FRAME.mat;
 /** Moldura: largura da barra e profundidade. */
 const BAR = 0.05;
 const DEPTH = 0.04;
@@ -81,14 +113,15 @@ export function createPortraitWall({ materials, xs, wallZ, centerY = 1.88 }: Por
     const x = xs[index] ?? 0;
     const y = centerY;
 
-    // Foto: o ladrilho (index % 3, ⌊index / 3⌋) do atlas, com a linha de cima
-    // no alto da textura.
+    // Foto: o ladrilho (coluna, linha) do atlas, com a linha de cima no alto
+    // da textura.
     const photo = new THREE.PlaneGeometry(MAT.width, MAT.height);
     const uv = photo.attributes.uv!;
-    const column = index % 3;
-    const row = Math.floor(index / 3);
+    const { columns, rows } = PORTRAIT_ATLAS;
+    const column = index % columns;
+    const row = Math.floor(index / columns);
     for (let i = 0; i < uv.count; i += 1) {
-      uv.setXY(i, (uv.getX(i) + column) / 3, (uv.getY(i) + (1 - row)) / 2);
+      uv.setXY(i, (uv.getX(i) + column) / columns, (uv.getY(i) + (rows - 1 - row)) / rows);
     }
     photoParts.push(photo.translate(x, y, front - 0.012));
 
@@ -161,9 +194,14 @@ export function createPortraitWall({ materials, xs, wallZ, centerY = 1.88 }: Por
     metalness: 0,
   });
   owned.push(photoMaterial);
-  const photos = new THREE.Mesh(merge(photoParts, 'as fotos'), photoMaterial);
+  const photoGeometry = merge(photoParts, 'as fotos');
+  const photos = new THREE.Mesh(photoGeometry, photoMaterial);
   photos.name = 'portraits';
   group.add(photos);
+  // Cada foto são 4 vértices seguidos na malha mesclada. Esconder uma é
+  // empurrá-los para trás da parede: só 4 vértices mudam, uma vez por clique.
+  const photoPositions = photoGeometry.attributes.position as THREE.BufferAttribute;
+  const restZ = Float32Array.from({ length: photoPositions.count }, (_, i) => photoPositions.getZ(i));
 
   // --- Molduras ------------------------------------------------------------------
   const lacquer = new THREE.MeshStandardMaterial({ color: 0x0c0c0e, roughness: 0.32, metalness: 0.15 });
@@ -201,6 +239,36 @@ export function createPortraitWall({ materials, xs, wallZ, centerY = 1.88 }: Por
   return {
     group,
     glowing,
+    targets: [photos, frames],
+
+    indexAt(point: THREE.Vector3): number {
+      let best = 0;
+      xs.forEach((x, index) => {
+        if (Math.abs(x - point.x) < Math.abs((xs[best] ?? 0) - point.x)) best = index;
+      });
+      return best;
+    },
+
+    corners(index: number): THREE.Vector3[] {
+      const x = xs[index] ?? 0;
+      group.updateWorldMatrix(true, false);
+      return [
+        [-1, 1],
+        [1, 1],
+        [1, -1],
+        [-1, -1],
+      ].map(([sx, sy]) =>
+        new THREE.Vector3(x + (sx! * outerW) / 2, centerY + (sy! * outerH) / 2, front).applyMatrix4(group.matrixWorld),
+      );
+    },
+
+    setHidden(index: number, hidden: boolean): void {
+      for (let i = index * 4; i < index * 4 + 4; i += 1) {
+        photoPositions.setZ(i, hidden ? wallZ - 0.05 : restZ[i]!);
+      }
+      photoPositions.needsUpdate = true;
+    },
+
     dispose(): void {
       for (const item of owned) item.dispose();
       owned.length = 0;

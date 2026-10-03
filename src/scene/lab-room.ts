@@ -3,7 +3,7 @@ import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLigh
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from './materials';
 import { PALETTE } from './materials';
-import { createPortraitWall } from './portrait-wall';
+import { type PortraitWall, createPortraitWall } from './portrait-wall';
 import { createShelfDecor } from './shelf-decor';
 import { atomArtwork, galaxyArtwork, wallPosterTexture } from './textures/procedural';
 
@@ -24,6 +24,8 @@ export interface LabRoom {
   readonly keyLight: THREE.DirectionalLight;
   /** Objetos que devem receber bloom (cartazes, faixas de LED). */
   readonly glowing: THREE.Object3D[];
+  /** A galeria de retratos da parede do fundo (clicável). */
+  readonly portraits: PortraitWall;
   applyShadowQuality(enabled: boolean, mapSize: number): void;
   /**
    * Leva a luz principal para a bancada ativa (ADR 0008). A sombra tem um
@@ -47,15 +49,19 @@ export interface LabRoom {
 export const STATION_X: readonly number[] = [-6.3, -2.1, 2.1, 6.3];
 
 // Larga o bastante para quatro bancadas lado a lado (ADR 0008 e 0011). A
-// parede do fundo fica perto das bancadas (a estante a ~1,9 m da traseira
-// delas), para os retratos e os enfeites aparecerem atrás dos experimentos; a
-// da frente fica longe, atrás de todas as câmeras.
-const BACK_Z = -2.9;
+// parede do fundo fica logo atrás das bancadas (1,1 m da traseira delas; a
+// estante a meio metro), para os retratos e os enfeites aparecerem grandes e
+// pouco desfocados atrás dos experimentos (ADR 0012); a da frente fica longe,
+// atrás de todas as câmeras.
+const BACK_Z = -1.6;
 const FRONT_Z = 5.5;
 const ROOM = { width: 18, depth: FRONT_Z - BACK_Z, height: 3.4, centerZ: (FRONT_Z + BACK_Z) / 2 };
 
-/** Retratos: três à esquerda da estante e três à direita (a estante vai de −2,6 a 2,6 m). */
-const PORTRAIT_X = [-5.2, -4.25, -3.3, 3.3, 4.25, 5.2] as const;
+/**
+ * Retratos: três à esquerda da estante e quatro à direita (a estante vai de
+ * −2,6 a 2,6 m), na ordem de `PORTRAITS`.
+ */
+const PORTRAIT_X = [-5.2, -4.25, -3.3, 3.3, 4.25, 5.2, 6.15] as const;
 
 export function createLabRoom(materials: MaterialLibrary): LabRoom {
   const group = new THREE.Group();
@@ -236,14 +242,16 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   // a bancada ativa (`focusOn`). Cada luz de área custa em cada pixel de cada
   // material; com quatro bancadas, eram quatro, e as das bancadas vazias não
   // iluminavam nada que estivesse no quadro.
-  const strip = new THREE.RectAreaLight(0xcfe0ff, 1.9, 0.34, 5.2);
+  // Mais curta que antes (5,2 m) para caber entre a parede do fundo e a
+  // frente da sala; um pouco mais intensa para dar a mesma luz na bancada.
+  const strip = new THREE.RectAreaLight(0xcfe0ff, 2.2, 0.34, STRIP_LENGTH);
   // Centrada um pouco à frente, para a ponta não atravessar a parede do fundo.
   strip.position.set(STATION_X[0] ?? 0, ROOM.height - 0.12, STRIP_Z);
   strip.rotation.x = -Math.PI / 2;
   ceilingStrips.add(strip);
   for (const x of STATION_X) {
     housingParts.push(
-      new THREE.PlaneGeometry(0.34, 5.2)
+      new THREE.PlaneGeometry(0.34, STRIP_LENGTH)
         .rotateX(Math.PI / 2)
         .translate(x, ROOM.height - 0.124, STRIP_Z),
     );
@@ -284,6 +292,7 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
     group,
     keyLight,
     glowing,
+    portraits,
 
     focusOn(x: number): void {
       strip.position.x = x;
@@ -323,8 +332,9 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   };
 }
 
-/** z das luminárias do teto. */
-const STRIP_Z = -0.2;
+/** Centro e comprimento das luminárias do teto, m: de −1,5 a 2,1 em z. */
+const STRIP_Z = 0.3;
+const STRIP_LENGTH = 3.6;
 
 /** Alturas das três prateleiras; a do meio leva os enfeites. */
 const SHELF_HEIGHTS = [0.58, 1.08, 1.58] as const;

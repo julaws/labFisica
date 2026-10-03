@@ -16,9 +16,11 @@ Todo o resto da aparência é procedural, gerado em código em `src/scene/textur
 
 ## Retratos da galeria (domínio público)
 
-`src/assets/portraits/physicists.jpg`, usado por `src/scene/portrait-wall.ts`: seis
-retratos num atlas 3 × 2, recortados, convertidos para tons de cinza e com o
-passe-partout desenhado por cima (1560 × 1400 px, JPEG). As fotos são de **domínio
+`src/assets/portraits/physicists.jpg`, usado por `src/scene/portrait-wall.ts`: sete
+retratos num atlas 4 × 2, recortados, convertidos para tons de cinza e com o
+passe-partout desenhado por cima (2080 × 1400 px, JPEG). Em `src/assets/portraits/hd/`,
+a mesma foto de cada um ampliada (660 × 880 px), que o visualizador baixa só quando
+o quadro é clicado. As fotos são de **domínio
 público**: sem direito autoral nenhum, o que cumpre a mesma exigência do CC0
 (CLAUDE.md §10). Fonte: Wikimedia Commons, obtidas em 03/10/2026.
 
@@ -30,6 +32,7 @@ público**: sem direito autoral nenhum, o que cumpre a mesma exigência do CC0
 | Werner Heisenberg | autor desconhecido, c. 1927 | [Heisenberg 10.jpg](https://commons.wikimedia.org/wiki/File:Heisenberg_10.jpg) |
 | Max Planck | autor desconhecido, Berlim, 1933 | [Max Planck 1933.jpg](https://commons.wikimedia.org/wiki/File:Max_Planck_1933.jpg) |
 | Paul Dirac | Fundação Nobel, 1933 | [Paul Dirac, 1933.jpg](https://commons.wikimedia.org/wiki/File:Paul_Dirac,_1933.jpg) |
+| Marie Curie | Henri Manuel, c. 1920 | [Marie Curie c1920.jpg](https://commons.wikimedia.org/wiki/File:Marie_Curie_c1920.jpg) |
 
 ## Serviços externos
 
