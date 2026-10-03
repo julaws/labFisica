@@ -47,7 +47,8 @@ bolinha clássica rolando mais baixo que o muro sempre volta. Escalas declaradas
   que tunelaram e os que refletiram. A fração medida converge para a calculada; a contagem
   recomeça quando o muro muda.
 - **Placa prateada** na lateral da bancada: I = I₀T ≈ I₀ · 16E(V₀ − E)/V₀² · e^{−2κa} e
-  κ = √(2m(V₀ − E))/ħ (o diagramador ganhou raiz quadrada).
+  κ = √(2m(V₀ − E))/ħ (o diagramador ganhou raiz quadrada), com a legenda dos símbolos
+  embaixo: *a* é a largura da barreira, V₀ a altura, E a energia do elétron.
 - **Placa dourada** "@juliophisico" no canhão, como nas outras bancadas.
 
 ### Controles
