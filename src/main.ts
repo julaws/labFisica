@@ -13,6 +13,7 @@ import { createBench } from './scene/bench';
 import { disposeProceduralTextures } from './scene/textures/procedural';
 import { createInputSystem } from './core/input';
 import {
+  type CinematicShot,
   type Experiment,
   type ExperimentEntry,
   createExperimentRegistry,
@@ -355,6 +356,37 @@ async function boot(): Promise<void> {
     return { glows, roots };
   };
 
+  /**
+   * Desenha a cena uma vez, pela cadeia inteira de pós-processamento, com a
+   * câmera no enquadramento `shot`, e devolve a câmera para onde estava. Tudo
+   * na mesma tarefa: o navegador só apresenta o último desenho, então esse
+   * quadro nunca aparece. Serve para compilar as variantes de shader das
+   * passagens de profundidade e normais e enviar as texturas à GPU antes do
+   * voo, em vez de no meio dele, quando a bancada entra no quadro.
+   */
+  const warmView = (shot: { position: THREE.Vector3Like; target: THREE.Vector3Like; fov?: number }): void => {
+    const position = camera.position.clone();
+    const quaternion = camera.quaternion.clone();
+    const fov = camera.fov;
+    camera.position.set(shot.position.x, shot.position.y, shot.position.z);
+    camera.lookAt(shot.target.x, shot.target.y, shot.target.z);
+    camera.fov = shot.fov ?? fov;
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld();
+    post.render(0);
+    camera.position.copy(position);
+    camera.quaternion.copy(quaternion);
+    camera.fov = fov;
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld();
+  };
+
+  /** Enquadramento padrão de um experimento (a variante de retrato, se houver). */
+  const homeShot = (experiment: Experiment): CinematicShot | undefined => {
+    const overview = experiment.cameras().find((shot) => shot.id === 'overview');
+    return overview && portrait && overview.portrait ? { ...overview, ...overview.portrait } : overview;
+  };
+
   /** Desmonta o experimento da cena: carrinhos, etiquetas, atalhos e brilhos. */
   const release = (mounted: Mounted): void => {
     // Materiais criados depois da montagem (outra objetiva, por exemplo)
@@ -412,13 +444,15 @@ async function boot(): Promise<void> {
 
       const previous = current;
       const smooth = animate && previous !== null && !reducedMotion.matches;
-      // Compila o que faltar antes do voo (com o guardião, quase sempre nada).
+      // Compila o que faltar antes do voo (com o guardião, quase sempre nada)
+      // e desenha a bancada de destino uma vez, fora da tela.
       programKeeper.retain(roots);
+      const destination = homeShot(experiment);
+      if (smooth && destination) warmView(destination);
 
       // --- 2. Voo e troca da interface ------------------------------------
       const shots = experiment.cameras();
-      const overview = shots.find((shot) => shot.id === 'overview');
-      const home = overview && portrait && overview.portrait ? { ...overview, ...overview.portrait } : overview;
+      const home = homeShot(experiment);
       const fromX = STATION_X[previous?.entry.station ?? entry.station] ?? 0;
       const toX = STATION_X[entry.station] ?? 0;
 
@@ -530,6 +564,11 @@ async function boot(): Promise<void> {
       const experiment = await registry.load(entry.id);
       const { glows, roots } = await setupExperiment(experiment, entry);
       programKeeper.retain(roots);
+      // Um desenho da bancada pela cadeia inteira: as variantes de shader das
+      // passagens de profundidade e normais ficam nos materiais delas, que
+      // não saem de cena.
+      const home = homeShot(experiment);
+      if (home) warmView(home);
       experiment.dispose();
       for (const object of glows) post.bloom.selection.delete(object);
     } catch (error) {

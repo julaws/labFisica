@@ -233,7 +233,9 @@ test('troca de bancada pelo seletor e pelas setas', async ({ page }) => {
   await expect(page).toHaveTitle(/dupla fenda/i);
 
   await page.keyboard.press('ArrowLeft');
-  await expect(page).toHaveURL(/#\/lens-focus$/);
+  // A troca espera o voo em andamento e pré-desenha a bancada de destino; no
+  // SwiftShader dos testes esse desenho leva segundos (numa GPU, milissegundos).
+  await expect(page).toHaveURL(/#\/lens-focus$/, { timeout: 60_000 });
   await expect(page.locator('.chip[data-id="zone"]')).toHaveCount(1);
   await expect(page.locator('.chip[data-id="pattern"]')).toHaveCount(0);
 });
