@@ -95,6 +95,10 @@ const STRINGS = {
     moveRight: 'Mover a vista para a direita',
     zoomIn: 'Aproximar',
     zoomOut: 'Afastar',
+    pageView: 'visualização',
+    pageViews: 'visualizações',
+    pageViewsLabel: 'Visualizações da página',
+    instagram: 'Instagram de @juliophisico',
   },
   en: {
     loading: 'Polishing the glass…',
@@ -119,6 +123,10 @@ const STRINGS = {
     moveRight: 'Move the view right',
     zoomIn: 'Zoom in',
     zoomOut: 'Zoom out',
+    pageView: 'view',
+    pageViews: 'views',
+    pageViewsLabel: 'Page views',
+    instagram: '@juliophisico on Instagram',
   },
 } as const;
 

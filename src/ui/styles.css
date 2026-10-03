@@ -846,10 +846,73 @@ button {
 
 /* --- Navegação: cruz e zoom no canto inferior direito ---------------------- */
 
-.nav-pad {
+/* O canto junta o selo (visualizações, Instagram) e a navegação. */
+.corner-dock {
   position: absolute;
   right: 24px;
   bottom: 22px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.site-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 10px 12px;
+  pointer-events: auto;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  box-shadow: 0 18px 50px -20px rgba(0, 0, 0, 0.67);
+}
+
+.site-badge__views {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font: 400 12px/1 var(--font-mono);
+  color: var(--muted);
+}
+
+.site-badge__views[hidden] {
+  display: none;
+}
+
+.site-badge__views strong {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.site-badge__link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 13px/1 var(--font-sans);
+  color: var(--soft);
+  text-decoration: none;
+  border-radius: 8px;
+  transition: color 150ms ease;
+}
+
+.site-badge__link:hover {
+  color: var(--warm);
+}
+
+.site-badge svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: currentColor;
+}
+
+.nav-pad {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1165,6 +1228,27 @@ kbd {
   /* No celular o toque já navega (arrastar, pinça) e a base da tela é da
      gaveta de controles. */
   .nav-pad {
+    display: none;
+  }
+
+  /* O selo vira uma linha só, centrada logo acima do seletor de bancadas. */
+  .corner-dock {
+    left: 50%;
+    right: auto;
+    bottom: calc(66px + 54px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+  }
+
+  .site-badge {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+
+  .ui:has(.control-panel--open) .corner-dock {
     display: none;
   }
 

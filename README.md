@@ -14,6 +14,9 @@ setas `←` `→` ou pelo endereço:
 Cada bancada tem uma placa prateada com as equações do experimento: a das lentes, a de
 Schrödinger, as da força magnética e a da corrente de tunelamento.
 
+No canto inferior direito, ao lado da navegação, ficam o contador de visualizações
+da página e o link para o Instagram [@juliophisico](https://www.instagram.com/juliophisico/).
+
 Só a bancada ativa fica montada, e o código de cada experimento é baixado só
 quando ele abre (ADR 0008).
 

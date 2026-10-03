@@ -30,6 +30,7 @@ import { createProgramKeeper } from './core/program-keeper';
 import { createHud } from './ui/hud';
 import { createPanel } from './ui/panel';
 import { createNavPad } from './ui/nav-pad';
+import { createSiteBadge } from './ui/site-badge';
 import { createModal } from './ui/modal';
 import { type Locale, preferredLocale, rememberLocale } from './ui/i18n';
 
@@ -269,11 +270,17 @@ async function boot(): Promise<void> {
   const hud = createHud(ui);
   const modal = createModal(ui, LAB_SHORTCUTS);
 
-  // Cruz de navegação e zoom, no canto inferior direito. A velocidade é
-  // proporcional à distância da câmera ao alvo: o mesmo toque anda pouco
-  // de perto e bastante de longe, sempre na mesma fração da tela.
+  // Canto inferior direito: o selo (visualizações e Instagram) ao lado da
+  // navegação.
+  const dock = document.createElement('div');
+  dock.className = 'corner-dock';
+  ui.appendChild(dock);
+
+  // Cruz de navegação e zoom. A velocidade é proporcional à distância da
+  // câmera ao alvo: o mesmo toque anda pouco de perto e bastante de longe,
+  // sempre na mesma fração da tela.
   const navPad = createNavPad({
-    parent: ui,
+    parent: dock,
     locale,
     onPan: (x, y, dt) => {
       const step = controls.distance * 0.22 * dt;
@@ -285,6 +292,7 @@ async function boot(): Promise<void> {
     },
     onReset: () => cinematic.reset(),
   });
+  const siteBadge = createSiteBadge({ parent: dock, locale });
 
   // --- Anfitrião de experimentos (ADR 0008) -----------------------------------
   // Só um experimento fica montado por vez. Trocar desmonta o atual por
@@ -329,6 +337,7 @@ async function boot(): Promise<void> {
     current?.experiment.setLocale(next);
     current?.panel.setLocale(next);
     navPad.setLocale(next);
+    siteBadge.setLocale(next);
     switcher.setLocale(next);
     refresh();
   };

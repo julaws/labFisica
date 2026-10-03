@@ -309,6 +309,27 @@ test('tunelamento: transmissão, largura e muro abaixo da energia', async ({ pag
   await expect(page.locator('.hud__sentence')).toContainText('todos passariam');
 });
 
+test('selo: visualizações e Instagram no canto', async ({ page }, testInfo) => {
+  // O contador é um serviço externo: aqui ele responde um número fixo.
+  await page.route('https://abacus.jasoncameron.dev/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '{"value":1234}' }),
+  );
+  await openLab(page, '#/magnetic-force');
+  const badge = page.locator('.site-badge');
+  await expect(badge).toBeVisible();
+  await expect(badge.locator('.site-badge__views')).toHaveText('1.234 visualizações');
+  const link = page.getByRole('link', { name: 'Instagram de @juliophisico' });
+  await expect(link).toHaveAttribute('href', 'https://www.instagram.com/juliophisico/');
+  await expect(link).toHaveAttribute('target', '_blank');
+  if (testInfo.project.name !== 'mobile') {
+    // Ao lado da navegação, sem encostar nela.
+    const pad = await page.locator('.nav-pad').boundingBox();
+    const box = await badge.boundingBox();
+    expect(pad && box && box.x + box.width <= pad.x).toBe(true);
+  }
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-41-site-badge.png` });
+});
+
 test('orçamento do tunelamento', async ({ page }) => {
   await openLab(page, '#/tunneling');
   await page.waitForTimeout(500);

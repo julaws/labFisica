@@ -14,6 +14,14 @@ A licença CC0 do Poly Haven permite uso comercial, redistribuição e inclusão
 produto pago, sem exigência de atribuição — o crédito acima é por cortesia.
 Todo o resto da aparência é procedural, gerado em código em `src/scene/textures/`.
 
+## Serviços externos
+
+| Serviço | Para quê | O que recebe |
+|---|---|---|
+| [Abacus](https://jasoncameron.dev/abacus/) (`abacus.jasoncameron.dev`), gratuito, sem conta nem chave | contador de visualizações da página (`src/ui/site-badge.ts`) | uma requisição por aba aberta no endereço publicado (`hit`), ou só leitura (`get`) em outros endereços; nenhum dado do visitante além do que qualquer requisição HTTP carrega |
+
+Se o serviço sair do ar, o número some do selo e o link do Instagram fica.
+
 ## Fontes tipográficas
 
 | Família | Arquivo | Fonte | Licença | Obtido em |
