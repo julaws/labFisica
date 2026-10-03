@@ -3,7 +3,7 @@ import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLigh
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from './materials';
 import { PALETTE } from './materials';
-import { type PortraitWall, createPortraitWall } from './portrait-wall';
+import { PORTRAIT_FRAME, type PortraitWall, createPortraitWall } from './portrait-wall';
 import { createShelfDecor } from './shelf-decor';
 import { atomArtwork, galaxyArtwork, wallPosterTexture } from './textures/procedural';
 
@@ -58,20 +58,34 @@ const FRONT_Z = 5.5;
 const ROOM = { width: 18, depth: FRONT_Z - BACK_Z, height: 3.4, centerZ: (FRONT_Z + BACK_Z) / 2 };
 
 /**
- * Retratos, na ordem de `PORTRAITS`, em duas grades de duas colunas ao lado
- * da estante (que vai de −2,6 a 2,6 m). À esquerda, os físicos em três
- * fileiras de dois; à direita, as cientistas: duas fileiras de duas e Rosalind
- * Franklin centrada embaixo. A fileira de baixo fica acima das bancadas.
+ * Retratos lado a lado, numa fileira de cada lado da estante: os físicos à
+ * esquerda, as cientistas à direita, na ordem de `PORTRAITS`. Cada fileira
+ * ocupa quase todo o seu trecho de parede, entre a parede lateral e a estante
+ * (que vai de −2,63 a 2,63 m), com 30 cm de folga nas pontas e o mesmo vão
+ * entre quadros vizinhos.
  */
-const COLUMNS = { left: [-3.85, -3.25], right: [3.25, 3.85] } as const;
-const ROWS = [2.91, 2.18, 1.45] as const;
+const GALLERY = {
+  /** Bordas do trecho de parede de cada lado, em |x|: estante e parede lateral. */
+  inner: 2.63 + 0.3,
+  outer: ROOM.width / 2 - 0.3,
+  /** Altura do centro dos quadros, m. */
+  y: 1.88,
+  men: 6,
+  women: 5,
+} as const;
+
+/** `n` quadros espalhados por igual entre `from` e `to` (bordas, não centros). */
+function spread(n: number, from: number, to: number): number[] {
+  const width = PORTRAIT_FRAME.outer.width;
+  const pitch = n > 1 ? (to - from - width) / (n - 1) : 0;
+  return Array.from({ length: n }, (_, i) => from + width / 2 + i * pitch);
+}
+
 const PORTRAIT_POSITIONS: readonly { x: number; y: number }[] = [
-  // Newton, Einstein / Schrödinger, Heisenberg / Planck, Dirac
-  ...ROWS.flatMap((y) => COLUMNS.left.map((x) => ({ x, y }))),
-  // Curie, Noether / Meitner, Wu
-  ...ROWS.slice(0, 2).flatMap((y) => COLUMNS.right.map((x) => ({ x, y }))),
-  // Franklin
-  { x: (COLUMNS.right[0] + COLUMNS.right[1]) / 2, y: ROWS[2] },
+  // Newton, Einstein, Schrödinger, Heisenberg, Planck, Dirac
+  ...spread(GALLERY.men, -GALLERY.outer, -GALLERY.inner).map((x) => ({ x, y: GALLERY.y })),
+  // Curie, Noether, Meitner, Wu, Franklin
+  ...spread(GALLERY.women, GALLERY.inner, GALLERY.outer).map((x) => ({ x, y: GALLERY.y })),
 ];
 
 export function createLabRoom(materials: MaterialLibrary): LabRoom {

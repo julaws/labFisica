@@ -15,9 +15,9 @@ Cada bancada tem uma placa prateada com as equações do experimento: a das lent
 Schrödinger, as da força magnética e a da corrente de tunelamento.
 
 Na parede do fundo, logo atrás das bancadas, uma galeria de retratos em preto e
-branco, em duas grades ao lado da estante: à esquerda Newton, Einstein, Schrödinger,
-Heisenberg, Planck e Dirac; à direita Marie Curie, Emmy Noether, Lise Meitner,
-Chien-Shiung Wu e Rosalind Franklin. Cada um tem a placa dourada do nome e dos anos.
+branco, lado a lado, numa fileira de cada lado da estante: à esquerda Newton,
+Einstein, Schrödinger, Heisenberg, Planck e Dirac; à direita Marie Curie, Emmy Noether,
+Lise Meitner, Chien-Shiung Wu e Rosalind Franklin. Cada um tem a placa dourada do nome e dos anos.
 Clique num quadro: ele sai da parede para a frente da tela, nítido, com uma biografia
 curta; clique de novo e ele volta. Na prateleira do meio, enfeites de física: globo,
 telescópio, átomo, foguete, pêndulo de Newton e ímã.

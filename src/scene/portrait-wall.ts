@@ -5,18 +5,19 @@ import type { MaterialLibrary } from './materials';
 import { nameplateAtlasTexture } from './textures/procedural';
 
 /**
- * Galeria da parede do fundo: onze retratos em preto e branco em duas grades
- * de duas colunas, uma de cada lado da estante — os físicos à esquerda (três
- * fileiras de dois) e as cientistas à direita, com Marie Curie. Cada quadro
- * tem a placa dourada do nome e dos anos de nascimento e morte. Clicar num
- * quadro abre o retrato na frente da tela (`ui/portrait-viewer.ts`).
+ * Galeria da parede do fundo: onze retratos em preto e branco, lado a lado,
+ * numa fileira de cada lado da estante — os físicos à esquerda e as
+ * cientistas à direita. Cada quadro tem a placa dourada do nome e dos anos de
+ * nascimento e morte e uma luminária por cima. Clicar num quadro abre o
+ * retrato na frente da tela (`ui/portrait-viewer.ts`).
  *
  * As fotos (Wikimedia Commons, ver CREDITS.md) já vêm recortadas, em tons de
  * cinza e com o passe-partout desenhado, num JPEG só (atlas 4 × 3); cada uma
  * tem também uma versão ampliada em `hd/`.
  *
  * Orçamento (SPEC §8): uma malha para todas as fotos, uma para as molduras,
- * uma para o latão (filetes e calços) e uma para as placas. Nada faz sombra.
+ * uma para o latão (filetes, calços e luminárias), uma para as placas e uma
+ * para as lâmpadas acesas. Nada faz sombra.
  */
 
 export interface Portrait {
@@ -69,11 +70,11 @@ export const PORTRAIT_ATLAS = {
 } as const;
 
 /**
- * Tamanho do quadro, em metros: moldura e passe-partout. Em grade de três
- * fileiras, os quadros são 72% do tamanho da primeira galeria (0,62 × 0,80 m),
- * para caberem entre as bancadas e o teto.
+ * Tamanho do quadro, em metros: moldura e passe-partout. `SIZE` escala tudo
+ * junto (moldura, placa, filete); numa fileira só, os quadros têm o tamanho
+ * cheio, 0,62 × 0,80 m.
  */
-const SIZE = 0.72;
+const SIZE = 1;
 export const PORTRAIT_FRAME = {
   outer: { width: 0.62 * SIZE, height: 0.8 * SIZE },
   mat: { width: 0.52 * SIZE, height: 0.7 * SIZE },
@@ -81,7 +82,7 @@ export const PORTRAIT_FRAME = {
 
 export interface PortraitWall {
   readonly group: THREE.Group;
-  /** Objetos com bloom (nenhum por enquanto: a galeria não tem luminárias). */
+  /** Lâmpadas das luminárias, para o bloom. */
   readonly glowing: THREE.Object3D[];
   /** Malhas que o clique testa: fotos e molduras. */
   readonly targets: THREE.Object3D[];
@@ -120,6 +121,7 @@ export function createPortraitWall({ materials, positions, wallZ }: PortraitWall
   const frameParts: THREE.BufferGeometry[] = [];
   const brassParts: THREE.BufferGeometry[] = [];
   const plateParts: THREE.BufferGeometry[] = [];
+  const bulbParts: THREE.BufferGeometry[] = [];
 
   const outerW = MAT.width + BAR * 2;
   const outerH = MAT.height + BAR * 2;
@@ -151,7 +153,7 @@ export function createPortraitWall({ materials, positions, wallZ }: PortraitWall
     );
 
     // Filete de latão na borda interna da moldura.
-    const lip = 0.006;
+    const lip = 0.008 * SIZE;
     brassParts.push(
       new THREE.BoxGeometry(MAT.width + lip * 2, lip, 0.01).translate(x, y + MAT.height / 2 + lip / 2, front - 0.004),
       new THREE.BoxGeometry(MAT.width + lip * 2, lip, 0.01).translate(x, y - MAT.height / 2 - lip / 2, front - 0.004),
@@ -159,8 +161,22 @@ export function createPortraitWall({ materials, positions, wallZ }: PortraitWall
       new THREE.BoxGeometry(lip, MAT.height, 0.01).translate(x + MAT.width / 2 + lip / 2, y, front - 0.004),
     );
 
+    // Luminária de quadro: braço curto saindo da parede e a calha por cima,
+    // com a lâmpada acesa embaixo, voltada para o quadro.
+    const lampY = y + outerH / 2 + 0.07 * SIZE;
+    brassParts.push(
+      new THREE.CylinderGeometry(0.008, 0.008, 0.14, 8).rotateX(Math.PI / 2).translate(x, lampY, wallZ + 0.07),
+      new THREE.CylinderGeometry(0.022, 0.022, 0.03, 12).rotateX(Math.PI / 2).translate(x, lampY, wallZ + 0.015),
+      new THREE.CylinderGeometry(0.026, 0.026, 0.3 * SIZE, 16).rotateZ(Math.PI / 2).translate(x, lampY, wallZ + 0.15),
+    );
+    bulbParts.push(
+      new THREE.PlaneGeometry(0.27 * SIZE, 0.02)
+        .rotateX(Math.PI / 2)
+        .translate(x, lampY - 0.027, wallZ + 0.15),
+    );
+
     // Placa dourada embaixo, sobre um calço de latão.
-    const plateY = y - outerH / 2 - 0.06;
+    const plateY = y - outerH / 2 - 0.085 * SIZE;
     const plate = new THREE.PlaneGeometry(PLATE.width, PLATE.height);
     const plateUv = plate.attributes.uv!;
     for (let i = 0; i < plateUv.count; i += 1) {
@@ -231,6 +247,11 @@ export function createPortraitWall({ materials, positions, wallZ }: PortraitWall
   const plates = new THREE.Mesh(merge(plateParts, 'as placas'), plateMaterial);
   plates.name = 'portrait-plates';
   group.add(plates);
+
+  const bulbs = new THREE.Mesh(merge(bulbParts, 'as lâmpadas'), materials.emissive(0xffe2b0, 1.6));
+  bulbs.name = 'portrait-lamps';
+  group.add(bulbs);
+  glowing.push(bulbs);
 
 
   return {

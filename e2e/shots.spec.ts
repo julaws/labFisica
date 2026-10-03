@@ -343,7 +343,8 @@ test('retratos: o quadro sai da parede e volta', async ({ page }, testInfo) => {
   );
   const center = centers[5];
   expect(center).toBeTruthy();
-  if (mobile) await page.touchscreen.tap(center!.x, center!.y);
+  // No celular o topo do quadro fica sob o HUD: toca a metade de baixo.
+  if (mobile) await page.touchscreen.tap(center!.x, center!.y + 30);
   else await page.mouse.click(center!.x, center!.y);
   const viewer = page.getByRole('dialog', { name: 'Paul Dirac' });
   await expect(viewer).toBeVisible();

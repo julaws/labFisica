@@ -82,6 +82,15 @@ vértice, mais uma de latão, uma de cromo e uma acesa (bloom).
   sob CC BY-SA 4.0. São exceções à regra do CC0, registradas em `CREDITS.md`, com o
   crédito visível no visualizador.
 
+## Revisão de 03/10/2026: lado a lado, de ponta a ponta
+
+As grades deram lugar a uma fileira de cada lado da estante, com os quadros de novo no
+tamanho cheio (0,62 × 0,80 m, centro a 1,88 m de altura) e as luminárias de volta. Cada
+fileira ocupa o trecho de parede entre a estante (|x| = 2,63 m) e a parede lateral
+(|x| = 9 m), com 30 cm de folga nas pontas e o mesmo vão entre vizinhos
+(`spread` em `lab-room.ts`): os seis físicos a cada 1,03 m (x de −8,39 a −3,24 m), as
+cinco cientistas a cada 1,29 m (x de 3,24 a 8,39 m).
+
 ## Consequências
 
 - Os textos dos cientistas citam números do motor (λ = 5,36 pm a 50 kV, 5,48 pm sem a
