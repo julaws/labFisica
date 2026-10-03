@@ -1035,6 +1035,170 @@ button {
   outline-offset: 2px;
 }
 
+/* --- Retrato em primeiro plano ------------------------------------------------ */
+
+/* O quadro sai da parede para a frente da tela (ui/portrait-viewer.ts). */
+.portrait-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  /* Centrado com margem automática: se o texto não couber (celular deitado),
+     rola em vez de cortar o topo. */
+  display: flex;
+  padding: 24px 16px;
+  overflow-y: auto;
+}
+
+.portrait-viewer[hidden] {
+  display: none;
+}
+
+.portrait-viewer__backdrop {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(8, 11, 20, 0.55), rgba(5, 7, 13, 0.82));
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  opacity: 0;
+  transition: opacity 420ms ease;
+}
+
+.portrait-viewer--open .portrait-viewer__backdrop {
+  opacity: 1;
+}
+
+.portrait-viewer__stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: min(620px, 100%);
+  margin: auto;
+}
+
+.portrait-viewer__frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: min(56vh, 540px);
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  /* Laca preta com brilho na quina, como a moldura da parede. */
+  background: linear-gradient(145deg, #2a2a2e, #0c0c0e 40%, #050506);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 30px 80px -20px rgba(0, 0, 0, 0.85);
+  cursor: zoom-out;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.portrait-viewer__frame:focus {
+  outline: none;
+}
+
+.portrait-viewer__frame:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+}
+
+/* Filete de latão na borda interna. */
+.portrait-viewer__mat {
+  position: relative;
+  display: block;
+  box-shadow: 0 0 0 3px #a8752e;
+}
+
+.portrait-viewer__photo {
+  position: absolute;
+  display: block;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+
+.portrait-viewer__photo--ready {
+  opacity: 1;
+}
+
+.portrait-viewer__text {
+  width: 100%;
+  padding: 18px 22px 20px;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  opacity: 0;
+  transform: translateY(10px);
+  transition:
+    opacity 300ms ease,
+    transform 300ms ease;
+}
+
+.portrait-viewer--open .portrait-viewer__text {
+  opacity: 1;
+  transform: none;
+  transition-delay: 380ms;
+}
+
+.portrait-viewer__name {
+  margin: 0;
+  font: 700 24px/1.15 var(--font-sans);
+  color: var(--text);
+}
+
+.portrait-viewer__years {
+  margin: 4px 0 12px;
+  font: 500 12px/1.4 var(--font-mono);
+  letter-spacing: 0.04em;
+  color: #e0b25e;
+}
+
+.portrait-viewer__advances,
+.portrait-viewer__benches {
+  margin: 0;
+  font: 400 15px/1.5 var(--font-sans);
+  color: var(--soft);
+}
+
+.portrait-viewer__benches {
+  margin-top: 10px;
+  color: var(--text);
+}
+
+@media (max-width: 820px) {
+  .portrait-viewer__frame {
+    height: min(44vh, 420px);
+  }
+
+  .portrait-viewer__stage {
+    gap: 14px;
+  }
+
+  .portrait-viewer__text {
+    padding: 14px 16px;
+  }
+
+  .portrait-viewer__name {
+    font-size: 20px;
+  }
+
+  .portrait-viewer__advances,
+  .portrait-viewer__benches {
+    font-size: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portrait-viewer__backdrop,
+  .portrait-viewer__text {
+    transition: none;
+  }
+}
+
 /* --- Modal ------------------------------------------------------------------ */
 
 .modal-backdrop {

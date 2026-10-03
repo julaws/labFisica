@@ -97,6 +97,7 @@ const STRINGS = {
     zoomOut: 'Afastar',
     pageViewsLabel: 'Visualizações da página',
     instagram: 'Instagram de @juliophisico',
+    portraitBack: 'Devolver o quadro à parede',
   },
   en: {
     loading: 'Polishing the glass…',
@@ -123,6 +124,7 @@ const STRINGS = {
     zoomOut: 'Zoom out',
     pageViewsLabel: 'Page views',
     instagram: '@juliophisico on Instagram',
+    portraitBack: 'Put the portrait back on the wall',
   },
 } as const;
 

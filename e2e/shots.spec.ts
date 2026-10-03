@@ -333,6 +333,30 @@ test('selo: visualizações e Instagram no canto', async ({ page }, testInfo) =>
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-41-site-badge.png` });
 });
 
+test('retratos: o quadro sai da parede e volta', async ({ page }, testInfo) => {
+  await openLab(page, '#/tunneling');
+  const mobile = testInfo.project.name === 'mobile';
+  // Marie Curie no desktop; Paul Dirac no celular (o HUD cobre o centro dela).
+  const index = mobile ? 5 : 6;
+  type Centers = ({ x: number; y: number } | null)[];
+  const centers = await page.evaluate(
+    (): Centers => (window as unknown as { __labPortraits?: () => Centers }).__labPortraits?.() ?? [],
+  );
+  const center = centers[index];
+  expect(center).toBeTruthy();
+  const x = center!.x;
+  const y = center!.y + (mobile ? 45 : 0);
+  if (mobile) await page.touchscreen.tap(x, y);
+  else await page.mouse.click(x, y);
+  const viewer = page.getByRole('dialog', { name: mobile ? 'Paul Dirac' : 'Marie Curie' });
+  await expect(viewer).toBeVisible();
+  await expect(viewer).toContainText('Nas bancadas');
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-42-portrait.png` });
+  await page.getByRole('button', { name: 'Devolver o quadro à parede' }).click();
+  await expect(viewer).toBeHidden();
+});
+
 test('orçamento do tunelamento', async ({ page }) => {
   await openLab(page, '#/tunneling');
   await page.waitForTimeout(500);

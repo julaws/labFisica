@@ -31,6 +31,8 @@ import { createHud } from './ui/hud';
 import { createPanel } from './ui/panel';
 import { createNavPad } from './ui/nav-pad';
 import { createSiteBadge } from './ui/site-badge';
+import { type ScreenRect, createPortraitViewer } from './ui/portrait-viewer';
+import { PORTRAITS, PORTRAIT_ATLAS, PORTRAIT_FRAME } from './scene/portrait-wall';
 import { createModal } from './ui/modal';
 import { type Locale, preferredLocale, rememberLocale } from './ui/i18n';
 
@@ -40,6 +42,8 @@ declare global {
     __labReady?: boolean;
     /** Diagnóstico exposto para as capturas e para o painel de estatísticas. */
     __lab?: { fps: number; frameMs: number; quality: string; drawCalls: number; triangles: number };
+    /** Centro de cada quadro da parede na tela (px CSS), para os testes clicarem. */
+    __labPortraits?: () => ({ x: number; y: number } | null)[];
   }
 }
 
@@ -294,6 +298,61 @@ async function boot(): Promise<void> {
   });
   const siteBadge = createSiteBadge({ parent: dock, locale });
 
+  // --- Retratos da parede (ADR 0012) ------------------------------------------
+  // Clicar num quadro o traz para a frente da tela; clicar de novo o devolve.
+  const portraitImages = import.meta.glob<string>('./assets/portraits/hd/*.jpg', {
+    query: '?url',
+    import: 'default',
+    eager: true,
+  });
+  /** Retângulo do quadro na tela, projetado pela câmera; null se atrás dela. */
+  const portraitRect = (index: number): ScreenRect | null => {
+    const rect = canvas.getBoundingClientRect();
+    let left = Infinity;
+    let top = Infinity;
+    let right = -Infinity;
+    let bottom = -Infinity;
+    for (const corner of room.portraits.corners(index)) {
+      corner.project(camera);
+      if (corner.z > 1) return null;
+      const x = rect.left + ((corner.x + 1) / 2) * rect.width;
+      const y = rect.top + ((1 - corner.y) / 2) * rect.height;
+      left = Math.min(left, x);
+      right = Math.max(right, x);
+      top = Math.min(top, y);
+      bottom = Math.max(bottom, y);
+    }
+    return { left, top, width: right - left, height: bottom - top };
+  };
+  const portraitViewer = createPortraitViewer({
+    parent: document.body,
+    locale,
+    entries: PORTRAITS.map((portrait) => ({
+      ...portrait,
+      imageUrl: portraitImages[`./assets/portraits/hd/${portrait.id}.jpg`] ?? '',
+    })),
+    atlas: PORTRAIT_ATLAS,
+    frame: {
+      aspect: PORTRAIT_FRAME.outer.width / PORTRAIT_FRAME.outer.height,
+      matWidth: PORTRAIT_FRAME.mat.width / PORTRAIT_FRAME.outer.width,
+      matHeight: PORTRAIT_FRAME.mat.height / PORTRAIT_FRAME.outer.height,
+    },
+    sourceRect: portraitRect,
+    onOpen: (index) => room.portraits.setHidden(index, true),
+    onClosed: (index) => room.portraits.setHidden(index, false),
+  });
+  input.registerClickable({
+    targets: room.portraits.targets,
+    cursor: 'zoom-in',
+    occluders: () => scene,
+    onClick: (hit) => portraitViewer.open(room.portraits.indexAt(hit.point)),
+  });
+  window.__labPortraits = () =>
+    PORTRAITS.map((_, index) => {
+      const rect = portraitRect(index);
+      return rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
+    });
+
   // --- Anfitrião de experimentos (ADR 0008) -----------------------------------
   // Só um experimento fica montado por vez. Trocar desmonta o atual por
   // inteiro — malhas, brilho, etiquetas, teclas, painel — e monta o outro na
@@ -338,6 +397,7 @@ async function boot(): Promise<void> {
     current?.panel.setLocale(next);
     navPad.setLocale(next);
     siteBadge.setLocale(next);
+    portraitViewer.setLocale(next);
     switcher.setLocale(next);
     refresh();
   };

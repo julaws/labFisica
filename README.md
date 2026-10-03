@@ -14,9 +14,11 @@ setas `←` `→` ou pelo endereço:
 Cada bancada tem uma placa prateada com as equações do experimento: a das lentes, a de
 Schrödinger, as da força magnética e a da corrente de tunelamento.
 
-Na parede do fundo, dos dois lados da estante, uma galeria de retratos em preto e
-branco (Newton, Einstein, Schrödinger, Heisenberg, Planck e Dirac), cada um com a
-placa dourada do nome e dos anos; na prateleira do meio, enfeites de física: globo,
+Na parede do fundo, logo atrás das bancadas, uma galeria de retratos em preto e
+branco (Newton, Einstein, Schrödinger, Heisenberg, Planck, Dirac e Marie Curie), cada
+um com a placa dourada do nome e dos anos. Clique num quadro: ele sai da parede para a
+frente da tela, nítido, com um texto curto sobre o que o cientista trouxe para a física
+e onde isso aparece nas bancadas; clique de novo e ele volta. Na prateleira do meio, enfeites de física: globo,
 telescópio, átomo, foguete, pêndulo de Newton e ímã.
 
 No canto inferior direito, ao lado da navegação, dois botões só com ícone: o olho
