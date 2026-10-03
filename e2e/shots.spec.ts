@@ -317,8 +317,11 @@ test('selo: visualizações e Instagram no canto', async ({ page }, testInfo) =>
   await openLab(page, '#/magnetic-force');
   const badge = page.locator('.site-badge');
   await expect(badge).toBeVisible();
-  await expect(badge.locator('.site-badge__views')).toHaveText('1.234 visualizações');
+  // Só o olho e o número; o nome fica no rótulo acessível.
+  await expect(badge.locator('.site-badge__views')).toHaveText('1.234');
+  await expect(badge.locator('.site-badge__views')).toHaveAttribute('aria-label', 'Visualizações da página: 1.234');
   const link = page.getByRole('link', { name: 'Instagram de @juliophisico' });
+  await expect(link).toHaveText('');
   await expect(link).toHaveAttribute('href', 'https://www.instagram.com/juliophisico/');
   await expect(link).toHaveAttribute('target', '_blank');
   if (testInfo.project.name !== 'mobile') {

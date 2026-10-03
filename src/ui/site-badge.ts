@@ -1,8 +1,10 @@
 import { type Locale, formatNumber, t } from './i18n';
 
 /**
- * Selo do canto inferior direito, ao lado da navegação: o contador de
- * visualizações da página e o link para o Instagram do autor.
+ * Canto inferior direito, ao lado da navegação, dois botões de vidro
+ * separados, só com ícone: o olho com o número de visualizações da página e o
+ * link para o Instagram do autor. Os nomes ficam no `title` e no rótulo
+ * acessível.
  *
  * O contador é o Abacus (abacus.jasoncameron.dev), um serviço gratuito e
  * aberto, sem conta nem chave: `hit` soma um e devolve o total, `get` só lê.
@@ -75,18 +77,17 @@ export function createSiteBadge({ parent, locale: initialLocale }: SiteBadgeOpti
   const counter = document.createElement('p');
   counter.className = 'site-badge__views';
   counter.hidden = true;
+  counter.setAttribute('role', 'status');
   const value = document.createElement('strong');
-  const unit = document.createElement('span');
   counter.innerHTML = EYE_ICON;
-  // O espaço é para o leitor de tela; na tela, quem separa é o `gap`.
-  counter.append(value, ' ', unit);
+  counter.append(value);
 
   const link = document.createElement('a');
   link.className = 'site-badge__link';
   link.href = INSTAGRAM_URL;
   link.target = '_blank';
   link.rel = 'noopener noreferrer';
-  link.innerHTML = `${CAMERA_ICON}<span>@juliophisico</span>`;
+  link.innerHTML = CAMERA_ICON;
 
   element.append(counter, link);
   parent.prepend(element);
@@ -94,9 +95,10 @@ export function createSiteBadge({ parent, locale: initialLocale }: SiteBadgeOpti
   const render = (): void => {
     link.title = t('instagram', locale);
     link.setAttribute('aria-label', t('instagram', locale));
-    counter.title = t('pageViewsLabel', locale);
-    unit.textContent = t(views === 1 ? 'pageView' : 'pageViews', locale);
     if (views !== null) {
+      const label = `${t('pageViewsLabel', locale)}: ${formatNumber(views, 0, locale)}`;
+      counter.title = label;
+      counter.setAttribute('aria-label', label);
       value.textContent = formatNumber(views, 0, locale);
       counter.hidden = false;
     }
