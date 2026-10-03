@@ -1,28 +1,35 @@
 import * as THREE from 'three';
-import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
-import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
-import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import type { HelixPath, Vec3 } from '../../optics/fields/lorentz';
 
 /**
- * Rastros luminosos dos elétrons (ADR 0010), como numa câmara de bolhas ou no
- * gás de um tubo de feixe fino.
+ * Rastros luminosos dos elétrons (ADR 0010), como no gás de um tubo de feixe
+ * fino ou numa câmara de bolhas, calculados **na placa de vídeo**.
  *
- * - Cada conjunto de trajetórias calculado vira um **instantâneo**. O atual
- *   brilha fixo; quando o campo muda, o anterior esmaece em ~1 s. Arrastar um
- *   slider deixa um leque de arcos se apagando — o "desenho" do campo.
- * - Tudo num único `LineSegments2` (um draw call). O esmaecimento vem de um
- *   atributo por segmento, a hora em que ele deixou de ser o atual, lido no
- *   shader. O buffer só é reescrito quando entra um instantâneo ou um antigo
- *   termina de apagar, e só guarda os vivos: parado, desenha só o atual.
- * - Pontos claros percorrem as trajetórias atuais: são os elétrons.
+ * A trajetória de cada elétron é uma fórmula do motor (`HelixPath`):
+ * r(s) = origem + a·s + u·sen s + w·(1 − cos s). A geometria das linhas é
+ * fixa — para cada elétron, um trecho reto do canhão à câmara e 240
+ * segmentos da hélice, com s normalizado — e o vertex shader avalia a fórmula
+ * com os parâmetros de cada elétron, lidos de uma textura de dados pequena
+ * (`texelFetch`). Uniforms em array com índice dinâmico seriam o caminho
+ * óbvio, mas no Direct3D viram um código lentíssimo: 130 ms por quadro.
+ *
+ * Mudar o campo, então, só troca uns poucos números. Antes, cada mudança
+ * reescrevia milhares de vértices, e o Direct3D (via ANGLE) parava a GPU por
+ * até 1 s a cada reescrita.
+ *
+ * - Cada recálculo é um **instantâneo** de até 5 elétrons. O atual brilha
+ *   fixo; os 5 anteriores esmaecem: arrastar um slider deixa um leque de
+ *   arcos se apagando.
+ * - Pontos claros andam pelas trajetórias atuais (os elétrons), também
+ *   posicionados no shader, por um relógio.
+ * - As linhas têm largura em pixels, com borda suave.
  */
 
-export interface TrackPath {
-  /** Pontos xyz em sequência, no referencial do grupo. */
-  readonly points: Float32Array;
+export interface TrackSpec {
+  readonly path: HelixPath;
+  /** Ponta do canhão: o trecho reto vai daqui até a origem da hélice. */
+  readonly nozzle: Vec3;
   readonly color: THREE.Color;
-  /** Brilho de 0 a 1 (elétrons barrados no seletor saem mais fracos). */
-  readonly intensity: number;
   /** Velocidade desenhada dos pontos, m/s de cena. */
   readonly speed: number;
 }
@@ -31,237 +38,271 @@ export interface ElectronTracks {
   readonly group: THREE.Group;
   readonly glowing: THREE.Object3D[];
   /** Troca as trajetórias atuais; as anteriores esmaecem. */
-  push(paths: readonly TrackPath[], now: number): void;
-  setResolution(width: number, height: number): void;
+  push(tracks: readonly TrackSpec[], now: number): void;
+  /** Tamanho do buffer de desenho, em pixels do dispositivo, e a densidade de pixels. */
+  setResolution(width: number, height: number, pixelRatio: number): void;
   update(dt: number, now: number): void;
   dispose(): void;
 }
 
-/** Segmentos no buffer, somando o atual e os que ainda esmaecem. */
-const TOTAL = 40000;
+const SNAPSHOTS = 6;
+const PER_SNAPSHOT = 5;
+const SLOTS = SNAPSHOTS * PER_SNAPSHOT;
+const SEGMENTS = 240;
 /** Tempo de esmaecimento de um rastro antigo, s. */
-const FADE = 0.45;
-const PULSES_PER_PATH = 3;
-const MAX_PULSES = 16 * PULSES_PER_PATH;
-/** Ainda vivo: `death` maior que qualquer tempo de relógio. */
+const FADE = 0.25;
+const PULSES_PER_TRACK = 3;
 const ALIVE = 1e9;
-/** Depois disso um rastro antigo já não aparece e sai do buffer, s. */
-const GONE = FADE * 7;
+const LINE_WIDTH = 2.4;
 
-interface Snapshot {
-  /** xyz, xyz por segmento. */
-  readonly positions: Float32Array;
-  readonly colors: Float32Array;
-  readonly count: number;
-  death: number;
-}
+/** Colunas da textura de parâmetros: um texel RGBA por vetor, uma linha por elétron. */
+const COLUMNS = 6;
+
+const PATH_GLSL = /* glsl */ `
+  uniform highp sampler2D uParams;
+  uniform vec3 uNozzle;
+  // Coluna 0: origem e fim; 1: a e hora da morte; 2: u; 3: w; 4: cor;
+  // 5: comprimento do trecho reto, comprimento por unidade, total, velocidade.
+  vec4 param(int k, int column) {
+    return texelFetch(uParams, ivec2(column, k), 0);
+  }
+  vec3 pathPoint(int k, float s) {
+    return param(k, 0).xyz + param(k, 1).xyz * s + param(k, 2).xyz * sin(s) + param(k, 3).xyz * (1.0 - cos(s));
+  }
+`;
 
 export function createElectronTracks(): ElectronTracks {
   const group = new THREE.Group();
   group.name = 'electron-tracks';
 
-  // --- Linhas ------------------------------------------------------------------
-  const geometry = new LineSegmentsGeometry();
-  geometry.setPositions(new Float32Array(TOTAL * 6));
-  geometry.setColors(new Float32Array(TOTAL * 6));
-  const death = new Float32Array(TOTAL).fill(-ALIVE);
-  const deathAttribute = new THREE.InstancedBufferAttribute(death, 1);
-  geometry.setAttribute('instanceDeath', deathAttribute);
-  const positionBuffer = (geometry.attributes.instanceStart as THREE.InterleavedBufferAttribute).data;
-  const colorBuffer = (geometry.attributes.instanceColorStart as THREE.InterleavedBufferAttribute).data;
-  const positions = positionBuffer.array as Float32Array;
-  const colors = colorBuffer.array as Float32Array;
+  // Parâmetros de cada espaço, numa textura de ponto flutuante.
+  const params = new Float32Array(COLUMNS * SLOTS * 4);
+  const texture = new THREE.DataTexture(params, COLUMNS, SLOTS, THREE.RGBAFormat, THREE.FloatType);
+  texture.minFilter = THREE.NearestFilter;
+  texture.magFilter = THREE.NearestFilter;
+  texture.needsUpdate = true;
+  const at = (slot: number, column: number): number => (slot * COLUMNS + column) * 4;
+  const write = (slot: number, column: number, x: number, y: number, z: number, w: number): void => {
+    params.set([x, y, z, w], at(slot, column));
+  };
+  for (let slot = 0; slot < SLOTS; slot += 1) params[at(slot, 1) + 3] = -ALIVE;
+  const nozzle = new THREE.Vector3();
+  const shared = { uParams: { value: texture }, uNozzle: { value: nozzle } };
+
+  // --- Linhas: quads por instância, geometria fixa -----------------------------
+  const lineGeometry = new THREE.InstancedBufferGeometry();
+  // O canto de cada quad (início ou fim, lado) vai em `aCorner`; `position`
+  // fica zerado de propósito. Passagens do pós-processamento que desenham a
+  // cena com um material substituto (máscara do bloom, profundidade) usam
+  // `position` direto: com o quad nele, cada instância virava um quadrado de
+  // 1 × 2 m no mesmo lugar, milhares de camadas — 33 ms por quadro. Zerado,
+  // vira triângulo de área nula e não custa nada.
+  lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(12), 3));
+  lineGeometry.setAttribute('aCorner', new THREE.Float32BufferAttribute([0, -1, 0, 1, 1, -1, 1, 1], 2));
+  lineGeometry.setIndex([0, 2, 1, 2, 3, 1]);
+  const instances = SLOTS * (SEGMENTS + 1);
+  const slotOf = new Float32Array(instances);
+  const s0 = new Float32Array(instances);
+  const s1 = new Float32Array(instances);
+  const neck = new Float32Array(instances);
+  let n = 0;
+  for (let slot = 0; slot < SLOTS; slot += 1) {
+    slotOf[n] = slot;
+    neck[n] = 1;
+    n += 1;
+    for (let i = 0; i < SEGMENTS; i += 1) {
+      slotOf[n] = slot;
+      s0[n] = i / SEGMENTS;
+      s1[n] = (i + 1) / SEGMENTS;
+      n += 1;
+    }
+  }
+  lineGeometry.setAttribute('aSlot', new THREE.InstancedBufferAttribute(slotOf, 1));
+  lineGeometry.setAttribute('aS0', new THREE.InstancedBufferAttribute(s0, 1));
+  lineGeometry.setAttribute('aS1', new THREE.InstancedBufferAttribute(s1, 1));
+  lineGeometry.setAttribute('aNeck', new THREE.InstancedBufferAttribute(neck, 1));
+  lineGeometry.instanceCount = instances;
 
   const time = { value: 0 };
-  const material = new LineMaterial({
-    linewidth: 2.4,
-    vertexColors: true,
+  const resolution = { value: new THREE.Vector2(1, 1) };
+  const width = { value: LINE_WIDTH };
+  const lineMaterial = new THREE.ShaderMaterial({
+    uniforms: { ...shared, uTime: time, uResolution: resolution, uWidth: width },
+    vertexShader: /* glsl */ `
+      attribute float aSlot;
+      attribute float aS0;
+      attribute float aS1;
+      attribute float aNeck;
+      attribute vec2 aCorner;
+      uniform vec2 uResolution;
+      uniform float uWidth;
+      uniform float uTime;
+      varying vec3 vColor;
+      varying float vSide;
+      ${PATH_GLSL}
+      void main() {
+        int k = int(aSlot + 0.5);
+        vec4 start = param(k, 0);
+        float end = start.w;
+        vec3 p0 = aNeck > 0.5 ? uNozzle : pathPoint(k, aS0 * end);
+        vec3 p1 = aNeck > 0.5 ? start.xyz : pathPoint(k, aS1 * end);
+        vec4 c0 = projectionMatrix * modelViewMatrix * vec4(p0, 1.0);
+        vec4 c1 = projectionMatrix * modelViewMatrix * vec4(p1, 1.0);
+        // Direção do segmento na tela, em pixels; a largura sai em pixels.
+        vec2 d = (c1.xy / c1.w - c0.xy / c0.w) * uResolution;
+        float len = length(d);
+        vec2 dir = len > 1e-6 ? d / len : vec2(1.0, 0.0);
+        vec2 normal = vec2(-dir.y, dir.x);
+        vec4 c = aCorner.x < 0.5 ? c0 : c1;
+        c.xy += normal * aCorner.y * uWidth / uResolution * c.w;
+        gl_Position = c;
+        float death = param(k, 1).w;
+        float fade = death > uTime ? 1.0 : exp(-(uTime - death) / ${FADE.toFixed(2)});
+        vColor = param(k, 4).rgb * fade;
+        vSide = aCorner.y;
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      varying vec3 vColor;
+      varying float vSide;
+      void main() {
+        // Borda suave: mais claro no meio da linha.
+        float a = 1.0 - vSide * vSide;
+        gl_FragColor = vec4(vColor * a, 1.0);
+      }
+    `,
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
-    toneMapped: false,
   });
-  material.onBeforeCompile = (shader): void => {
-    shader.uniforms.uTime = time;
-    shader.vertexShader = shader.vertexShader
-      .replace('void main() {', 'attribute float instanceDeath;\nuniform float uTime;\nvoid main() {')
-      .replace(
-        'vColor.xyz = ( position.y < 0.5 ) ? instanceColorStart : instanceColorEnd;',
-        `vColor.xyz = ( position.y < 0.5 ) ? instanceColorStart : instanceColorEnd;
-        vColor.xyz *= instanceDeath > uTime ? 1.0 : exp( -( uTime - instanceDeath ) / ${FADE.toFixed(2)} );`,
-      );
-  };
-  material.customProgramCacheKey = (): string => 'electron-tracks-v1';
-
-  const lines = new LineSegments2(geometry, material);
+  const lines = new THREE.Mesh(lineGeometry, lineMaterial);
   lines.frustumCulled = false;
   lines.name = 'electron-track-lines';
   group.add(lines);
 
-  // --- Elétrons: pontos que andam pelas trajetórias ----------------------------
-  const DOT = 32;
-  const dotPixels = new Uint8Array(DOT * DOT * 4);
-  for (let y = 0; y < DOT; y += 1) {
-    for (let x = 0; x < DOT; x += 1) {
-      const r = Math.hypot(x + 0.5 - DOT / 2, y + 0.5 - DOT / 2) / (DOT / 2);
-      dotPixels.set([255, 255, 255, Math.round(Math.max(0, 1 - r) ** 1.5 * 255)], (y * DOT + x) * 4);
-    }
-  }
-  const dotTexture = new THREE.DataTexture(dotPixels, DOT, DOT, THREE.RGBAFormat);
-  dotTexture.magFilter = THREE.LinearFilter;
-  dotTexture.minFilter = THREE.LinearFilter;
-  dotTexture.needsUpdate = true;
-
-  const pulsePositions = new Float32Array(MAX_PULSES * 3).fill(-1000);
-  const pulseColors = new Float32Array(MAX_PULSES * 3);
+  // --- Elétrons: pontos que andam pelas trajetórias atuais ---------------------
+  // Por elétron atual: comprimento do trecho reto, comprimento por unidade de
+  // s, comprimento total e velocidade desenhada.
+  const base = { value: 0 };
+  const clock = { value: 0 };
   const pulseGeometry = new THREE.BufferGeometry();
-  pulseGeometry.setAttribute('position', new THREE.BufferAttribute(pulsePositions, 3));
-  pulseGeometry.setAttribute('color', new THREE.BufferAttribute(pulseColors, 3));
-  const pulseMaterial = new THREE.PointsMaterial({
-    map: dotTexture,
-    size: 0.022,
-    vertexColors: true,
+  const pulseCount = PER_SNAPSHOT * PULSES_PER_TRACK;
+  const pulseTrack = new Float32Array(pulseCount);
+  const pulsePhase = new Float32Array(pulseCount);
+  for (let i = 0; i < pulseCount; i += 1) {
+    pulseTrack[i] = Math.floor(i / PULSES_PER_TRACK);
+    pulsePhase[i] = (i % PULSES_PER_TRACK) / PULSES_PER_TRACK;
+  }
+  // A posição real sai do shader; este atributo só dá o número de vértices.
+  pulseGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pulseCount * 3), 3));
+  pulseGeometry.setAttribute('aTrack', new THREE.BufferAttribute(pulseTrack, 1));
+  pulseGeometry.setAttribute('aPhase', new THREE.BufferAttribute(pulsePhase, 1));
+  const pulseMaterial = new THREE.ShaderMaterial({
+    uniforms: { ...shared, uBase: base, uClock: clock, uSize: { value: 0.022 }, uResolution: resolution },
+    vertexShader: /* glsl */ `
+      attribute float aTrack;
+      attribute float aPhase;
+      uniform float uBase;
+      uniform float uClock;
+      uniform float uSize;
+      uniform vec2 uResolution;
+      varying vec3 vColor;
+      ${PATH_GLSL}
+      void main() {
+        int k = int(uBase + 0.5) + int(aTrack + 0.5);
+        vec4 m = param(k, 5);
+        if (m.z <= 0.0) {
+          gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
+          return;
+        }
+        // Cada ponto percorre o caminho e recomeça no canhão.
+        float s = mod(uClock * m.w + aPhase * m.z, m.z);
+        vec3 p = s < m.x
+          ? mix(uNozzle, param(k, 0).xyz, s / m.x)
+          : pathPoint(k, min((s - m.x) / m.y, param(k, 0).w));
+        vec4 view = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * view;
+        // Tamanho em perspectiva, como o PointsMaterial: metade da altura da tela.
+        gl_PointSize = uSize * projectionMatrix[1][1] * 0.5 * uResolution.y / -view.z;
+        vColor = min(param(k, 4).rgb * 1.6 + 0.3, vec3(1.0));
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      varying vec3 vColor;
+      void main() {
+        float r = length(gl_PointCoord - 0.5) * 2.0;
+        float a = pow(max(0.0, 1.0 - r), 1.5);
+        gl_FragColor = vec4(vColor * a, 1.0);
+      }
+    `,
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
-    toneMapped: false,
   });
   const pulses = new THREE.Points(pulseGeometry, pulseMaterial);
   pulses.frustumCulled = false;
   pulses.name = 'electron-pulses';
   group.add(pulses);
 
-  /** Trajetórias atuais, com o comprimento acumulado de cada ponto. */
-  let current: { points: Float32Array; cumulative: Float32Array; speed: number; color: THREE.Color }[] = [];
-  let snapshots: Snapshot[] = [];
-  let clock = 0;
-
-  /** Reescreve o buffer com os instantâneos vivos, o atual por último. */
-  const rebuild = (): void => {
-    let offset = 0;
-    for (const snapshot of snapshots) {
-      const count = Math.min(snapshot.count, TOTAL - offset);
-      if (count <= 0) break;
-      positions.set(snapshot.positions.subarray(0, count * 6), offset * 6);
-      colors.set(snapshot.colors.subarray(0, count * 6), offset * 6);
-      death.fill(snapshot.death, offset, offset + count);
-      offset += count;
-    }
-    geometry.instanceCount = offset;
-    if (offset === 0) return;
-    // Só o trecho usado sobe para a GPU.
-    positionBuffer.clearUpdateRanges();
-    positionBuffer.addUpdateRange(0, offset * 6);
-    colorBuffer.clearUpdateRanges();
-    colorBuffer.addUpdateRange(0, offset * 6);
-    deathAttribute.clearUpdateRanges();
-    deathAttribute.addUpdateRange(0, offset);
-    positionBuffer.needsUpdate = true;
-    colorBuffer.needsUpdate = true;
-    deathAttribute.needsUpdate = true;
-  };
+  let snapshot = -1;
 
   return {
     group,
     glowing: [lines, pulses],
 
-    push(paths, now): void {
-      for (const snapshot of snapshots) if (snapshot.death >= ALIVE) snapshot.death = now;
-      // O atual vai primeiro na conta de espaço: os antigos cedem lugar.
-      let count = 0;
-      for (const path of paths) count += Math.max(0, path.points.length / 3 - 1);
-      count = Math.min(count, TOTAL);
-      const positionsOut = new Float32Array(count * 6);
-      const colorsOut = new Float32Array(count * 6);
-      let segment = 0;
-      for (const path of paths) {
-        const p = path.points;
-        const r = path.color.r * path.intensity;
-        const g = path.color.g * path.intensity;
-        const b = path.color.b * path.intensity;
-        for (let i = 0; i + 5 < p.length && segment < count; i += 3) {
-          positionsOut.set([p[i]!, p[i + 1]!, p[i + 2]!, p[i + 3]!, p[i + 4]!, p[i + 5]!], segment * 6);
-          colorsOut.set([r, g, b, r, g, b], segment * 6);
-          segment += 1;
+    push(tracks, now): void {
+      // O instantâneo atual passa a esmaecer a partir de agora.
+      if (snapshot >= 0) {
+        for (let i = 0; i < PER_SNAPSHOT; i += 1) {
+          const index = at(snapshot * PER_SNAPSHOT + i, 1) + 3;
+          if (params[index]! >= ALIVE) params[index] = now;
         }
       }
-      const fresh: Snapshot = { positions: positionsOut, colors: colorsOut, count: segment, death: ALIVE };
-      // Os mais recentes primeiro; o que não couber dos antigos fica de fora.
-      let room = TOTAL - fresh.count;
-      const kept: Snapshot[] = [];
-      for (const snapshot of [...snapshots].reverse()) {
-        if (now - snapshot.death > GONE || room <= 0) continue;
-        kept.unshift(snapshot);
-        room -= snapshot.count;
+      snapshot = (snapshot + 1) % SNAPSHOTS;
+      const first = snapshot * PER_SNAPSHOT;
+      base.value = first;
+      for (let i = 0; i < PER_SNAPSHOT; i += 1) {
+        const k = first + i;
+        const track = tracks[i];
+        if (!track) {
+          params.fill(0, at(k, 0), at(k + 1, 0));
+          params[at(k, 1) + 3] = -ALIVE;
+          continue;
+        }
+        const { path } = track;
+        nozzle.set(track.nozzle[0], track.nozzle[1], track.nozzle[2]);
+        write(k, 0, path.origin[0], path.origin[1], path.origin[2], path.end);
+        write(k, 1, path.along[0], path.along[1], path.along[2], ALIVE);
+        write(k, 2, path.sine[0], path.sine[1], path.sine[2], 0);
+        write(k, 3, path.cosine[0], path.cosine[1], path.cosine[2], 0);
+        write(k, 4, track.color.r, track.color.g, track.color.b, 0);
+        const neckLength = Math.hypot(
+          path.origin[0] - track.nozzle[0],
+          path.origin[1] - track.nozzle[1],
+          path.origin[2] - track.nozzle[2],
+        );
+        write(k, 5, neckLength, path.lengthPerUnit, neckLength + path.end * path.lengthPerUnit, track.speed);
       }
-      snapshots = [...kept, fresh];
-      rebuild();
-
-      current = paths
-        .filter((path) => path.intensity > 0.6)
-        .slice(0, MAX_PULSES / PULSES_PER_PATH)
-        .map((path) => {
-          const p = path.points;
-          const cumulative = new Float32Array(p.length / 3);
-          for (let i = 1; i < cumulative.length; i += 1) {
-            cumulative[i] =
-              cumulative[i - 1]! + Math.hypot(p[i * 3]! - p[i * 3 - 3]!, p[i * 3 + 1]! - p[i * 3 - 2]!, p[i * 3 + 2]! - p[i * 3 - 1]!);
-          }
-          return { points: p, cumulative, speed: path.speed, color: path.color };
-        });
-      pulsePositions.fill(-1000);
+      texture.needsUpdate = true;
     },
 
-    setResolution(width, height): void {
-      material.resolution.set(width, height);
+    setResolution(bufferWidth, bufferHeight, pixelRatio): void {
+      resolution.value.set(bufferWidth, bufferHeight);
+      // A largura vale em pixels de CSS: a mesma espessura numa tela retina.
+      width.value = LINE_WIDTH * pixelRatio;
     },
 
     update(dt, now): void {
       time.value = now;
-      clock += dt;
-      // Rastros que já apagaram saem do buffer.
-      if (snapshots.some((snapshot) => now - snapshot.death > GONE)) {
-        snapshots = snapshots.filter((snapshot) => now - snapshot.death <= GONE);
-        rebuild();
-      }
-      let k = 0;
-      for (const path of current) {
-        const total = path.cumulative[path.cumulative.length - 1] ?? 0;
-        if (total <= 0) continue;
-        for (let j = 0; j < PULSES_PER_PATH; j += 1) {
-          // Cada pulso percorre o caminho e recomeça no canhão.
-          const s = (clock * path.speed + (j / PULSES_PER_PATH) * total) % total;
-          let lo = 0;
-          let hi = path.cumulative.length - 1;
-          while (lo < hi - 1) {
-            const mid = (lo + hi) >> 1;
-            if (path.cumulative[mid]! <= s) lo = mid;
-            else hi = mid;
-          }
-          const a = path.cumulative[lo]!;
-          const b = path.cumulative[hi]!;
-          const f = b > a ? (s - a) / (b - a) : 0;
-          const p = path.points;
-          for (let c = 0; c < 3; c += 1) {
-            pulsePositions[k * 3 + c] = p[lo * 3 + c]! + (p[hi * 3 + c]! - p[lo * 3 + c]!) * f;
-          }
-          pulseColors[k * 3] = Math.min(1, path.color.r * 1.6 + 0.3);
-          pulseColors[k * 3 + 1] = Math.min(1, path.color.g * 1.6 + 0.3);
-          pulseColors[k * 3 + 2] = Math.min(1, path.color.b * 1.6 + 0.3);
-          k += 1;
-        }
-      }
-      for (let i = k; i < MAX_PULSES; i += 1) pulsePositions[i * 3 + 1] = -1000;
-      pulseGeometry.attributes.position!.needsUpdate = true;
-      pulseGeometry.attributes.color!.needsUpdate = true;
+      clock.value += dt;
     },
 
     dispose(): void {
-      geometry.dispose();
-      material.dispose();
+      lineGeometry.dispose();
+      lineMaterial.dispose();
       pulseGeometry.dispose();
       pulseMaterial.dispose();
-      dotTexture.dispose();
+      texture.dispose();
       group.clear();
     },
   };

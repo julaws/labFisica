@@ -17,8 +17,6 @@ import {
   gyroRadius,
   helixPitch,
   helmholtzCurrent,
-  voltageForSpeed,
-  wienSpeed,
 } from '../../optics/fields/lorentz';
 import { SPEED_OF_LIGHT } from '../../optics/waves/double-slit';
 import { RAIL_SCENE_PER_MILLIMETER } from '../../scene/bench';
@@ -29,11 +27,9 @@ import {
   BEAM_Y,
   CHAMBER_RADIUS,
   NOZZLE_X,
-  SELECTOR,
-  type ElectronPath,
+  electronPath,
   energySamples,
   pitchAngle,
-  traceThroughApparatus,
 } from './apparatus';
 import { type Chamber, createChamber } from './chamber';
 import { type HelmholtzCoils, createHelmholtzCoils } from './coils';
@@ -49,15 +45,15 @@ import {
 } from './copy';
 import { MAGNETIC_EQUATION_PLATE } from './equation';
 import { type EnergySpread, type MagneticState, createMagneticStore } from './state';
-import { type ElectronTracks, type TrackPath, createElectronTracks } from './tracks';
+import { type ElectronTracks, type TrackSpec, createElectronTracks } from './tracks';
 
 /**
  * Experimento "A força magnética" (ADR 0010), na terceira bancada.
  *
- * Canhão → seletor de velocidades → câmara de vidro entre bobinas de
- * Helmholtz. Cada elétron desenhado é integrado pelo motor (`traceElectron`)
- * pelo aparelho inteiro, com os campos do estado atual; mexer num controle
- * recalcula tudo, e os rastros antigos esmaecem.
+ * Canhão → câmara de vidro entre bobinas de Helmholtz. Cada elétron desenhado
+ * segue a trajetória exata do motor (`traceHelix`): reta no gargalo, hélice no
+ * campo uniforme da câmara. Mexer num controle recalcula tudo, e os rastros
+ * antigos esmaecem.
  *
  * Escala 1:1: metros de cena são metros. O feixe corre ao longo de x.
  */
@@ -65,8 +61,12 @@ import { type ElectronTracks, type TrackPath, createElectronTracks } from './tra
 /** Centro da câmara: x na bancada e altura acima do tampo, m. */
 const CHAMBER_X = 0.32;
 const CENTER_ABOVE_TOP = 0.45;
-/** Tempo mínimo entre dois recálculos durante um arraste, s. */
-const RECOMPUTE_INTERVAL = 0.07;
+/**
+ * Tempo mínimo entre dois recálculos durante um arraste, s. Cada recálculo
+ * vira um rastro novo no buffer; mais que ~8 por segundo só empilha linhas
+ * sobrepostas, sem mudar o que se vê.
+ */
+const RECOMPUTE_INTERVAL = 0.12;
 /** Velocidade desenhada do elétron mais rápido, m/s de cena. */
 const VISUAL_SPEED = 0.45;
 
@@ -94,33 +94,22 @@ export function createMagneticForceExperiment(): Experiment {
   const root = new THREE.Group();
   root.name = 'magnetic-force';
 
-  let paths: ElectronPath[] = [];
+  const drawingBuffer = new THREE.Vector2();
   let dirty = true;
   let lastPush = -Infinity;
   let now = 0;
 
   // --- Física ------------------------------------------------------------------
-  const selectorE = (state: Readonly<MagneticState>): number => state.selectorVoltage / SELECTOR.gap;
-  const selectedSpeed = (state: Readonly<MagneticState>): number =>
-    wienSpeed(selectorE(state), DEFAULT_MAGNETIC.selectorField);
-
-  function selectedFraction(state: Readonly<MagneticState>): number | null {
-    const v = selectedSpeed(state);
-    if (!(v > 0) || v >= SPEED_OF_LIGHT) return null;
-    return voltageForSpeed(v) / state.voltage;
-  }
-
   function recompute(): void {
     const state = store.get();
-    const fractions = energySamples(state, selectedFraction(state));
-    paths = fractions.map((fraction) => traceThroughApparatus(state, fraction));
     const maxSpeed = electronSpeed(state.voltage);
-    const drawn: TrackPath[] = paths.map((path) => ({
-      points: path.trace.points,
-      color: colorForFraction(path.energyFraction, state.spread),
-      // Os barrados no seletor ficam mais fracos: o olho vai para os que passam.
-      intensity: path.reachedChamber ? 1 : 0.45,
-      speed: (VISUAL_SPEED * electronSpeed(state.voltage * path.energyFraction)) / maxSpeed,
+    // Só os parâmetros das hélices vão para a placa de vídeo: nenhum vértice
+    // é reescrito (ver tracks.ts).
+    const drawn: TrackSpec[] = energySamples(state).map((fraction) => ({
+      path: electronPath(state, fraction).helix,
+      nozzle: [NOZZLE_X, BEAM_Y, 0],
+      color: colorForFraction(fraction, state.spread),
+      speed: (VISUAL_SPEED * electronSpeed(state.voltage * fraction)) / maxSpeed,
     }));
     tracks?.push(drawn, now);
     lastPush = now;
@@ -140,8 +129,6 @@ export function createMagneticForceExperiment(): Experiment {
     const theta = pitchAngle(state.angle);
     const p = electronMomentum(state.voltage);
     const minFraction = state.spread === 'wide' ? DEFAULT_MAGNETIC.spread.min : 1;
-    const vSel = selectedSpeed(state);
-    const vSelVoltage = vSel < SPEED_OF_LIGHT ? voltageForSpeed(vSel) : Number.POSITIVE_INFINITY;
     return {
       mode: mode(state),
       field: state.field,
@@ -156,17 +143,6 @@ export function createMagneticForceExperiment(): Experiment {
       radiusMin: gyroRadius(electronMomentum(state.voltage * minFraction), state.field, theta),
       pitch: helixPitch(p, state.field, theta),
       period: cyclotronPeriod(state.voltage, state.field),
-      selector: state.selector,
-      selectorVoltage: state.selectorVoltage,
-      selectorE: selectorE(state),
-      selectorField: DEFAULT_MAGNETIC.selectorField,
-      selectedSpeed: vSel,
-      selectedVoltage: vSelVoltage,
-      // Quem decide é a integração: algum elétron atravessou a fenda?
-      selectedInBeam: paths.some((path) => path.reachedChamber),
-      selectedRadius: Number.isFinite(vSelVoltage)
-        ? gyroRadius(electronMomentum(vSelVoltage), state.field, theta)
-        : Number.POSITIVE_INFINITY,
       chamberRadius: CHAMBER_RADIUS,
     };
   }
@@ -176,7 +152,6 @@ export function createMagneticForceExperiment(): Experiment {
     const state = store.get();
     coils?.setAngle(state.angle);
     coils?.setStrength(state.field / DEFAULT_MAGNETIC.fieldRange.max);
-    chamber?.setSelector(state.selector);
     dirty = true;
     updateLabels();
     context?.invalidate();
@@ -187,19 +162,11 @@ export function createMagneticForceExperiment(): Experiment {
     const en = locale === 'en';
     const state = store.get();
     context.labels.setText('mf-gun', `${en ? 'Electron gun' : 'Canhão de elétrons'} · ${formatNumber(state.voltage, 0, locale)} V`);
-    context.labels.setText(
-      'mf-selector',
-      state.selector
-        ? `${en ? 'Velocity selector' : 'Seletor de velocidades'} · ${formatSpeed(selectedSpeed(state), locale)}`
-        : `${en ? 'Velocity selector · off' : 'Seletor de velocidades · desligado'}`,
-    );
     context.labels.setText('mf-coils', `${en ? 'Helmholtz coils' : 'Bobinas de Helmholtz'} · ${formatField(state.field, locale)}`);
   }
 
   const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
   const wrapAngle = (degrees: number): number => ((((degrees + 180) % 360) + 360) % 360) - 180;
-  const onOff = (value: string | number | boolean): boolean =>
-    typeof value === 'boolean' ? value : value === 'on' || value === 1 || value === 'true';
 
   return {
     id: 'magnetic-force',
@@ -227,7 +194,7 @@ export function createMagneticForceExperiment(): Experiment {
       gunCarriage.group.add(gun.group);
       for (const object of gun.glowing) ctx.addGlow(object);
 
-      // --- Câmara, seletor e bobinas ----------------------------------------------
+      // --- Câmara e bobinas --------------------------------------------------------
       chamber = createChamber({ materials, centerHeight: centerAboveRail });
       root.add(chamber.group);
       coils = createHelmholtzCoils({ materials, centerHeight: centerAboveRail });
@@ -237,10 +204,6 @@ export function createMagneticForceExperiment(): Experiment {
       tracks = createElectronTracks();
       root.add(tracks.group);
       for (const object of tracks.glowing) ctx.addGlow(object);
-      const applyResolution = (): void => tracks?.setResolution(window.innerWidth, window.innerHeight);
-      applyResolution();
-      window.addEventListener('resize', applyResolution);
-      disposers.push(() => window.removeEventListener('resize', applyResolution));
 
       // --- Placa das equações, em pé no tampo, à direita ------------------------
       const plateSize = { width: 0.68, height: 0.66 };
@@ -264,10 +227,9 @@ export function createMagneticForceExperiment(): Experiment {
 
       // --- Etiquetas -------------------------------------------------------------
       ctx.labels.add({ id: 'mf-gun', anchor: gun.group, offset: { x: -0.2, y: 0.13, z: 0 }, text: '' });
-      ctx.labels.add({ id: 'mf-selector', anchor: chamber.selectorAnchor, text: '', accent: '#C8923A' });
       ctx.labels.add({ id: 'mf-coils', anchor: coils.labelAnchor, text: '', accent: '#C8923A' });
       disposers.push(() => {
-        for (const id of ['mf-gun', 'mf-selector', 'mf-coils']) ctx.labels.remove(id);
+        for (const id of ['mf-gun', 'mf-coils']) ctx.labels.remove(id);
       });
 
       // --- Atalhos ---------------------------------------------------------------
@@ -289,7 +251,6 @@ export function createMagneticForceExperiment(): Experiment {
         ctx.onKey('2', () => store.set({ angle: 20 })),
         ctx.onKey('3', () => store.set({ angle: 90 })),
         ctx.onKey('4', () => store.set({ angle: 180 })),
-        ctx.onKey('v', () => store.set({ selector: !store.get().selector })),
         ctx.onKey('m', () => store.set({ spread: store.get().spread === 'wide' ? 'none' : 'wide' })),
       );
 
@@ -301,6 +262,12 @@ export function createMagneticForceExperiment(): Experiment {
 
     update(dt: number, elapsed: number): void {
       now = elapsed;
+      // A largura das linhas é em pixels: acompanha o buffer de desenho, que
+      // muda com a janela e com a qualidade adaptativa.
+      if (context) {
+        context.renderer.getDrawingBufferSize(drawingBuffer);
+        tracks?.setResolution(drawingBuffer.x, drawingBuffer.y, context.renderer.getPixelRatio());
+      }
       if (dirty && now - lastPush >= RECOMPUTE_INTERVAL) recompute();
       tracks?.update(dt, now);
       // Os elétrons andam sempre: o loop não dorme.
@@ -308,7 +275,7 @@ export function createMagneticForceExperiment(): Experiment {
     },
 
     set(id: string, value: string | number | boolean): void {
-      const { fieldRange, voltageRange, selectorVoltageRange } = DEFAULT_MAGNETIC;
+      const { fieldRange, voltageRange } = DEFAULT_MAGNETIC;
       switch (id) {
         case 'field':
           // O slider fala em mT.
@@ -322,14 +289,6 @@ export function createMagneticForceExperiment(): Experiment {
           break;
         case 'spread':
           if (value === 'wide' || value === 'none') store.set({ spread: value });
-          break;
-        case 'selector':
-          store.set({ selector: onOff(value) });
-          break;
-        case 'selectorVoltage':
-          store.set({
-            selectorVoltage: clamp(Number(value), selectorVoltageRange.min, selectorVoltageRange.max),
-          });
           break;
         default:
           break;
@@ -347,10 +306,6 @@ export function createMagneticForceExperiment(): Experiment {
           return state.voltage;
         case 'spread':
           return state.spread;
-        case 'selector':
-          return state.selector ? 'on' : 'off';
-        case 'selectorVoltage':
-          return state.selectorVoltage;
         default:
           return 0;
       }
@@ -366,21 +321,14 @@ export function createMagneticForceExperiment(): Experiment {
       const en = hudLocale === 'en';
       const described = describeMagnetic(f, hudLocale);
       const straight = f.mode === 'straight-no-field' || f.mode === 'straight-parallel';
-      const radius = f.selector && f.selectedInBeam ? f.selectedRadius : f.radiusMax;
-      // Seletor ligado sem ninguém na velocidade dele: nada chega à câmara.
-      const blocked = f.selector && !f.selectedInBeam;
       return {
         title: copy.title[hudLocale],
         subtitle: copy.subtitle[hudLocale],
         chips: [
           { id: 'field', label: 'B', value: formatField(f.field, hudLocale) },
           { id: 'voltage', label: en ? 'Gun' : 'Canhão', value: `${formatNumber(f.voltage, 0, hudLocale)} V` },
-          {
-            id: 'radius',
-            label: en ? 'Radius' : 'Raio',
-            value: blocked ? '—' : straight ? '∞' : formatCm(radius, hudLocale),
-          },
-          { id: 'path', label: en ? 'Path' : 'Trajetória', value: blocked ? '—' : modeLabel(f.mode, hudLocale) },
+          { id: 'radius', label: en ? 'Radius' : 'Raio', value: straight ? '∞' : formatCm(f.radiusMax, hudLocale) },
+          { id: 'path', label: en ? 'Path' : 'Trajetória', value: modeLabel(f.mode, hudLocale) },
         ],
         sentence: described.sentence,
         highlights: described.highlights,
@@ -392,7 +340,7 @@ export function createMagneticForceExperiment(): Experiment {
       const en = numbersLocale === 'en';
       const n = (value: number, decimals: number): string => formatNumber(value, decimals, numbersLocale);
       const dash = '—';
-      const rows: NumberRow[] = [
+      return [
         { id: 'field', label: en ? 'Field at the centre B' : 'Campo no centro B', value: formatField(f.field, numbersLocale) },
         {
           id: 'current',
@@ -435,20 +383,7 @@ export function createMagneticForceExperiment(): Experiment {
           value: Number.isFinite(f.period) ? `${n(f.period * 1e9, 1)} ns` : dash,
           hint: 'T = 2πm / (|q|B)',
         },
-        {
-          id: 'selector-e',
-          label: en ? 'Selector E field' : 'Campo E do seletor',
-          value: f.selector ? `${n(f.selectorE / 1000, 1)} kV/m` : dash,
-          hint: `${n(f.selectorVoltage, 0)} V / ${n(SELECTOR.gap * 1000, 0)} mm`,
-        },
-        {
-          id: 'selector-v',
-          label: en ? 'Selected speed' : 'Velocidade selecionada',
-          value: f.selector ? formatSpeed(f.selectedSpeed, numbersLocale) : dash,
-          hint: `v = E/B · B = ${formatField(f.selectorField, numbersLocale)}`,
-        },
       ];
-      return rows;
     },
 
     setLocale(next: Locale): void {
@@ -458,7 +393,7 @@ export function createMagneticForceExperiment(): Experiment {
 
     ui(): PanelSchema {
       const en = locale === 'en';
-      const { fieldRange, voltageRange, selectorVoltageRange } = DEFAULT_MAGNETIC;
+      const { fieldRange, voltageRange } = DEFAULT_MAGNETIC;
       return {
         groups: [
           {
@@ -511,33 +446,6 @@ export function createMagneticForceExperiment(): Experiment {
               },
             ],
           },
-          {
-            id: 'selector',
-            label: { 'pt-BR': 'Seletor', en: 'Selector' },
-            hint: { 'pt-BR': 'V', en: 'V' },
-            controls: [
-              {
-                kind: 'segmented',
-                id: 'selector',
-                label: { 'pt-BR': 'Seletor', en: 'Selector' },
-                options: [
-                  { value: 'off', label: en ? 'Off' : 'Desligado' },
-                  { value: 'on', label: en ? 'On' : 'Ligado' },
-                ],
-              },
-              {
-                kind: 'slider',
-                id: 'selectorVoltage',
-                label: { 'pt-BR': 'Placas', en: 'Plates' },
-                min: selectorVoltageRange.min,
-                max: selectorVoltageRange.max,
-                step: 1,
-                unit: 'V',
-                // No celular fica em "Mais ajustes": a gaveta não cresce.
-                secondary: true,
-              },
-            ],
-          },
         ],
       };
     },
@@ -554,7 +462,6 @@ export function createMagneticForceExperiment(): Experiment {
       const bx = center.x - CHAMBER_X;
       const y = center.y;
       const z = center.z;
-      const selectorX = center.x + (SELECTOR.start + SELECTOR.end) / 2;
       const gunX = center.x + NOZZLE_X;
       return [
         {
@@ -574,13 +481,6 @@ export function createMagneticForceExperiment(): Experiment {
           label: { 'pt-BR': 'A câmara', en: 'The chamber' },
           position: { x: center.x, y: y + 0.05, z: z + 1.25 },
           target: { x: center.x, y: y - 0.05, z },
-          fov: 40,
-        },
-        {
-          id: 'selector',
-          label: { 'pt-BR': 'O seletor', en: 'The selector' },
-          position: { x: selectorX - 0.2, y: y + 0.02, z: z + 0.55 },
-          target: { x: selectorX, y: y + BEAM_Y, z },
           fov: 40,
         },
         {
@@ -615,7 +515,6 @@ export function createMagneticForceExperiment(): Experiment {
       chamber = null;
       gun = null;
       context = null;
-      paths = [];
     },
   };
 }

@@ -251,7 +251,7 @@ test('orçamento da dupla fenda', async ({ page }) => {
 });
 
 // --- Força magnética, na terceira bancada (ADR 0010) ------------------------
-test('força magnética: círculo, seletor e campo paralelo', async ({ page }, testInfo) => {
+test('força magnética: círculo, hélice e campo paralelo', async ({ page }, testInfo) => {
   await openLab(page, '#/magnetic-force');
   // A 250 V e 0,5 mT, o elétron mais rápido gira num círculo de 10,7 cm.
   await expect(page.locator('.chip[data-id="field"] .chip__value')).toHaveText('0,50 mT');
@@ -260,13 +260,12 @@ test('força magnética: círculo, seletor e campo paralelo', async ({ page }, t
   await page.waitForTimeout(1500);
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-22-magnetic.png` });
 
-  await openControls(page);
-  await page.getByRole('radio', { name: 'Ligado', exact: true }).click();
-  // 150 V nas placas, 1 mT: só v = 7,5 × 10⁶ m/s passa, o círculo de 8,5 cm.
-  await expect(page.locator('.hud__sentence')).toContainText('O seletor deixa passar');
-  await expect(page.locator('.chip[data-id="radius"] .chip__value')).toHaveText('8,5 cm');
+  // Bobinas a 20°: o campo faz 70° com o feixe e o círculo vira hélice.
+  await page.keyboard.press('2');
+  await expect(page.locator('.chip[data-id="path"] .chip__value')).toHaveText('Hélice');
+  await expect(page.locator('.hud__sentence')).toContainText('uma hélice');
   await page.waitForTimeout(1500);
-  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-23-magnetic-selector.png` });
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-23-magnetic-helix.png` });
 
   await page.keyboard.press('3');
   await expect(page.locator('.chip[data-id="path"] .chip__value')).toHaveText('Reta');

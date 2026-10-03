@@ -8,7 +8,7 @@ setas `←` `→` ou pelo endereço:
 |---|---|---|
 | **O plano de foco** | `#/lens-focus` | uma objetiva de 50 mm sobre a bancada: gire o anel de foco e veja o plano nítido atravessar um vale em miniatura, os raios convergirem antes, sobre ou depois do vidro fosco, e a imagem invertida se formar com o desfoque que a física manda |
 | **A dupla fenda** | `#/double-slit` | um canhão de elétrons de 50 kV contra duas fendas: sem detectores, os elétrons desenham franjas de interferência; com os detectores ligados, ficam duas faixas |
-| **A força magnética** | `#/magnetic-force` | um feixe de elétrons numa esfera de vidro entre bobinas de Helmholtz: círculos, hélices e arcos coloridos que mudam em tempo real com o campo, a direção e a tensão; um seletor de velocidades filtra um só |
+| **A força magnética** | `#/magnetic-force` | um feixe de elétrons numa esfera de vidro entre bobinas de Helmholtz: círculos, hélices e arcos coloridos que mudam em tempo real com o campo, a direção e a tensão |
 
 Cada bancada tem uma placa prateada com as equações do experimento: a das lentes, a de
 Schrödinger e as da força magnética.
@@ -88,10 +88,9 @@ dele, as distâncias são reais. A cor é a do fósforo do anteparo, não do el�
 | Girar as bobinas (direção do campo) | slider Giro, `,` `.`, ou `1` `2` `3` `4` (0°, 20°, 90°, 180°) |
 | Mudar a tensão do canhão (100 a 500 V) | slider Canhão |
 | Energia espalhada ou única | Espalhada · Única, ou `M` |
-| Ligar o seletor de velocidades | Desligado · Ligado e a tensão das placas, ou `V` |
 
-As trajetórias são integradas pelo motor (método de Boris relativístico) pelo aparelho
-inteiro: canhão, seletor, fenda e câmara. Tudo em tamanho real, com bobinas de 30 cm de
+As trajetórias são a solução exata do motor para o campo uniforme (uma hélice), avaliada
+direto na placa de vídeo: mexer no campo não trava nada (ADR 0010). Tudo em tamanho real, com bobinas de 30 cm de
 raio e campos reais. A cor é a velocidade do elétron (ADR 0010).
 
 ## Requisitos

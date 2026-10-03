@@ -1,7 +1,7 @@
 import { type Store, createStore } from '../../core/store';
 import { DEFAULT_MAGNETIC } from '../../optics/fields/lorentz';
 
-/** Energia dos elétrons do feixe: espalhada (didática) ou única (real). */
+/** Energia dos elétrons do feixe: espalhada (didática, várias cores) ou única (real). */
 export type EnergySpread = 'wide' | 'none';
 
 export interface MagneticState {
@@ -15,10 +15,6 @@ export interface MagneticState {
   /** Tensão de aceleração do canhão, V. */
   voltage: number;
   spread: EnergySpread;
-  /** Seletor de velocidades ligado (campos E e B cruzados). */
-  selector: boolean;
-  /** Tensão entre as placas do seletor, V. */
-  selectorVoltage: number;
 }
 
 export const INITIAL_MAGNETIC_STATE: MagneticState = {
@@ -26,8 +22,6 @@ export const INITIAL_MAGNETIC_STATE: MagneticState = {
   angle: 0,
   voltage: DEFAULT_MAGNETIC.voltage,
   spread: 'wide',
-  selector: false,
-  selectorVoltage: DEFAULT_MAGNETIC.selectorVoltage,
 };
 
 export type MagneticStore = Store<MagneticState>;
