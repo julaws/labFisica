@@ -60,6 +60,8 @@ import {
 } from './state';
 import { type Diorama, MOUNTAIN, TRAY_WIDTH, createDiorama } from './diorama';
 import { PALETTE } from '../../scene/materials';
+import { createEquationPlate } from '../../scene/equation-plate';
+import { LENS_EQUATION_PLATE } from './equation';
 import { millimetersToRailX } from '../../scene/bench';
 import { type RayBundle, createRayBundle } from '../../scene/rays';
 import { type FocusPlane, type IntersectionPatch, attachIntersectionPatch, createFocusPlane } from './focus-plane';
@@ -556,6 +558,31 @@ export function createLensFocusExperiment(): Experiment {
       diorama.group.position.y = -DIORAMA_DROP;
       root.add(diorama.group);
       for (const object of diorama.glowing) ctx.addGlow(object);
+
+      // --- Equação das lentes no tampo ----------------------------------------
+      // Placa em pé na ponta direita do tampo, depois do vidro da imagem: é o
+      // único trecho livre (o vidro ampliado ocupa o tampo de frente a fundo,
+      // e a bandeja do vale, a frente à esquerda). Virada para a câmera.
+      const plateSize = { width: 0.48, height: 0.56 };
+      const equation = createEquationPlate({ spec: LENS_EQUATION_PLATE, ...plateSize });
+      const stand = new THREE.Group();
+      stand.name = 'lens-equation';
+      equation.mesh.position.y = 0.05 + plateSize.height / 2;
+      stand.add(equation.mesh);
+      const footGeometry = new THREE.BoxGeometry(plateSize.width * 0.7, 0.05, 0.12).translate(0, 0.025, 0);
+      geometries.push(footGeometry);
+      const foot = new THREE.Mesh(footGeometry, ctx.materials.anodizedAluminum);
+      foot.castShadow = true;
+      stand.add(foot);
+      // No canto da frente: na vista padrão a placa cai inteira à direita do
+      // vidro, sem cobrir a imagem.
+      stand.position.set(ctx.bench.width / 2 - plateSize.width / 2 - 0.05, ctx.bench.topY, ctx.bench.frontZ - 0.15);
+      stand.rotation.y = -0.15;
+      ctx.bench.group.add(stand);
+      disposers.push(() => {
+        stand.removeFromParent();
+        equation.dispose();
+      });
 
       // Lâmpada da cabana: luz quente de alcance curto, emprestada da sala.
       const lamp = ctx.room.borrowPointLight();

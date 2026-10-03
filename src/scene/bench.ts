@@ -30,6 +30,12 @@ export interface Bench {
   readonly railTopY: number;
   /** Comprimento útil do trilho, em mm. */
   readonly railLengthMm: number;
+  /** Largura do console, em unidades de cena. */
+  readonly width: number;
+  /** Altura do tampo (face de cima), em unidades de cena. */
+  readonly topY: number;
+  /** z da face frontal do corpo, a que a câmera vê. */
+  readonly frontZ: number;
   readonly glowing: THREE.Object3D[];
   /** Cria um carrinho na marca indicada e o adiciona ao trilho. */
   mountAt(millimeters: number): Carriage;
@@ -146,6 +152,10 @@ export function createBench(materials: MaterialLibrary): Bench {
     group,
     railTopY,
     railLengthMm: RAIL_LENGTH_MM,
+    width: BENCH.width,
+    topY: BENCH.height,
+    // O chanfro da extrusão avança meio chanfro além da profundidade.
+    frontZ: BENCH.depth / 2 + BENCH.chamfer * 0.5,
     glowing,
     mountAt,
     dispose(): void {

@@ -21,6 +21,7 @@ import {
   screenIntensity,
 } from '../../optics/waves/double-slit';
 import { RAIL_SCENE_PER_MILLIMETER } from '../../scene/bench';
+import { createEquationPlate } from '../../scene/equation-plate';
 import { formatDistance, formatNumber } from '../../ui/i18n';
 import { createElectronBeam, type ElectronBeam } from './beam';
 import {
@@ -30,7 +31,8 @@ import {
   describeDoubleSlit,
   patternLabel,
 } from './copy';
-import { createElectronGun, type ElectronGun } from './gun';
+import { SCHRODINGER_PLATE } from './equation';
+import { createElectronGun, type ElectronGun } from '../../scene/electron-gun';
 import { createPhosphorScreen, type PhosphorScreen } from './screen';
 import { createSlitPlate, type SlitPlate, type SlitSide } from './slit-plate';
 import {
@@ -373,6 +375,22 @@ export function createDoubleSlitExperiment(): Experiment {
       monitor.position.set(LAYOUT.slitX + MONITOR.x, centerY, MONITOR.z);
       ctx.bench.group.add(monitor);
       disposers.push(() => monitor.removeFromParent());
+
+      // --- Equação de Schrödinger na frente da bancada -------------------------
+      // Quase toda a lateral que a câmera vê, abaixo da faixa de LED.
+      const equation = createEquationPlate({
+        spec: SCHRODINGER_PLATE,
+        width: ctx.bench.width - 0.3,
+        height: 0.46,
+      });
+      // Logo abaixo da faixa de LED: é a parte da lateral que a vista padrão
+      // enquadra.
+      equation.mesh.position.set(0, ctx.bench.topY - 0.36, ctx.bench.frontZ + 0.006);
+      ctx.bench.group.add(equation.mesh);
+      disposers.push(() => {
+        equation.mesh.removeFromParent();
+        equation.dispose();
+      });
 
       // --- Onda e feixe -----------------------------------------------------
       wave = createWaveField();

@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { MaterialLibrary } from '../../scene/materials';
-import { PALETTE } from '../../scene/materials';
-import { nameplateTexture } from '../../scene/textures/procedural';
+import type { MaterialLibrary } from './materials';
+import { PALETTE } from './materials';
+import { nameplateTexture } from './textures/procedural';
 
 /**
- * Canhão de elétrons (ADR 0009): tubo de alumínio escuro com bobinas de latão
- * (as lentes magnéticas que focalizam o feixe), um bocal na frente e o
+ * Canhão de elétrons (ADR 0009 e 0010), usado por mais de um experimento:
+ * tubo de alumínio escuro com bobinas de latão (as lentes magnéticas que
+ * focalizam o feixe), um bocal na frente e o
  * catodo aceso lá atrás. O eixo do feixe é +x; a origem do grupo é a ponta
  * do bocal, de onde os elétrons saem. A placa dourada fica na base.
  */
@@ -26,12 +27,18 @@ export interface ElectronGunOptions {
   readonly materials: MaterialLibrary;
   /** Altura do eixo acima do carrinho, em unidades de cena. */
   readonly axisHeight: number;
+  /** Segunda linha da placa dourada (a primeira é sempre @juliophisico). */
+  readonly nameplate?: string;
 }
 
 const LENGTH = 0.42;
 const RADIUS = 0.065;
 
-export function createElectronGun({ materials, axisHeight }: ElectronGunOptions): ElectronGun {
+export function createElectronGun({
+  materials,
+  axisHeight,
+  nameplate = 'CANHÃO DE ELÉTRONS · 50 kV',
+}: ElectronGunOptions): ElectronGun {
   const group = new THREE.Group();
   group.name = 'electron-gun';
   const geometries: THREE.BufferGeometry[] = [];
@@ -89,7 +96,7 @@ export function createElectronGun({ materials, axisHeight }: ElectronGunOptions)
   standMesh.receiveShadow = true;
   group.add(standMesh);
 
-  const plateTexture = nameplateTexture('@juliophisico', 'CANHÃO DE ELÉTRONS · 50 kV');
+  const plateTexture = nameplateTexture('@juliophisico', nameplate);
   const plateGeometry = new THREE.PlaneGeometry(0.26, 0.26 * (352 / 1024));
   geometries.push(plateGeometry);
   const plateMaterial = new THREE.MeshStandardMaterial({
