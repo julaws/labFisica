@@ -47,6 +47,12 @@ export interface Diorama {
   /** Malhas cujo shader recebe a linha de interseção do plano de foco. */
   readonly terrainMaterials: readonly THREE.Material[];
   readonly glowing: readonly THREE.Object3D[];
+  /**
+   * Onde fica a lâmpada da cabana. A luz em si é emprestada da sala
+   * (`LabRoom.borrowPointLight`), para a troca de bancada não mudar o número
+   * de luzes da cena.
+   */
+  readonly lampAnchor: THREE.Object3D;
   dispose(): void;
 }
 
@@ -450,6 +456,7 @@ export function createDiorama({
     subjects,
     terrainMaterials: [terrainMaterial, pineMaterial, heroPineMaterial, mountainMaterial, cabinWallsMaterial(cabin)],
     glowing,
+    lampAnchor: cabin.getObjectByName('cabin-lamp')!,
     dispose(): void {
       for (const geometry of geometries) geometry.dispose();
       for (const material of ownedMaterials) material.dispose();
@@ -762,8 +769,10 @@ function createCabin(
   cabin.add(windows);
   glowing.push(windows);
 
-  // Luz quente escapando pela janela, com alcance curto.
-  const lamp = new THREE.PointLight(PALETTE.warm, 0.12, 0.6, 2);
+  // Luz quente escapando pela janela, com alcance curto: só a posição; a luz
+  // vem da sala (ver `Diorama.lampAnchor`).
+  const lamp = new THREE.Object3D();
+  lamp.name = 'cabin-lamp';
   lamp.position.set(W / 2 + 0.04, base + 0.06, 0);
   cabin.add(lamp);
 

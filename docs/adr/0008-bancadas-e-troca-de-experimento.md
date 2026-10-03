@@ -44,6 +44,46 @@ experimento e setas, no alto e ao centro no desktop e no rodapé no celular (som
 gaveta de controles está aberta). `←` e `→` fazem o mesmo pelo teclado. O título da aba do
 navegador acompanha o experimento.
 
+### Transição entre bancadas (revisão de 02/10/2026)
+
+A primeira versão desmontava a bancada atual, montava a outra e soltava o
+`setLookAt` suave do camera-controls: a mola dispara a toda velocidade e cobre os ~6 m
+num tranco, e a tela parava antes do voo. Medido com GPU (RTX 3050, Direct3D 11), ida da
+lente para a dupla fenda: **1,8 s** de tela parada compilando shaders e mais **3,6 s**
+depois do pouso. O segundo travamento vinha da lâmpada da cabana: tirar uma `PointLight` da
+cena muda o número de luzes e o three recompila **todos** os materiais.
+
+Agora a troca é em etapas (`mount` em `src/main.ts`):
+
+1. **Pré-carregamento**: o experimento novo é montado na bancada dele com o atual ainda
+   na tela. Um quadro antes do trabalho deixa a aba marcada aparecer.
+2. **Voo** (`src/core/station-flight.ts`): curva com aceleração e desaceleração em seno,
+   2,6 s, num arco que recua e sobe no meio do caminho (as duas mesas aparecem juntas). O
+   relógio é o de parede, então o voo dura o mesmo numa máquina lenta. As luzes de destaque
+   acompanham; HUD e painel trocam com um esmaecimento; as etiquetas somem durante o voo.
+   Arrastar a câmera interrompe o voo.
+3. **Saída**: o experimento antigo continua animado até o pouso e só então é desmontado.
+   Um pedido de troca no meio do voo é atendido quando ele termina.
+
+Para nada compilar na hora:
+
+- **Guardião de programas** (`src/core/program-keeper.ts`): para cada material, uma cópia
+  leve (texturas e geometria trocadas por vazias com os mesmos parâmetros da chave) presa
+  a um objeto mínimo, numa cena nunca desenhada. Compiladas num render target, como o
+  pós-processamento desenha a cena, e com uma variante do material de profundidade por
+  tipo de objeto, as cópias têm a mesma chave que os originais e o programa sobrevive à
+  saída do experimento.
+- **Pré-aquecimento** na tela de carregamento ("Preparando as outras bancadas…"): cada
+  outro experimento é montado, compilado, guardado e desmontado. O tempo até a página
+  ficar pronta não mudou de forma mensurável (~6 s localmente): os shaders do experimento
+  inicial, que antes compilavam nos primeiros quadros, agora compilam ali também.
+- **Luzes práticas da sala** (`LabRoom.borrowPointLight`): luzes pontuais fixas, apagadas
+  quando livres. A lâmpada da cabana é emprestada, e o número de luzes da cena nunca muda.
+
+Resultado medido: lente → dupla fenda sem nenhum quadro acima de 33 ms; dupla fenda →
+lente com um único quadro de 150 ms (montagem do vale), antes do voo. Com
+`prefers-reduced-motion`, a troca é um corte seco.
+
 ### O que é do laboratório e o que é do experimento
 
 Continuam do laboratório, criados uma vez: sala, bancadas, HUD, modal, cruz de navegação,

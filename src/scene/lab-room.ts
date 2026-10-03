@@ -27,6 +27,16 @@ export interface LabRoom {
    * mapa de resolução fixa; cobrir a sala inteira o deixaria borrado.
    */
   focusOn(x: number): void;
+  /**
+   * Empresta uma luz pontual da sala (a lâmpada de uma maquete, por exemplo).
+   * As luzes ficam sempre na cena, apagadas quando livres: pôr ou tirar uma
+   * luz muda o número de luzes e obriga o three a recompilar todos os
+   * materiais, o que travava a troca de bancada por segundos (ADR 0008).
+   * Devolve null se todas estiverem emprestadas.
+   */
+  borrowPointLight(): THREE.PointLight | null;
+  /** Devolve a luz emprestada, que volta a ficar apagada. */
+  returnPointLight(light: THREE.PointLight): void;
   dispose(): void;
 }
 
@@ -237,6 +247,16 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   const fill = new THREE.HemisphereLight(0x7890cc, 0x0a0806, 0.5);
   group.add(fill);
 
+  // Luzes práticas: uma por bancada, mais uma para a troca, quando dois
+  // experimentos convivem na cena por alguns segundos.
+  const pointLights = Array.from({ length: STATION_X.length + 1 }, () => {
+    const light = new THREE.PointLight(0xffffff, 0, 1, 2);
+    light.name = 'practical-light';
+    group.add(light);
+    return light;
+  });
+  const lent = new Set<THREE.PointLight>();
+
   return {
     group,
     keyLight,
@@ -247,6 +267,17 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
       keyLight.target.position.x = x;
       rimLight.position.x = x - 1.4;
       rimLight.target.position.x = x;
+    },
+
+    borrowPointLight(): THREE.PointLight | null {
+      const light = pointLights.find((candidate) => !lent.has(candidate)) ?? null;
+      if (light) lent.add(light);
+      return light;
+    },
+
+    returnPointLight(light: THREE.PointLight): void {
+      if (!lent.delete(light)) return;
+      light.intensity = 0;
     },
 
     applyShadowQuality(enabled: boolean, mapSize: number): void {

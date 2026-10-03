@@ -32,6 +32,7 @@ export const DEFAULT_STEPS: LoadingStep[] = [
   { id: 'room', label: 'Arrumando a sala…', weight: 1.5 },
   { id: 'post', label: 'Ajustando as lentes da câmera…', weight: 1 },
   { id: 'experiment', label: 'Montando o experimento…', weight: 2.5 },
+  { id: 'stations', label: 'Preparando as outras bancadas…', weight: 2 },
 ];
 
 export function createLoadingScreen(steps: LoadingStep[] = DEFAULT_STEPS): LoadingScreen {

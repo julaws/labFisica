@@ -59,6 +59,7 @@ import {
   stepFNumber,
 } from './state';
 import { type Diorama, MOUNTAIN, TRAY_WIDTH, createDiorama } from './diorama';
+import { PALETTE } from '../../scene/materials';
 import { millimetersToRailX } from '../../scene/bench';
 import { type RayBundle, createRayBundle } from '../../scene/rays';
 import { type FocusPlane, type IntersectionPatch, attachIntersectionPatch, createFocusPlane } from './focus-plane';
@@ -555,6 +556,19 @@ export function createLensFocusExperiment(): Experiment {
       diorama.group.position.y = -DIORAMA_DROP;
       root.add(diorama.group);
       for (const object of diorama.glowing) ctx.addGlow(object);
+
+      // Lâmpada da cabana: luz quente de alcance curto, emprestada da sala.
+      const lamp = ctx.room.borrowPointLight();
+      if (lamp) {
+        lamp.color.setHex(PALETTE.warm);
+        lamp.intensity = 0.12;
+        lamp.distance = 0.6;
+        lamp.decay = 2;
+        root.updateWorldMatrix(true, true);
+        diorama.lampAnchor.getWorldPosition(lamp.position);
+        lamp.parent?.worldToLocal(lamp.position);
+        disposers.push(() => ctx.room.returnPointLight(lamp));
+      }
 
       // --- Plano de foco, placa de vidro e raios ----------------------------
       // A lâmina cobre a bandeja inteira e sobe até o pico da montanha.

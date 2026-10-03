@@ -23,6 +23,8 @@ import { createStationSwitcher } from './ui/station-switcher';
 import type { Panel } from './ui/panel';
 import { createLabelLayer } from './scene/labels';
 import { createCinematicCycle, createIdleTour, createKeyboardFlight } from './core/camera';
+import { createStationFlight } from './core/station-flight';
+import { createProgramKeeper } from './core/program-keeper';
 import { createHud } from './ui/hud';
 import { createPanel } from './ui/panel';
 import { createNavPad } from './ui/nav-pad';
@@ -37,6 +39,9 @@ declare global {
     __lab?: { fps: number; frameMs: number; quality: string; drawCalls: number; triangles: number };
   }
 }
+
+/** Espera o próximo quadro: deixa o navegador pintar antes de um trabalho pesado. */
+const nextFrame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()));
 
 async function boot(): Promise<void> {
   const canvas = document.querySelector<HTMLCanvasElement>('#scene');
@@ -165,6 +170,10 @@ async function boot(): Promise<void> {
   const flight = createKeyboardFlight(rig);
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const cinematic = createCinematicCycle(rig, defaultView, () => reducedMotion.matches);
+  // Voo entre bancadas: curva suave, em vez da mola do camera-controls.
+  const stationFlight = createStationFlight(rig);
+  // Shaders de cada experimento sobrevivem à saída dele (ADR 0008).
+  const programKeeper = createProgramKeeper(renderer, camera, scene);
 
   // Passeio de apresentação: na abertura e depois de 1 minuto parado. Fica
   // desligado com movimento reduzido, numa vista pedida pela URL e nas
@@ -187,10 +196,13 @@ async function boot(): Promise<void> {
       }
       flight.update(dt);
       tour.update(dt);
+      stationFlight.update();
       rig.update(dt);
       // O foco da câmera principal segue o alvo da órbita (SPEC §3.1).
       controls.getTarget(post.focusTarget);
       current?.experiment.update(dt, elapsed);
+      // A bancada que está saindo segue animada até sair de quadro.
+      leaving?.experiment.update(dt, elapsed);
       post.render(dt);
       labels.update(camera, canvas.clientWidth, canvas.clientHeight, uiOccluders());
       quality.sample(loop.frameMs);
@@ -267,9 +279,15 @@ async function boot(): Promise<void> {
     readonly panel: Panel;
     readonly unsubscribe: () => void;
     readonly glows: THREE.Object3D[];
+    /** Objetos que o experimento pôs na cena, para guardar os shaders deles. */
+    readonly roots: THREE.Object3D[];
   }
   let current: Mounted | null = null;
-  let mountToken = 0;
+  /** Experimento que está saindo: fica na cena até o voo terminar (ADR 0008). */
+  let leaving: Mounted | null = null;
+  let transitioning = false;
+  /** Pedido de troca feito no meio de outra: atendido quando ela termina. */
+  let pendingId: string | null = null;
 
   const refresh = (): void => {
     if (!current) return;
@@ -293,50 +311,125 @@ async function boot(): Promise<void> {
     refresh();
   };
 
-  const unmount = (): void => {
-    if (!current) return;
-    current.unsubscribe();
-    current.panel.dispose();
-    current.experiment.dispose();
-    for (const object of current.glows) post.bloom.selection.delete(object);
-    current = null;
+  /**
+   * Monta um experimento na bancada dele e devolve o que ele pôs na cena: os
+   * objetos com bloom e as raízes novas (para o guardião de shaders).
+   */
+  const setupExperiment = async (
+    experiment: Experiment,
+    entry: ExperimentEntry,
+  ): Promise<{ glows: THREE.Object3D[]; roots: THREE.Object3D[] }> => {
+    const before = new Set<THREE.Object3D>();
+    scene.traverse((object) => before.add(object));
+    const glows: THREE.Object3D[] = [];
+    await experiment.setup({
+      renderer,
+      scene,
+      camera,
+      materials,
+      room,
+      bench: benches[entry.station]!,
+      quality,
+      addGlow: (object) => {
+        glows.push(object);
+        post.bloom.selection.add(object);
+      },
+      registerDraggable: (handle) => input.registerDraggable(handle),
+      onKey: (key, action) => input.onKey(key, action),
+      invalidate: () => loop.invalidate(),
+      labels,
+    });
+    experiment.setLocale(locale);
+    const roots: THREE.Object3D[] = [];
+    scene.traverse((object) => {
+      if (!before.has(object) && object.parent && before.has(object.parent)) roots.push(object);
+    });
+    return { glows, roots };
   };
 
+  /** Desmonta o experimento da cena: carrinhos, etiquetas, atalhos e brilhos. */
+  const release = (mounted: Mounted): void => {
+    // Materiais criados depois da montagem (outra objetiva, por exemplo)
+    // também ficam guardados antes de sair.
+    programKeeper.retain(mounted.roots);
+    mounted.experiment.dispose();
+    for (const object of mounted.glows) post.bloom.selection.delete(object);
+  };
+
+  /** Esmaece elementos da interface; com movimento reduzido, troca seca. */
+  const fade = async (elements: readonly HTMLElement[], to: 0 | 1): Promise<void> => {
+    if (reducedMotion.matches) return;
+    await Promise.all(
+      elements.map((element) => {
+        for (const animation of element.getAnimations()) animation.cancel();
+        return element.animate([{ opacity: 1 - to }, { opacity: to }], {
+          duration: 260,
+          easing: 'ease',
+          fill: to === 0 ? 'forwards' : 'none',
+        }).finished;
+      }),
+    );
+  };
+
+  /**
+   * Monta um experimento na bancada dele. Com `animate`, a troca é em etapas,
+   * para nada acontecer de supetão:
+   *
+   * 1. pré-carregamento: baixa o código, monta o experimento novo na bancada
+   *    dele (o atual continua na tela) e compila os shaders antes de mexer a
+   *    câmera, para o voo não engasgar;
+   * 2. voo suave até a nova bancada, com as luzes acompanhando, enquanto o HUD
+   *    e o painel trocam com um esmaecimento;
+   * 3. o experimento antigo só sai da cena quando o voo termina.
+   */
   async function mount(id: string | null, animate: boolean): Promise<void> {
     const entry = registry.resolve(id);
-    if (!entry || current?.entry.id === entry.id) return;
-    const token = ++mountToken;
+    if (!entry) return;
+    if (transitioning) {
+      pendingId = entry.id;
+      return;
+    }
+    if (current?.entry.id === entry.id) return;
+    transitioning = true;
     switcher.setBusy(true);
+    switcher.setCurrent(entry.id);
 
     try {
+      // --- 1. Pré-carregamento --------------------------------------------
+      // Um quadro para o clique aparecer (aba marcada) antes do trabalho.
+      await nextFrame();
       const experiment = await registry.load(entry.id);
-      if (token !== mountToken) {
-        experiment.dispose();
-        return;
+      const { glows, roots } = await setupExperiment(experiment, entry);
+
+      const previous = current;
+      const smooth = animate && previous !== null && !reducedMotion.matches;
+      // Compila o que faltar antes do voo (com o guardião, quase sempre nada).
+      programKeeper.retain(roots);
+
+      // --- 2. Voo e troca da interface ------------------------------------
+      const shots = experiment.cameras();
+      const overview = shots.find((shot) => shot.id === 'overview');
+      const home = overview && portrait && overview.portrait ? { ...overview, ...overview.portrait } : overview;
+      const fromX = STATION_X[previous?.entry.station ?? entry.station] ?? 0;
+      const toX = STATION_X[entry.station] ?? 0;
+
+      let landed: Promise<void> = Promise.resolve();
+      if (previous && home && animate) {
+        labels.setVisible(false);
+        landed = stationFlight.fly(home, {
+          duration: smooth ? undefined : 0,
+          onProgress: (eased) => room.focusOn(fromX + (toX - fromX) * eased),
+        });
+      } else {
+        room.focusOn(toX);
       }
 
-      unmount();
-
-      const glows: THREE.Object3D[] = [];
-      await experiment.setup({
-        renderer,
-        scene,
-        camera,
-        materials,
-        room,
-        bench: benches[entry.station]!,
-        quality,
-        addGlow: (object) => {
-          glows.push(object);
-          post.bloom.selection.add(object);
-        },
-        registerDraggable: (handle) => input.registerDraggable(handle),
-        onKey: (key, action) => input.onKey(key, action),
-        invalidate: () => loop.invalidate(),
-        labels,
-      });
-      room.focusOn(STATION_X[entry.station] ?? 0);
-      experiment.setLocale(locale);
+      if (previous) {
+        await fade([hud.element, previous.panel.element], 0);
+        previous.unsubscribe();
+        previous.panel.dispose();
+        leaving = previous;
+      }
 
       const panel = createPanel({
         parent: ui,
@@ -350,9 +443,9 @@ async function boot(): Promise<void> {
         onLocaleChange: changeLocale,
       });
       const unsubscribe = experiment.subscribe(refresh);
-      current = { entry, experiment, panel, unsubscribe, glows };
+      current = { entry, experiment, panel, unsubscribe, glows, roots };
       refresh();
-      switcher.setCurrent(entry.id);
+      if (previous) void fade([hud.element, panel.element], 1);
 
       // O endereço acompanha a bancada: dá para compartilhar o link de cada
       // experimento. replaceState não dispara hashchange.
@@ -363,16 +456,10 @@ async function boot(): Promise<void> {
 
       // A vista padrão passa a ser o enquadramento do experimento. No retrato
       // vale a variante para telas altas, quando ela existe.
-      const shots = experiment.cameras();
       cinematic.setShots(shots);
-      const overview = shots.find((shot) => shot.id === 'overview');
-      if (overview) {
-        const home = portrait && overview.portrait ? { ...overview, ...overview.portrait } : overview;
+      if (home) {
         cinematic.setHome(home);
-        if (animate) {
-          // Voo de uma bancada até a outra, pelo próprio camera-controls.
-          cinematic.reset();
-        } else if (!params.get('shot')) {
+        if (!previous && !params.get('shot')) {
           if (home.fov !== undefined) {
             camera.fov = home.fov;
             camera.updateProjectionMatrix();
@@ -381,8 +468,22 @@ async function boot(): Promise<void> {
           void controls.setLookAt(p.x, p.y, p.z, t.x, t.y, t.z, false);
         }
       }
+
+      // --- 3. A bancada antiga sai de cena --------------------------------
+      await landed;
+      room.focusOn(toX);
+      labels.setVisible(!ui.classList.contains('ui--hidden'));
+      if (leaving) {
+        release(leaving);
+        leaving = null;
+      }
     } finally {
-      if (token === mountToken) switcher.setBusy(false);
+      transitioning = false;
+      switcher.setBusy(false);
+      switcher.setCurrent(current?.entry.id ?? entry.id);
+      const next = pendingId;
+      pendingId = null;
+      if (next && next !== current?.entry.id) void mount(next, true);
     }
   }
 
@@ -405,6 +506,27 @@ async function boot(): Promise<void> {
   loading.begin('experiment');
   await mount(firstEntry?.id ?? null, false);
   loading.complete('experiment');
+
+  // Pré-aquecimento das outras bancadas, ainda na tela de carregamento: monta
+  // cada experimento fora de quadro, compila os shaders dele, guarda-os e
+  // desmonta. Sem isto, a primeira troca parava a tela por quase 2 s antes do
+  // voo; com isto, a troca só monta a bancada e voa (ADR 0008).
+  loading.begin('stations');
+  const others = entries.filter((entry) => entry.id !== current?.entry.id);
+  for (const [index, entry] of others.entries()) {
+    try {
+      const experiment = await registry.load(entry.id);
+      const { glows, roots } = await setupExperiment(experiment, entry);
+      programKeeper.retain(roots);
+      experiment.dispose();
+      for (const object of glows) post.bloom.selection.delete(object);
+    } catch (error) {
+      console.warn(`Pré-aquecimento de ${entry.id} falhou`, error);
+    }
+    loading.progress((index + 1) / others.length);
+    await nextFrame();
+  }
+  loading.complete('stations');
 
   // Voltar e avançar no navegador, ou um link colado com outro #/id.
   window.addEventListener('hashchange', () => void mount(experimentIdFromHash(), true));
@@ -490,7 +612,14 @@ async function boot(): Promise<void> {
 
   window.addEventListener('beforeunload', () => {
     loop.stop();
-    unmount();
+    if (current) {
+      current.unsubscribe();
+      current.panel.dispose();
+      release(current);
+    }
+    if (leaving) release(leaving);
+    stationFlight.dispose();
+    programKeeper.dispose();
     flight.dispose();
     tour.dispose();
     labels.dispose();
