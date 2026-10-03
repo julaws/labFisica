@@ -16,6 +16,7 @@ import {
   type CinematicShot,
   type Experiment,
   type ExperimentEntry,
+  type HudModel,
   createExperimentRegistry,
   experimentIdFromHash,
 } from './core/experiment';
@@ -189,6 +190,8 @@ async function boot(): Promise<void> {
   });
 
   // --- Loop -----------------------------------------------------------------
+  /** Relógio do último quadro, para o primeiro update de um experimento novo. */
+  let lastElapsed = 0;
   const loop = createLoop({
     onFrame: (dt, elapsed) => {
       renderer.info.reset();
@@ -201,6 +204,7 @@ async function boot(): Promise<void> {
       rig.update(dt);
       // O foco da câmera principal segue o alvo da órbita (SPEC §3.1).
       controls.getTarget(post.focusTarget);
+      lastElapsed = elapsed;
       current?.experiment.update(dt, elapsed);
       // A bancada que está saindo segue animada até sair de quadro.
       leaving?.experiment.update(dt, elapsed);
@@ -298,13 +302,16 @@ async function boot(): Promise<void> {
   /** Para onde a troca em andamento vai: as setas contam a partir daqui. */
   let headingId: string | null = null;
 
-  const refresh = (): void => {
-    if (!current) return;
-    const model = current.experiment.hud(locale);
+  const renderHud = (model: HudModel): void => {
     hud.render(model);
     // A aba do navegador acompanha a bancada.
     const title = `${model.title} · ${locale === 'en' ? 'Optics Lab' : 'Laboratório de Óptica'}`;
     if (document.title !== title) document.title = title;
+  };
+
+  const refresh = (): void => {
+    if (!current) return;
+    renderHud(current.experiment.hud(locale));
     current.panel.sync();
     if (modal.isOpen) modal.render(current.experiment.copy(), locale);
   };
@@ -448,7 +455,27 @@ async function boot(): Promise<void> {
       // e desenha a bancada de destino uma vez, fora da tela.
       programKeeper.retain(roots);
       const destination = homeShot(experiment);
+      // Um primeiro update parado: os desenhos fora da tela que o experimento
+      // faz nele (imagem do sensor, miniaturas) já compilam e sobem aqui.
+      if (smooth) experiment.update(0, lastElapsed);
       if (smooth && destination) warmView(destination);
+
+      // O painel e o HUD novos também nascem aqui, com tudo parado: montar o
+      // DOM e calcular os números pesava ~100 ms no meio do voo. Escondido até
+      // a troca, ele não recebe cliques.
+      const panel = createPanel({
+        parent: ui,
+        experiment,
+        locale,
+        onHelp: () => {
+          modal.render(experiment.copy(), locale);
+          modal.open();
+        },
+        onCinematic: () => cinematic.next(),
+        onLocaleChange: changeLocale,
+      });
+      if (previous) panel.element.style.visibility = 'hidden';
+      const firstHud = experiment.hud(locale);
 
       // --- 2. Voo e troca da interface ------------------------------------
       const shots = experiment.cameras();
@@ -474,20 +501,10 @@ async function boot(): Promise<void> {
         leaving = previous;
       }
 
-      const panel = createPanel({
-        parent: ui,
-        experiment,
-        locale,
-        onHelp: () => {
-          modal.render(experiment.copy(), locale);
-          modal.open();
-        },
-        onCinematic: () => cinematic.next(),
-        onLocaleChange: changeLocale,
-      });
       const unsubscribe = experiment.subscribe(refresh);
       current = { entry, experiment, panel, unsubscribe, glows, roots };
-      refresh();
+      renderHud(firstHud);
+      panel.element.style.visibility = '';
       if (previous) void fade([hud.element, panel.element], 1);
 
       // O endereço acompanha a bancada: dá para compartilhar o link de cada
