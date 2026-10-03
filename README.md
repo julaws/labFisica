@@ -9,9 +9,10 @@ setas `←` `→` ou pelo endereço:
 | **O plano de foco** | `#/lens-focus` | uma objetiva de 50 mm sobre a bancada: gire o anel de foco e veja o plano nítido atravessar um vale em miniatura, os raios convergirem antes, sobre ou depois do vidro fosco, e a imagem invertida se formar com o desfoque que a física manda |
 | **A dupla fenda** | `#/double-slit` | um canhão de elétrons de 50 kV contra duas fendas: sem detectores, os elétrons desenham franjas de interferência; com os detectores ligados, ficam duas faixas |
 | **A força magnética** | `#/magnetic-force` | um feixe de elétrons numa esfera de vidro entre bobinas de Helmholtz: círculos, hélices e arcos coloridos que mudam em tempo real com o campo, a direção e a tensão |
+| **O tunelamento** | `#/tunneling` | elétrons contra um muro de energia mais alto que eles: a onda decai dentro do muro e alguns atravessam mesmo assim; mude a altura, a largura e a intensidade do feixe e conte quantos tunelam |
 
 Cada bancada tem uma placa prateada com as equações do experimento: a das lentes, a de
-Schrödinger e as da força magnética.
+Schrödinger, as da força magnética e a da corrente de tunelamento.
 
 Só a bancada ativa fica montada, e o código de cada experimento é baixado só
 quando ele abre (ADR 0008).
@@ -93,6 +94,19 @@ As trajetórias são a solução exata do motor para o campo uniforme (uma héli
 direto na placa de vídeo: mexer no campo não trava nada (ADR 0010). Tudo em tamanho real, com bobinas de 30 cm de
 raio e campos reais. A cor é a velocidade do elétron (ADR 0010).
 
+## O que dá para fazer: o tunelamento
+
+| Ação | Como |
+|---|---|
+| Mudar a intensidade do feixe (1 a 100 nA) | slider Intensidade, ou `-` `=` |
+| Mudar a altura do muro (0,5 a 4 eV) | slider Altura, ou `,` `.` |
+| Mudar a largura do muro (0,1 a 1,2 nm) | slider Largura, ou `[` `]` |
+| Mostrar ou esconder a onda | Onda e elétrons · Só elétrons, ou `O` |
+
+Altura é energia, como no diagrama dos livros: o feixe corre na energia do elétron, e o
+muro tem a altura da barreira. A onda é a solução exata da equação de Schrödinger; cada
+elétron atravessa com a probabilidade exata, e o coletor conta (ADR 0011).
+
 ## Requisitos
 
 - Node 20 ou superior
@@ -124,10 +138,11 @@ configuração: `?focus=370&f=16&lens=exploded&shot=optical-path`, ou
 
 ```
 src/optics/       física pura, sem three.js: lente fina, Sellmeier, ABCD, traçador,
-                  ondas (dupla fenda de Fresnel), campos (força de Lorentz)
+                  ondas (dupla fenda de Fresnel), campos (força de Lorentz),
+                  quântica (tunelamento)
 src/core/         renderer, loop, câmera, pós-processamento, qualidade, entrada
 src/scene/        sala, bancada, materiais, texturas procedurais, escalas, raios
-src/experiments/  um diretório por experimento (lens-focus, double-slit, magnetic-force)
+src/experiments/  um diretório por experimento (lens-focus, double-slit, magnetic-force, tunneling)
 src/ui/           HUD, painel, modal, seletor de bancadas, i18n
 tests/            Vitest
 e2e/              Playwright

@@ -253,6 +253,12 @@ async function boot(): Promise<void> {
     station: 2,
     load: async () => (await import('./experiments/magnetic-force')).createMagneticForceExperiment(),
   });
+  registry.register({
+    id: 'tunneling',
+    title: { 'pt-BR': 'Tunelamento', en: 'Tunnelling' },
+    station: 3,
+    load: async () => (await import('./experiments/tunneling')).createTunnelingExperiment(),
+  });
 
   const params = new URLSearchParams(window.location.search);
 

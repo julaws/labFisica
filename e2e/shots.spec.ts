@@ -226,7 +226,11 @@ test('dupla fenda: franjas, detectores e fenda tampada', async ({ page }, testIn
 test('troca de bancada pelo seletor e pelas setas', async ({ page }) => {
   await openLab(page);
   await expect(page.locator('.chip[data-id="zone"]')).toHaveCount(1);
-  await page.getByRole('tab', { name: 'Dupla fenda' }).click();
+  // No desktop, pela aba; no celular só a bancada atual aparece, e a seta leva
+  // à próxima.
+  const tab = page.getByRole('tab', { name: 'Dupla fenda' });
+  if (await tab.isVisible()) await tab.click();
+  else await page.getByRole('button', { name: 'Próximo experimento' }).click();
   await expect(page).toHaveURL(/#\/double-slit$/);
   await expect(page.locator('.chip[data-id="pattern"]')).toHaveCount(1);
   // Os chips da lente saem com ela.
@@ -279,6 +283,38 @@ test('orçamento da força magnética', async ({ page }) => {
   const frame = await page.evaluate(() => window.__lab ?? null);
   expect(frame).not.toBeNull();
   console.info(`orçamento (força magnética): ${frame!.drawCalls} draw calls, ${frame!.triangles} triângulos`);
+  expect(frame!.drawCalls).toBeLessThan(250);
+  expect(frame!.triangles).toBeLessThan(1_500_000);
+});
+
+// --- Tunelamento, na quarta bancada (ADR 0011) -----------------------------
+test('tunelamento: transmissão, largura e muro abaixo da energia', async ({ page }, testInfo) => {
+  await openLab(page, '#/tunneling');
+  // E = 1 eV, V₀ = 2 eV, a = 0,4 nm: T exato de 6,42%, I = 10 nA · T.
+  await expect(page.locator('.chip[data-id="transmission"] .chip__value')).toHaveText('6,42%');
+  await expect(page.locator('.chip[data-id="current"] .chip__value')).toHaveText('642,38 pA');
+  await expect(page.locator('.hud__sentence')).toContainText('nenhum passaria');
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-24-tunneling.png` });
+
+  // Muro 0,1 nm mais largo: a transmissão cai exponencialmente.
+  await page.keyboard.press(']');
+  await page.keyboard.press(']');
+  await expect(page.locator('.chip[data-id="width"] .chip__value')).toHaveText('0,50 nm');
+  await expect(page.locator('.chip[data-id="transmission"] .chip__value')).toHaveText('2,35%');
+
+  // Muro abaixo da energia do elétron: classicamente todos passariam.
+  for (let i = 0; i < 13; i += 1) await page.keyboard.press('Comma');
+  await expect(page.locator('.chip[data-id="height"] .chip__value')).toHaveText('0,70 eV');
+  await expect(page.locator('.hud__sentence')).toContainText('todos passariam');
+});
+
+test('orçamento do tunelamento', async ({ page }) => {
+  await openLab(page, '#/tunneling');
+  await page.waitForTimeout(500);
+  const frame = await page.evaluate(() => window.__lab ?? null);
+  expect(frame).not.toBeNull();
+  console.info(`orçamento (tunelamento): ${frame!.drawCalls} draw calls, ${frame!.triangles} triângulos`);
   expect(frame!.drawCalls).toBeLessThan(250);
   expect(frame!.triangles).toBeLessThan(1_500_000);
 });
