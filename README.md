@@ -8,6 +8,10 @@ setas `←` `→` ou pelo endereço:
 |---|---|---|
 | **O plano de foco** | `#/lens-focus` | uma objetiva de 50 mm sobre a bancada: gire o anel de foco e veja o plano nítido atravessar um vale em miniatura, os raios convergirem antes, sobre ou depois do vidro fosco, e a imagem invertida se formar com o desfoque que a física manda |
 | **A dupla fenda** | `#/double-slit` | um canhão de elétrons de 50 kV contra duas fendas: sem detectores, os elétrons desenham franjas de interferência; com os detectores ligados, ficam duas faixas |
+| **A força magnética** | `#/magnetic-force` | um feixe de elétrons numa esfera de vidro entre bobinas de Helmholtz: círculos, hélices e arcos coloridos que mudam em tempo real com o campo, a direção e a tensão; um seletor de velocidades filtra um só |
+
+Cada bancada tem uma placa prateada com as equações do experimento: a das lentes, a de
+Schrödinger e as da força magnética.
 
 Só a bancada ativa fica montada, e o código de cada experimento é baixado só
 quando ele abre (ADR 0008).
@@ -76,6 +80,20 @@ Transversalmente ao feixe tudo está **10 000× maior** (1 µm vira 1 cm); ao lo
 dele, as distâncias são reais. A cor é a do fósforo do anteparo, não do elétron
 (ADR 0009). Um monitor no fundo da bancada mostra o anteparo de frente.
 
+## O que dá para fazer: a força magnética
+
+| Ação | Como |
+|---|---|
+| Mudar o campo (0 a 2 mT) | slider Campo B, ou `[` `]` |
+| Girar as bobinas (direção do campo) | slider Giro, `,` `.`, ou `1` `2` `3` `4` (0°, 20°, 90°, 180°) |
+| Mudar a tensão do canhão (100 a 500 V) | slider Canhão |
+| Energia espalhada ou única | Espalhada · Única, ou `M` |
+| Ligar o seletor de velocidades | Desligado · Ligado e a tensão das placas, ou `V` |
+
+As trajetórias são integradas pelo motor (método de Boris relativístico) pelo aparelho
+inteiro: canhão, seletor, fenda e câmara. Tudo em tamanho real, com bobinas de 30 cm de
+raio e campos reais. A cor é a velocidade do elétron (ADR 0010).
+
 ## Requisitos
 
 - Node 20 ou superior
@@ -107,10 +125,10 @@ configuração: `?focus=370&f=16&lens=exploded&shot=optical-path`, ou
 
 ```
 src/optics/       física pura, sem three.js: lente fina, Sellmeier, ABCD, traçador,
-                  ondas (dupla fenda de Fresnel)
+                  ondas (dupla fenda de Fresnel), campos (força de Lorentz)
 src/core/         renderer, loop, câmera, pós-processamento, qualidade, entrada
 src/scene/        sala, bancada, materiais, texturas procedurais, escalas, raios
-src/experiments/  um diretório por experimento (lens-focus, double-slit)
+src/experiments/  um diretório por experimento (lens-focus, double-slit, magnetic-force)
 src/ui/           HUD, painel, modal, seletor de bancadas, i18n
 tests/            Vitest
 e2e/              Playwright

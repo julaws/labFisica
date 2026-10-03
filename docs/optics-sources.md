@@ -304,6 +304,41 @@ Valores na geometria padrão (a = 1,2 µm, d = 8 µm, L = 1,40 m): Δy = 0,937 �
 N_F = 0,19, 19 máximos acima de 15% do maior sem detector, duas faixas em ±4,2 µm com
 detector (vale central a 39% do pico).
 
+## 10. Força magnética sobre elétrons (ADR 0010)
+
+Código em `src/optics/fields/lorentz.ts`, testes em `tests/optics/lorentz.test.ts` e
+`tests/optics/magnetic-apparatus.test.ts`.
+
+**Força de Lorentz** (Griffiths, *Introduction to Electrodynamics*, 4.ª ed., §5.1):
+F = q(E + v × B). No campo uniforme: r = p⊥/(|q|B), passo 2π·p∥/(|q|B), período
+T = 2πγm/(|q|B), independente do raio.
+
+**Momento do elétron acelerado por U**, com a mesma correção relativística da §9:
+p = √(2meU(1 + eU/(2mc²))). A 250 V: v = 9,3742 × 10⁶ m/s (0,0313 c).
+
+**Bobinas de Helmholtz**: o campo no eixo de uma espira de raio R, à distância z do centro
+dela, é μ₀IR²/(2(R² + z²)^{3/2}) (Griffiths, *Introduction to Electrodynamics*, cap. 5, lei
+de Biot-Savart). No ponto médio de duas espiras separadas por R, z = R/2 para cada uma, e a
+soma dá B = (4/5)^{3/2}·μ₀·N·I/R. μ₀ = 1,25663706212 × 10⁻⁶ H/m (CODATA
+2018). Com N = 200 e R = 0,30 m: 0,59945 mT por ampère.
+
+**Seletor de velocidades (filtro de Wien)**: E ⟂ B ⟂ v, forças opostas, iguais para
+v = E/B (Serway e Jewett, *Physics for Scientists and Engineers*, capítulo de forças
+magnéticas).
+
+**Integração: método de Boris relativístico** (J. P. Boris, *Proceedings of the Fourth
+Conference on Numerical Simulation of Plasmas*, 1970; Birdsall e Langdon, *Plasma Physics
+via Computer Simulation*). Com u = γv:
+
+    u⁻ = u + (qE/m)·Δt/2
+    t = (qB/m)·Δt/(2γ⁻),   s = 2t/(1 + |t|²)
+    u′ = u⁻ + u⁻ × t,      u⁺ = u⁻ + u′ × s
+    u = u⁺ + (qE/m)·Δt/2
+
+Os testes conferem: diâmetro do círculo integrado = 2p/(eB) a 0,1%; o raio não muda em 20
+voltas (1 em 10⁴); passo da hélice a 60° = 2πp·cos θ/(eB) a 0,1%; com E = vB o elétron
+atravessa o seletor reto (desvio < 1 µm).
+
 ---
 
 ## Situação por tema
@@ -322,3 +357,4 @@ detector (vale central a 39% do pico).
 | Troca de objetiva (biconvexa e bicôncava simples, aberração esférica medida) | documentado (§8) e testado, ADR 0007 | 02/10/2026 ✔ |
 | Ampliação do plano da imagem | 2× sobre a escala da lente, com a chegada dos cones ajustada para o cone seguir batendo com o anel de CoC (ADR 0006) | 02/10/2026 ✔ |
 | Dupla fenda com elétrons (de Broglie relativístico, Fresnel de fendas longas, detector) | documentado (§9) e testado, ADR 0009 | 02/10/2026 ✔ |
+| Força magnética (Lorentz, Helmholtz, Boris relativístico, filtro de Wien) | documentado (§10) e testado, ADR 0010 | 02/10/2026 ✔ |
