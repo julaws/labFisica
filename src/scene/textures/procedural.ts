@@ -732,6 +732,77 @@ export function disposeProceduralTextures(): void {
 }
 
 /**
+ * Desenha uma placa de latão no retângulo (x, y, w, h): borda gravada, o nome
+ * grande e uma linha técnica embaixo. O nome encolhe se não couber.
+ */
+function drawBrassPlate(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  title: string,
+  subtitle: string,
+): void {
+  const rounded = (rx: number, ry: number, w: number, h: number, r: number): void => {
+    ctx.beginPath();
+    ctx.moveTo(rx + r, ry);
+    ctx.arcTo(rx + w, ry, rx + w, ry + h, r);
+    ctx.arcTo(rx + w, ry + h, rx, ry + h, r);
+    ctx.arcTo(rx, ry + h, rx, ry, r);
+    ctx.arcTo(rx, ry, rx + w, ry, r);
+    ctx.closePath();
+  };
+
+  ctx.save();
+  ctx.translate(x, y);
+  // Latão escovado: degradê diagonal e riscos finos horizontais.
+  const brass = ctx.createLinearGradient(0, 0, width, height);
+  brass.addColorStop(0, '#d8ad5e');
+  brass.addColorStop(0.5, '#b98a45');
+  brass.addColorStop(1, '#9a6d30');
+  ctx.fillStyle = brass;
+  rounded(0, 0, width, height, 36);
+  ctx.fill();
+  let state = 4242;
+  const random = (): number => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 0xffffffff;
+  };
+  for (let i = 0; i < 260; i += 1) {
+    ctx.strokeStyle = `rgba(${random() < 0.5 ? '255,236,190' : '90,60,20'}, ${0.05 + random() * 0.08})`;
+    ctx.lineWidth = 1;
+    const ly = random() * height;
+    ctx.beginPath();
+    ctx.moveTo(random() * width * 0.3, ly);
+    ctx.lineTo(width * (0.7 + random() * 0.3), ly);
+    ctx.stroke();
+  }
+
+  // Filete gravado por dentro da borda.
+  ctx.strokeStyle = '#6d4c1e';
+  ctx.lineWidth = 10;
+  rounded(18, 18, width - 36, height - 36, 26);
+  ctx.stroke();
+
+  // Texto gravado: sombra clara embaixo, tinta escura por cima.
+  const engrave = (text: string, weight: string, size: number, family: string, ty: number): void => {
+    ctx.font = `${weight} ${size}px ${family}`;
+    const fit = Math.min(1, (width * 0.86) / ctx.measureText(text).width);
+    ctx.font = `${weight} ${Math.floor(size * fit)}px ${family}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(255, 236, 190, 0.55)';
+    ctx.fillText(text, width / 2, ty + 3);
+    ctx.fillStyle = '#3a2710';
+    ctx.fillText(text, width / 2, ty);
+  };
+  engrave(title, '700', Math.round(height * 0.34), 'Outfit, ui-sans-serif, sans-serif', height * 0.42);
+  engrave(subtitle, '500', Math.round(height * 0.13), "'DM Mono', ui-monospace, monospace", height * 0.76);
+  ctx.restore();
+}
+
+/**
  * Placa de identificação dourada (o "selo" da bancada, como o da referência):
  * latão com borda gravada, o nome grande e uma linha técnica embaixo. Desenhada
  * em canvas, com a tipografia da interface.
@@ -743,59 +814,30 @@ export function nameplateTexture(title: string, subtitle: string, width = 1024, 
     canvas.height = height;
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D indisponível para a placa');
+    drawBrassPlate(ctx, 0, 0, width, height, title, subtitle);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
+    return texture;
+  });
+}
 
-    const rounded = (x: number, y: number, w: number, h: number, r: number): void => {
-      ctx.beginPath();
-      ctx.moveTo(x + r, y);
-      ctx.arcTo(x + w, y, x + w, y + h, r);
-      ctx.arcTo(x + w, y + h, x, y + h, r);
-      ctx.arcTo(x, y + h, x, y, r);
-      ctx.arcTo(x, y, x + w, y, r);
-      ctx.closePath();
-    };
-
-    // Latão escovado: degradê diagonal e riscos finos horizontais.
-    const brass = ctx.createLinearGradient(0, 0, width, height);
-    brass.addColorStop(0, '#d8ad5e');
-    brass.addColorStop(0.5, '#b98a45');
-    brass.addColorStop(1, '#9a6d30');
-    ctx.fillStyle = brass;
-    rounded(0, 0, width, height, 36);
-    ctx.fill();
-    let state = 4242;
-    const random = (): number => {
-      state = (state * 1664525 + 1013904223) >>> 0;
-      return state / 0xffffffff;
-    };
-    for (let i = 0; i < 260; i += 1) {
-      ctx.strokeStyle = `rgba(${random() < 0.5 ? '255,236,190' : '90,60,20'}, ${0.05 + random() * 0.08})`;
-      ctx.lineWidth = 1;
-      const y = random() * height;
-      ctx.beginPath();
-      ctx.moveTo(random() * width * 0.3, y);
-      ctx.lineTo(width * (0.7 + random() * 0.3), y);
-      ctx.stroke();
-    }
-
-    // Filete gravado por dentro da borda.
-    ctx.strokeStyle = '#6d4c1e';
-    ctx.lineWidth = 10;
-    rounded(18, 18, width - 36, height - 36, 26);
-    ctx.stroke();
-
-    // Texto gravado: sombra clara embaixo, tinta escura por cima.
-    const engrave = (text: string, font: string, y: number): void => {
-      ctx.font = font;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = 'rgba(255, 236, 190, 0.55)';
-      ctx.fillText(text, width / 2, y + 3);
-      ctx.fillStyle = '#3a2710';
-      ctx.fillText(text, width / 2, y);
-    };
-    engrave(title, `700 ${Math.round(height * 0.34)}px Outfit, ui-sans-serif, sans-serif`, height * 0.42);
-    engrave(subtitle, `500 ${Math.round(height * 0.13)}px 'DM Mono', ui-monospace, monospace`, height * 0.76);
-
+/**
+ * Várias placas douradas empilhadas numa textura só, de cima para baixo: a
+ * placa i ocupa a faixa v ∈ [1 − (i+1)/n, 1 − i/n]. Uma malha desenha todas.
+ */
+export function nameplateAtlasTexture(
+  plates: readonly (readonly [string, string])[],
+  width = 1024,
+  height = 300,
+): THREE.Texture {
+  return memo(`nameplates-${plates.map((plate) => plate.join('|')).join('/')}-${width}`, () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height * plates.length;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas 2D indisponível para as placas');
+    plates.forEach(([title, subtitle], index) => drawBrassPlate(ctx, 0, index * height, width, height, title, subtitle));
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = 8;

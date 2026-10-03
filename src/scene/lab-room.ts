@@ -3,11 +3,14 @@ import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLigh
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { MaterialLibrary } from './materials';
 import { PALETTE } from './materials';
+import { createPortraitWall } from './portrait-wall';
+import { createShelfDecor } from './shelf-decor';
 import { atomArtwork, galaxyArtwork, wallPosterTexture } from './textures/procedural';
 
 /**
  * A sala do laboratório (SPEC §3.1): estúdio escuro com profundidade, piso de
- * concreto polido, prateleiras ao fundo e três cartazes retroiluminados.
+ * concreto polido, prateleiras ao fundo com enfeites de física, três cartazes
+ * retroiluminados e, dos dois lados da estante, a galeria de retratos.
  *
  * A sala é compartilhada entre experimentos: trocar de experimento não a
  * recria (SPEC §7).
@@ -43,8 +46,16 @@ export interface LabRoom {
 /** Posição x das bancadas (estações) na sala, da esquerda para a direita. */
 export const STATION_X: readonly number[] = [-6.3, -2.1, 2.1, 6.3];
 
-// Larga o bastante para quatro bancadas lado a lado (ADR 0008 e 0011).
-const ROOM = { width: 18, depth: 11, height: 3.4 };
+// Larga o bastante para quatro bancadas lado a lado (ADR 0008 e 0011). A
+// parede do fundo fica perto das bancadas (a estante a ~1,9 m da traseira
+// delas), para os retratos e os enfeites aparecerem atrás dos experimentos; a
+// da frente fica longe, atrás de todas as câmeras.
+const BACK_Z = -2.9;
+const FRONT_Z = 5.5;
+const ROOM = { width: 18, depth: FRONT_Z - BACK_Z, height: 3.4, centerZ: (FRONT_Z + BACK_Z) / 2 };
+
+/** Retratos: três à esquerda da estante e três à direita (a estante vai de −2,6 a 2,6 m). */
+const PORTRAIT_X = [-5.2, -4.25, -3.3, 3.3, 4.25, 5.2] as const;
 
 export function createLabRoom(materials: MaterialLibrary): LabRoom {
   const group = new THREE.Group();
@@ -57,7 +68,7 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   const shell = new THREE.BoxGeometry(ROOM.width, ROOM.height, ROOM.depth);
   owned.push(shell);
   const walls = new THREE.Mesh(shell, materials.wall);
-  walls.position.y = ROOM.height / 2;
+  walls.position.set(0, ROOM.height / 2, ROOM.centerZ);
   walls.receiveShadow = true;
   group.add(walls);
 
@@ -65,14 +76,23 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   owned.push(floorGeometry);
   const floor = new THREE.Mesh(floorGeometry, materials.polishedConcrete);
   floor.rotation.x = -Math.PI / 2;
-  floor.position.y = 0.002;
+  floor.position.set(0, 0.002, ROOM.centerZ);
   floor.receiveShadow = true;
   group.add(floor);
 
-  // --- Prateleiras ao fundo, com objetivas e câmeras antigas ---------------
+  // --- Prateleiras ao fundo: objetivas e câmeras antigas, e na do meio os
+  // enfeites de física ------------------------------------------------------
   const shelves = createShelves(materials, owned);
-  shelves.position.set(0, 0, -ROOM.depth / 2 + 0.36);
+  shelves.position.set(0, 0, BACK_Z + 0.36);
   group.add(shelves);
+  const decor = createShelfDecor({ materials, top: SHELF_HEIGHTS[1] + 0.02 });
+  shelves.add(decor.group);
+  glowing.push(...decor.glowing);
+
+  // --- Galeria de retratos ------------------------------------------------------
+  const portraits = createPortraitWall({ materials, xs: PORTRAIT_X, wallZ: BACK_Z });
+  group.add(portraits.group);
+  glowing.push(...portraits.glowing);
 
   // --- Cartazes retroiluminados -------------------------------------------
   // Três cartazes, uma malha: as três texturas vão lado a lado numa só, e
@@ -114,7 +134,7 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   posterData.forEach((_, index) => {
     const x = (index - 1) * 0.95;
     const y = 2.18;
-    const z = -ROOM.depth / 2 + 0.02;
+    const z = BACK_Z + 0.02;
 
     const poster = new THREE.PlaneGeometry(0.72, 1.0);
     // Comprime o u da placa para o terço dela no atlas.
@@ -167,7 +187,7 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
     const plane = new THREE.PlaneGeometry(1.6, 1.2);
     const uv = plane.attributes.uv!;
     for (let i = 0; i < uv.count; i += 1) uv.setX(i, (uv.getX(i) + half) / 2);
-    return plane.rotateY(rotation).translate(x, 1.95, -ROOM.depth / 2 + 1.6);
+    return plane.rotateY(rotation).translate(x, 1.95, BACK_Z + 1.6);
   });
   const artGeometry = mergeGeometries(artParts);
   for (const part of artParts) part.dispose();
@@ -217,14 +237,15 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   // material; com quatro bancadas, eram quatro, e as das bancadas vazias não
   // iluminavam nada que estivesse no quadro.
   const strip = new THREE.RectAreaLight(0xcfe0ff, 1.9, 0.34, 5.2);
-  strip.position.set(STATION_X[0] ?? 0, ROOM.height - 0.12, -0.4);
+  // Centrada um pouco à frente, para a ponta não atravessar a parede do fundo.
+  strip.position.set(STATION_X[0] ?? 0, ROOM.height - 0.12, STRIP_Z);
   strip.rotation.x = -Math.PI / 2;
   ceilingStrips.add(strip);
   for (const x of STATION_X) {
     housingParts.push(
       new THREE.PlaneGeometry(0.34, 5.2)
         .rotateX(Math.PI / 2)
-        .translate(x, ROOM.height - 0.124, -0.4),
+        .translate(x, ROOM.height - 0.124, STRIP_Z),
     );
   }
   // As luminárias, uma malha só.
@@ -293,6 +314,8 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
     },
 
     dispose(): void {
+      decor.dispose();
+      portraits.dispose();
       for (const item of owned) item.dispose();
       owned.length = 0;
       group.clear();
@@ -300,7 +323,13 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   };
 }
 
-/** Estante ao fundo com silhuetas de câmeras e objetivas antigas. */
+/** z das luminárias do teto. */
+const STRIP_Z = -0.2;
+
+/** Alturas das três prateleiras; a do meio leva os enfeites. */
+const SHELF_HEIGHTS = [0.58, 1.08, 1.58] as const;
+
+/** Estante ao fundo com câmeras e objetivas antigas nas prateleiras de baixo e de cima. */
 function createShelves(
   materials: MaterialLibrary,
   owned: (THREE.BufferGeometry | THREE.Material | THREE.Texture)[],
@@ -321,8 +350,7 @@ function createShelves(
   for (const x of [-2.6, 0, 2.6]) {
     structure.push(uprightGeometry.clone().translate(x, 0.975, 0));
   }
-  const shelfHeights = [0.58, 1.08, 1.58];
-  for (const y of shelfHeights) {
+  for (const y of SHELF_HEIGHTS) {
     structure.push(boardGeometry.clone().translate(0, y, 0));
   }
   const mergedStructure = mergeGeometries(structure);
@@ -355,7 +383,8 @@ function createShelves(
   const rotation = new THREE.Quaternion();
   const unit = new THREE.Vector3(1, 1, 1);
 
-  for (const y of shelfHeights) {
+  // A do meio fica para os enfeites de física (`shelf-decor.ts`).
+  for (const y of [SHELF_HEIGHTS[0], SHELF_HEIGHTS[2]]) {
     for (let i = 0; i < 9; i += 1) {
       const x = -2.3 + i * 0.58 + (random() - 0.5) * 0.12;
       if (random() > 0.45) {

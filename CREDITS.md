@@ -14,6 +14,23 @@ A licença CC0 do Poly Haven permite uso comercial, redistribuição e inclusão
 produto pago, sem exigência de atribuição — o crédito acima é por cortesia.
 Todo o resto da aparência é procedural, gerado em código em `src/scene/textures/`.
 
+## Retratos da galeria (domínio público)
+
+`src/assets/portraits/physicists.jpg`, usado por `src/scene/portrait-wall.ts`: seis
+retratos num atlas 3 × 2, recortados, convertidos para tons de cinza e com o
+passe-partout desenhado por cima (1560 × 1400 px, JPEG). As fotos são de **domínio
+público**: sem direito autoral nenhum, o que cumpre a mesma exigência do CC0
+(CLAUDE.md §10). Fonte: Wikimedia Commons, obtidas em 03/10/2026.
+
+| Retrato | Autor e data | Arquivo de origem |
+|---|---|---|
+| Isaac Newton | Godfrey Kneller, 1689 (pintura a óleo: Newton morreu antes da fotografia) | [GodfreyKneller-IsaacNewton-1689.jpg](https://commons.wikimedia.org/wiki/File:GodfreyKneller-IsaacNewton-1689.jpg) |
+| Albert Einstein | Ferdinand Schmutzer, 1921 | [Einstein 1921 by F Schmutzer - restoration.jpg](https://commons.wikimedia.org/wiki/File:Einstein_1921_by_F_Schmutzer_-_restoration.jpg) |
+| Erwin Schrödinger | autor desconhecido, 1933 (Narodowe Archiwum Cyfrowe) | [Erwin Schrödinger - Narodowe Archiwum Cyfrowe (1-E-939).jpg](https://commons.wikimedia.org/wiki/File:Erwin_Schr%C3%B6dinger_-_Narodowe_Archiwum_Cyfrowe_(1-E-939).jpg) |
+| Werner Heisenberg | autor desconhecido, c. 1927 | [Heisenberg 10.jpg](https://commons.wikimedia.org/wiki/File:Heisenberg_10.jpg) |
+| Max Planck | autor desconhecido, Berlim, 1933 | [Max Planck 1933.jpg](https://commons.wikimedia.org/wiki/File:Max_Planck_1933.jpg) |
+| Paul Dirac | Fundação Nobel, 1933 | [Paul Dirac, 1933.jpg](https://commons.wikimedia.org/wiki/File:Paul_Dirac,_1933.jpg) |
+
 ## Serviços externos
 
 | Serviço | Para quê | O que recebe |

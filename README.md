@@ -14,8 +14,14 @@ setas `←` `→` ou pelo endereço:
 Cada bancada tem uma placa prateada com as equações do experimento: a das lentes, a de
 Schrödinger, as da força magnética e a da corrente de tunelamento.
 
-No canto inferior direito, ao lado da navegação, ficam o contador de visualizações
-da página e o link para o Instagram [@juliophisico](https://www.instagram.com/juliophisico/).
+Na parede do fundo, dos dois lados da estante, uma galeria de retratos em preto e
+branco (Newton, Einstein, Schrödinger, Heisenberg, Planck e Dirac), cada um com a
+placa dourada do nome e dos anos; na prateleira do meio, enfeites de física: globo,
+telescópio, átomo, foguete, pêndulo de Newton e ímã.
+
+No canto inferior direito, ao lado da navegação, dois botões só com ícone: o olho
+com o contador de visualizações da página e o link para o Instagram
+[@juliophisico](https://www.instagram.com/juliophisico/).
 
 Só a bancada ativa fica montada, e o código de cada experimento é baixado só
 quando ele abre (ADR 0008).
