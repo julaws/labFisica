@@ -133,6 +133,135 @@ function heightToGray(height: Float32Array, size: number, low: number, high: num
   return finish(canvas);
 }
 
+/**
+ * Ruído de valor que fecha nas bordas (a grade dá a volta): para texturas que
+ * se repetem lado a lado sem costura, como o tampo da mesa óptica.
+ */
+function tileableFbm(size: number, octaves: number, baseCells: number, seed: number): Float32Array {
+  const out = new Float32Array(size * size);
+  let amplitude = 1;
+  let total = 0;
+  const smooth = (t: number): number => t * t * (3 - 2 * t);
+  for (let o = 0; o < octaves; o += 1) {
+    const cells = baseCells * 2 ** o;
+    const grid = new Float32Array(cells * cells);
+    let state = (seed + o * 977) >>> 0;
+    for (let i = 0; i < grid.length; i += 1) {
+      state = (state * 1664525 + 1013904223) >>> 0;
+      grid[i] = state / 0xffffffff;
+    }
+    const at = (gx: number, gy: number): number => grid[(gy % cells) * cells + (gx % cells)]!;
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        const fx = (x / size) * cells;
+        const fy = (y / size) * cells;
+        const x0 = Math.floor(fx);
+        const y0 = Math.floor(fy);
+        const tx = smooth(fx - x0);
+        const ty = smooth(fy - y0);
+        const top = at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx;
+        const bottom = at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx;
+        out[y * size + x]! += (top * (1 - ty) + bottom * ty) * amplitude;
+      }
+    }
+    total += amplitude;
+    amplitude *= 0.5;
+  }
+  for (let i = 0; i < out.length; i += 1) out[i]! /= total;
+  return out;
+}
+
+export interface SurfaceMaps {
+  readonly map: THREE.Texture;
+  readonly roughnessMap: THREE.Texture;
+  readonly normalMap: THREE.Texture;
+}
+
+/** Furos por lado de um ladrilho da mesa óptica. */
+export const BREADBOARD_HOLES_PER_TILE = 4;
+
+/**
+ * Tampo de mesa óptica (breadboard) de alumínio anodizado preto, com a
+ * furação roscada em grade, como nos laboratórios de óptica: cada ladrilho
+ * tem 4 × 4 furos. A cor tem manchas leves de uso; a rugosidade, marcas de
+ * pano (mais lisas) e o fundo dos furos fosco; o normal map afunda os furos
+ * com um chanfro e dá um grão fino ao metal. O ladrilho fecha nas bordas.
+ */
+export function breadboardMaps(size = 512): SurfaceMaps {
+  const pitch = size / BREADBOARD_HOLES_PER_TILE;
+  const hole = pitch * 0.13;
+  const chamfer = pitch * 0.2;
+  const mottle = tileableFbm(size, 4, 4, 2026);
+  const grain = tileableFbm(size, 2, 64, 77);
+  const wipe = tileableFbm(size, 3, 3, 404);
+
+  // Distância ao centro do furo mais próximo, em px.
+  const holeDistance = (x: number, y: number): number => {
+    const cx = (Math.floor(x / pitch) + 0.5) * pitch;
+    const cy = (Math.floor(y / pitch) + 0.5) * pitch;
+    return Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+  };
+
+  const height = new Float32Array(size * size);
+  const albedo = createCanvas(size);
+  const rough = createCanvas(size);
+  const albedoImage = albedo.ctx.createImageData(size, size);
+  const roughImage = rough.ctx.createImageData(size, size);
+
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const i = y * size + x;
+      const d = holeDistance(x, y);
+      // 0 no fundo do furo, 1 no tampo; o chanfro faz a transição.
+      const rim = Math.min(1, Math.max(0, (d - hole) / (chamfer - hole)));
+      const inHole = d < hole;
+      height[i] = inHole ? 0 : 0.35 + 0.65 * Math.sqrt(rim) + (grain[i]! - 0.5) * 0.04;
+
+      const base = 0.15 + (mottle[i]! - 0.5) * 0.05;
+      const tone = inHole ? 0.02 : base * (0.75 + 0.25 * rim);
+      const value = Math.round(Math.max(0, Math.min(1, tone)) * 255);
+      albedoImage.data.set([value, value, Math.min(255, value + 3), 255], i * 4);
+
+      // Marcas de pano: faixas mais lisas onde o ruído largo passa de um limiar.
+      const wiped = Math.max(0, wipe[i]! - 0.55) * 1.4;
+      const r = inHole ? 0.9 : 0.5 + (grain[i]! - 0.5) * 0.12 - wiped * 0.25 + (1 - rim) * 0.2;
+      const rv = Math.round(Math.max(0.08, Math.min(1, r)) * 255);
+      roughImage.data.set([rv, rv, rv, 255], i * 4);
+    }
+  }
+  albedo.ctx.putImageData(albedoImage, 0, 0);
+  rough.ctx.putImageData(roughImage, 0, 0);
+
+  const map = finish(albedo.canvas, { colorSpace: THREE.SRGBColorSpace });
+  const roughnessMap = finish(rough.canvas);
+  const normalMap = heightToNormal(height, size, 1.6);
+  return { map, roughnessMap, normalMap };
+}
+
+/**
+ * Pintura eletrostática (epóxi a pó) do corpo da bancada: a "casca de
+ * laranja" fina no normal map e a rugosidade levemente manchada.
+ */
+export function powderCoatMaps(size = 512): Omit<SurfaceMaps, 'map'> {
+  const peel = tileableFbm(size, 3, 32, 5150);
+  const blotch = tileableFbm(size, 3, 4, 8080);
+  return {
+    normalMap: heightToNormal(peel, size, 0.9),
+    roughnessMap: heightToGray(blotch, size, 0.48, 0.66),
+  };
+}
+
+/** Microrrelevo de jateamento para o alumínio anodizado: grão fino e uniforme. */
+export function beadBlastNormal(size = 256): THREE.Texture {
+  // Repetido 8 vezes por face: as peças têm UV de 0 a 1 em cada face, e um
+  // grão esticado sobre uma base de 40 cm vira mancha de granito.
+  return memo('bead-blast-normal', () => {
+    const texture = heightToNormal(tileableFbm(size, 2, 64, 31337), size, 1.2);
+    texture.repeat.set(8, 8);
+    return texture;
+  });
+}
+
 /** Concreto polido: rugosidade manchada e microrrelevo suave. */
 export function concreteRoughness(size = 512): THREE.Texture {
   return memo('concrete-roughness', () => heightToGray(fbm(size, 4, 5, 11), size, 0.42, 0.62));

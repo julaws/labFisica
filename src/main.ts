@@ -32,6 +32,7 @@ import { createPanel } from './ui/panel';
 import { createNavPad } from './ui/nav-pad';
 import { createSiteBadge } from './ui/site-badge';
 import { createMusicPlayer } from './ui/music-player';
+import { createQualityToggle, savedLightweight } from './ui/quality-toggle';
 import { type ScreenRect, createPortraitViewer } from './ui/portrait-viewer';
 import { PORTRAITS, PORTRAIT_ATLAS, PORTRAIT_FRAME } from './scene/portrait-wall';
 import { createModal } from './ui/modal';
@@ -60,6 +61,8 @@ async function boot(): Promise<void> {
 
   const renderer = createRenderer({ canvas });
   const quality = createQualityManager(detectQualityLevel(renderer));
+  // O modo leve escolhido na visita anterior vale desde o primeiro quadro.
+  if (savedLightweight()) quality.setLightweight(true);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.settings.maxPixelRatio));
 
   // A bancada é larga; num retrato de celular o mesmo enquadramento vira um
@@ -147,6 +150,8 @@ async function boot(): Promise<void> {
     renderer.shadowMap.enabled = settings.shadows;
     renderer.transmissionResolutionScale = settings.transmissionScale;
     room.applyShadowQuality(settings.shadows, settings.shadowMapSize);
+    room.setLightweight(settings.lightweight);
+    materials.setDetail(!settings.lightweight);
     post.applyQuality(settings);
     post.setSize(canvas.clientWidth, canvas.clientHeight);
   };
@@ -301,6 +306,40 @@ async function boot(): Promise<void> {
   // Música de fundo: à esquerda do selo (prepend), começa no primeiro gesto.
   const music = createMusicPlayer({ parent: dock, locale, baseUrl: `${import.meta.env.BASE_URL}music/` });
 
+  // Canto inferior esquerdo: alta qualidade ligada ou modo leve.
+  const qualityToggle = createQualityToggle({
+    parent: ui,
+    locale,
+    lightweight: quality.lightweight,
+    onChange: (lightweight) => void switchQuality(lightweight),
+  });
+  /**
+   * A troca muda as luzes, as sombras e os mapas de todos os materiais: o three
+   * recompila os shaders. Feito no próximo quadro, isso travava a tela por
+   * ~3 s. Aqui o loop para (fica o último quadro na tela), os shaders compilam
+   * em paralelo (`compileAsync`, KHR_parallel_shader_compile) e o loop volta.
+   */
+  const switchQuality = async (lightweight: boolean): Promise<void> => {
+    qualityToggle.setBusy(true);
+    // Deixa o botão pintar "aplicando" antes do trabalho pesado.
+    await nextFrame();
+    loop.stop();
+    quality.setLightweight(lightweight);
+    // A cena é desenhada no render target do pós-processamento (saída linear,
+    // sem tone mapping), que gera variantes de shader diferentes das da tela:
+    // compila com ele ativo, senão o primeiro quadro recompila tudo de novo.
+    const previousTarget = renderer.getRenderTarget();
+    renderer.setRenderTarget(post.composer.inputBuffer);
+    try {
+      await renderer.compileAsync(scene, camera);
+    } catch {
+      // Sem compilação assíncrona: compila no primeiro quadro, como antes.
+    }
+    renderer.setRenderTarget(previousTarget);
+    loop.start();
+    qualityToggle.setBusy(false);
+  };
+
   // --- Retratos da parede (ADR 0012) ------------------------------------------
   // Clicar num quadro o traz para a frente da tela; clicar de novo o devolve.
   const portraitImages = import.meta.glob<string>('./assets/portraits/hd/*.jpg', {
@@ -401,6 +440,7 @@ async function boot(): Promise<void> {
     navPad.setLocale(next);
     siteBadge.setLocale(next);
     music.setLocale(next);
+    qualityToggle.setLocale(next);
     portraitViewer.setLocale(next);
     switcher.setLocale(next);
     refresh();

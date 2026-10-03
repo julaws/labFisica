@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
   BlendFunction,
+  BrightnessContrastEffect,
   DepthOfFieldEffect,
   EffectComposer,
   EffectPass,
@@ -91,11 +92,14 @@ export function createPostPipeline({
     worldDistanceFalloff: 8,
     worldProximityThreshold: 0.3,
     worldProximityFalloff: 0.1,
-    luminanceInfluence: 0.7,
-    samples: 9,
+    // Sombra de contato visível sob as peças sobre a mesa óptica, sem
+    // escurecer a sala inteira: a influência da luminância protege as áreas
+    // claras, e o raio curto fica no tamanho das peças.
+    luminanceInfluence: 0.45,
+    samples: 12,
     rings: 7,
-    radius: 0.1,
-    intensity: 1.0,
+    radius: 0.06,
+    intensity: 2.2,
     bias: 0.03,
     fade: 0.01,
     resolutionScale: 0.5,
@@ -114,6 +118,9 @@ export function createPostPipeline({
   bloom.ignoreBackground = true;
 
   const toneMapping = new ToneMappingEffect({ mode: ToneMappingMode.AGX });
+  // O AgX é generoso nas sombras e achata o contraste. Um pouco de contraste
+  // depois dele devolve o peso dos pretos e o brilho dos reflexos.
+  const contrast = new BrightnessContrastEffect({ brightness: 0, contrast: 0.12 });
 
   const vignette = new VignetteEffect({ offset: 0.35, darkness: 0.46 });
 
@@ -127,13 +134,16 @@ export function createPostPipeline({
   aoPass.enabled = quality.ambientOcclusion;
   composer.addPass(aoPass);
 
-  // Faixa nítida larga: a bancada inteira (vale, objetiva, placa e console)
-  // cabe nela a partir de qualquer enquadramento padrão; só a sala desfoca.
+  // Faixa nítida larga: a bancada inteira cabe nela a partir de qualquer
+  // enquadramento padrão. O desfoque cresce devagar com a distância ao foco
+  // (smoothstep até `focusRange` metros) e tem teto baixo: a parede do fundo,
+  // a ~2 m atrás do foco, fica só um pouco suave — os retratos e as placas
+  // continuam legíveis —, e o que está longe ganha o fundo de estúdio.
   const focusTarget = new THREE.Vector3(0, 1, 0);
   const depthOfField = new DepthOfFieldEffect(camera, {
     focusDistance: 3,
-    focusRange: 2.2,
-    bokehScale: 3.2,
+    focusRange: 7,
+    bokehScale: 1.6,
     resolutionScale: 0.5,
   });
   depthOfField.target = focusTarget;
@@ -142,8 +152,13 @@ export function createPostPipeline({
   dofPass.enabled = quality.depthOfField;
   composer.addPass(dofPass);
 
-  const lookPass = new EffectPass(camera, bloom, toneMapping, vignette, grain);
+  const lookPass = new EffectPass(camera, bloom, toneMapping, contrast, vignette, grain);
   composer.addPass(lookPass);
+  // A mesma aparência sem o bloom, para o modo leve: zerar a intensidade não
+  // basta, o bloom seletivo continua desenhando a seleção e os mipmaps.
+  const liteLookPass = new EffectPass(camera, toneMapping, contrast, vignette);
+  liteLookPass.enabled = false;
+  composer.addPass(liteLookPass);
 
   // A última passagem NUNCA pode ser desligada: o EffectComposer marca
   // `renderToScreen` na última do array sem olhar para `enabled`, então
@@ -175,6 +190,8 @@ export function createPostPipeline({
       dofPass.enabled = settings.depthOfField;
       smaa.applyPreset(settings.antialias ? SMAAPreset.HIGH : SMAAPreset.LOW);
       bloom.intensity = settings.bloom ? 0.85 : 0;
+      lookPass.enabled = !settings.lightweight;
+      liteLookPass.enabled = settings.lightweight;
     },
     dispose(): void {
       composer.dispose();

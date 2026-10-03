@@ -50,6 +50,9 @@ const BENCH = {
   chamfer: 0.035,
 };
 
+/** Mesa óptica sobre o tampo: espessura e recuo da borda, m. */
+const BREADBOARD = { thickness: 0.014, inset: 0.05 };
+
 /** O trilho representa 1200 mm de curso, desenhado em 2,8 unidades de cena. */
 const RAIL_LENGTH_MM = 1200;
 const RAIL_LENGTH_SCENE = 2.8;
@@ -85,19 +88,34 @@ export function createBench(materials: MaterialLibrary): Bench {
   );
   owned.push(topGeometry);
 
-  // O topo recebe as luzes de teto em cheio; com o mesmo material do corpo
-  // ele lava e a bancada deixa de ser "console escuro" (SPEC §3.1).
-  const topMaterial = materials.benchBody.clone();
-  topMaterial.color.setHex(0x080b11);
-  topMaterial.roughness = 0.72;
-  topMaterial.clearcoat = 0.1;
-  owned.push(topMaterial);
-
-  const top = new THREE.Mesh(topGeometry, topMaterial);
-  top.position.y = BENCH.height - BENCH.topThickness / 2;
+  // O tampo fica um pouco abaixo de `height`: a mesa óptica apoiada nele é
+  // que chega à altura de trabalho.
+  const top = new THREE.Mesh(topGeometry, materials.benchTop);
+  top.position.y = BENCH.height - BREADBOARD.thickness - BENCH.topThickness / 2;
   top.castShadow = true;
   top.receiveShadow = true;
   group.add(top);
+
+  // --- Mesa óptica (breadboard) ------------------------------------------------
+  // Placa de alumínio anodizado com furação roscada em grade, como nas bancadas
+  // de óptica de verdade, recuada da borda do tampo. A face de cima é a altura
+  // de trabalho (`topY`): tudo o que os experimentos apoiam fica sobre ela.
+  const boardWidth = BENCH.width - BREADBOARD.inset * 2;
+  const boardDepth = BENCH.depth - BREADBOARD.inset * 2;
+  const boardGeometry = new THREE.BoxGeometry(boardWidth, BREADBOARD.thickness, boardDepth);
+  // UV em metros de cena (x, −z), para a furação ter o passo certo e ficar
+  // alinhada entre as faces.
+  const position = boardGeometry.attributes.position!;
+  const uv = boardGeometry.attributes.uv!;
+  for (let i = 0; i < uv.count; i += 1) uv.setXY(i, position.getX(i) + boardWidth / 2, -position.getZ(i) + boardDepth / 2);
+  owned.push(boardGeometry);
+  const side = materials.anodizedAluminum;
+  // Faces da caixa: +x, −x, +y (tampo), −y, +z, −z.
+  const board = new THREE.Mesh(boardGeometry, [side, side, materials.breadboard, side, side, side]);
+  board.position.y = BENCH.height - BREADBOARD.thickness / 2;
+  board.receiveShadow = true;
+  board.name = 'breadboard';
+  group.add(board);
 
   // --- Faixa de LED embutida na borda frontal -------------------------------
   const ledGeometry = new THREE.BoxGeometry(BENCH.width - 0.14, 0.012, 0.008);

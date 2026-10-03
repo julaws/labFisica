@@ -42,6 +42,12 @@ export interface LabRoom {
   borrowPointLight(): THREE.PointLight | null;
   /** Devolve a luz emprestada, que volta a ficar apagada. */
   returnPointLight(light: THREE.PointLight): void;
+  /**
+   * Modo leve: apaga a luz de área do teto (cada uma custa em cada pixel de
+   * cada material) e reforça o preenchimento para a cena não escurecer.
+   * Mudar o número de luzes recompila os shaders uma vez.
+   */
+  setLightweight(on: boolean): void;
   dispose(): void;
 }
 
@@ -243,7 +249,10 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   // Luz principal quente, alta e à frente: é ela que dá o dourado do latão e
   // o verde vivo do vale, como no estúdio da referência.
   const keyLight = new THREE.DirectionalLight(0xffe8cc, 3.4);
-  keyLight.position.set(0.6, 3.1, 2.9);
+  // Alta, à direita e só um pouco à frente: as sombras das peças caem na
+  // mesa óptica, para trás e para a esquerda, à vista da câmera — é o que
+  // "assenta" os objetos na bancada.
+  keyLight.position.set(KEY_OFFSET.x, KEY_OFFSET.y, KEY_OFFSET.z);
   keyLight.target.position.set(0, 0.9, 0);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.set(2048, 2048);
@@ -254,7 +263,7 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   keyLight.shadow.camera.top = 3;
   keyLight.shadow.camera.bottom = -3;
   keyLight.shadow.bias = -0.0006;
-  keyLight.shadow.radius = 6;
+  keyLight.shadow.radius = 4;
   keyLight.shadow.blurSamples = 16;
   group.add(keyLight);
   group.add(keyLight.target);
@@ -321,7 +330,7 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
 
     focusOn(x: number): void {
       strip.position.x = x;
-      keyLight.position.x = x + 0.6;
+      keyLight.position.x = x + KEY_OFFSET.x;
       keyLight.target.position.x = x;
       rimLight.position.x = x - 1.4;
       rimLight.target.position.x = x;
@@ -336,6 +345,11 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
     returnPointLight(light: THREE.PointLight): void {
       if (!lent.delete(light)) return;
       light.intensity = 0;
+    },
+
+    setLightweight(on: boolean): void {
+      strip.visible = !on;
+      fill.intensity = on ? 0.95 : 0.5;
     },
 
     applyShadowQuality(enabled: boolean, mapSize: number): void {
@@ -356,6 +370,9 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
     },
   };
 }
+
+/** Posição da luz principal em relação à bancada ativa. */
+const KEY_OFFSET = { x: 1.6, y: 3.4, z: 1.7 } as const;
 
 /** Centro e comprimento das luminárias do teto, m: de −1,5 a 2,1 em z. */
 const STRIP_Z = 0.3;

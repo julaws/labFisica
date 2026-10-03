@@ -1,12 +1,19 @@
 import * as THREE from 'three';
 import {
+  BREADBOARD_HOLES_PER_TILE,
   anodizedRoughness,
+  beadBlastNormal,
+  breadboardMaps,
   brushedMetalRoughness,
   concreteNormal,
   concreteRoughness,
   knurledNormal,
+  powderCoatMaps,
   woodColor,
 } from './textures/procedural';
+
+/** Passo da furação da mesa óptica em unidades de cena (25 mm na escala do trilho). */
+export const BREADBOARD_PITCH = 0.058;
 
 /**
  * Biblioteca de materiais PBR do laboratório (SPEC §3.1 e §7).
@@ -33,6 +40,21 @@ export interface MaterialLibrary {
   readonly trayWood: THREE.MeshStandardMaterial;
   /** Aço escuro das prateleiras. */
   readonly darkSteel: THREE.MeshStandardMaterial;
+  /**
+   * Tampo de mesa óptica (alumínio anodizado com furação em grade). As
+   * texturas se repetem a cada `BREADBOARD_PITCH` × 4: a malha usa UV em
+   * metros de cena.
+   */
+  readonly breadboard: THREE.MeshPhysicalMaterial;
+  /** Tampo da bancada, em volta da mesa óptica: laminado fenólico escuro. */
+  readonly benchTop: THREE.MeshPhysicalMaterial;
+
+  /**
+   * Liga ou desliga os detalhes de superfície (normal maps, mapas de
+   * rugosidade, verniz, anisotropia) de todos os materiais da biblioteca: o
+   * modo leve troca realismo por desempenho. Recompila os shaders uma vez.
+   */
+  setDetail(high: boolean): void;
 
   /** Emissivo de cor e intensidade arbitrárias, cacheado por chave. */
   emissive(color: THREE.ColorRepresentation, intensity?: number): THREE.MeshStandardMaterial;
@@ -62,8 +84,12 @@ export function createMaterialLibrary(): MaterialLibrary {
       metalness: 0.92,
       roughness: 0.52,
       roughnessMap: anodizedRoughness(),
-      clearcoat: 0.12,
-      clearcoatRoughness: 0.6,
+      // Jateado antes de anodizar: grão fino que quebra o reflexo em véu.
+      normalMap: beadBlastNormal(),
+      normalScale: new THREE.Vector2(0.07, 0.07),
+      clearcoat: 0.22,
+      clearcoatRoughness: 0.45,
+      envMapIntensity: 1.15,
     }),
   );
 
@@ -124,13 +150,48 @@ export function createMaterialLibrary(): MaterialLibrary {
     }),
   );
 
+  // Corpo da bancada: aço com pintura eletrostática grafite. A casca de
+  // laranja e a rugosidade manchada fazem o reflexo das luminárias se
+  // espalhar como numa peça pintada de verdade, não num plástico liso.
+  const powder = powderCoatMaps();
+  for (const texture of [powder.normalMap, powder.roughnessMap]) texture.repeat.set(2.5, 2.5);
   const benchBody = track(
     new THREE.MeshPhysicalMaterial({
-      color: 0x0c1018,
-      roughness: 0.5,
-      metalness: 0.15,
-      clearcoat: 0.18,
-      clearcoatRoughness: 0.4,
+      color: 0x131821,
+      roughness: 1,
+      roughnessMap: powder.roughnessMap,
+      normalMap: powder.normalMap,
+      normalScale: new THREE.Vector2(0.22, 0.22),
+      metalness: 0.2,
+      clearcoat: 0.3,
+      clearcoatRoughness: 0.32,
+    }),
+  );
+
+  // O tampo recebe as luminárias em cheio: mais escuro e mais fosco que o
+  // corpo, com o mesmo grão, para não lavar (SPEC §3.1).
+  const benchTop = track(benchBody.clone());
+  benchTop.color.setHex(0x0a0d12);
+  benchTop.normalScale.set(0.12, 0.12);
+  benchTop.clearcoat = 0.22;
+  benchTop.clearcoatRoughness = 0.5;
+
+  const board = breadboardMaps();
+  for (const texture of [board.map, board.roughnessMap, board.normalMap]) {
+    texture.repeat.set(1 / (BREADBOARD_PITCH * BREADBOARD_HOLES_PER_TILE), 1 / (BREADBOARD_PITCH * BREADBOARD_HOLES_PER_TILE));
+    texture.anisotropy = 8;
+  }
+  const breadboard = track(
+    new THREE.MeshPhysicalMaterial({
+      map: board.map,
+      roughness: 1,
+      roughnessMap: board.roughnessMap,
+      normalMap: board.normalMap,
+      normalScale: new THREE.Vector2(0.9, 0.9),
+      metalness: 0.55,
+      clearcoat: 0.15,
+      clearcoatRoughness: 0.5,
+      envMapIntensity: 1.1,
     }),
   );
 
@@ -147,8 +208,23 @@ export function createMaterialLibrary(): MaterialLibrary {
       color: 0x1c212c,
       roughness: 0.55,
       metalness: 0.8,
+      normalMap: beadBlastNormal(),
+      normalScale: new THREE.Vector2(0.06, 0.06),
     }),
   );
+
+  // Detalhes de superfície guardados para o modo leve poder tirá-los e
+  // devolvê-los (normal map, rugosidade, verniz, anisotropia).
+  interface Detail {
+    readonly material: THREE.MeshStandardMaterial;
+    readonly normalMap: THREE.Texture | null;
+    readonly roughnessMap: THREE.Texture | null;
+    readonly roughness: number;
+    readonly clearcoat: number;
+    readonly anisotropy: number;
+  }
+  let details: Detail[] | null = null;
+  let detailHigh = true;
 
   const emissiveCache = new Map<string, THREE.MeshStandardMaterial>();
 
@@ -161,6 +237,36 @@ export function createMaterialLibrary(): MaterialLibrary {
     benchBody,
     trayWood,
     darkSteel,
+    breadboard,
+    benchTop,
+
+    setDetail(high: boolean): void {
+      if (high === detailHigh) return;
+      detailHigh = high;
+      details ??= owned
+        .filter((item): item is THREE.MeshStandardMaterial => item instanceof THREE.MeshStandardMaterial)
+        .map((material) => ({
+          material,
+          normalMap: material.normalMap,
+          roughnessMap: material.roughnessMap,
+          roughness: material.roughness,
+          clearcoat: material instanceof THREE.MeshPhysicalMaterial ? material.clearcoat : 0,
+          anisotropy: material instanceof THREE.MeshPhysicalMaterial ? material.anisotropy : 0,
+        }));
+      for (const detail of details) {
+        const { material } = detail;
+        material.normalMap = high ? detail.normalMap : null;
+        material.roughnessMap = high ? detail.roughnessMap : null;
+        // Sem o mapa, a rugosidade fica perto do valor médio que ele dava
+        // (os mapas da biblioteca giram em torno de 0,55).
+        material.roughness = high || !detail.roughnessMap ? detail.roughness : detail.roughness * 0.55;
+        if (material instanceof THREE.MeshPhysicalMaterial) {
+          material.clearcoat = high ? detail.clearcoat : 0;
+          material.anisotropy = high ? detail.anisotropy : 0;
+        }
+        material.needsUpdate = true;
+      }
+    },
 
     emissive(color, intensity = 1): THREE.MeshStandardMaterial {
       const key = `${new THREE.Color(color).getHexString()}-${intensity}`;
