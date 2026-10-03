@@ -81,8 +81,15 @@ Para nada compilar na hora:
 - **Luzes práticas da sala** (`LabRoom.borrowPointLight`): luzes pontuais fixas, apagadas
   quando livres. A lâmpada da cabana é emprestada, e o número de luzes da cena nunca muda.
 
-Resultado medido: lente → dupla fenda sem nenhum quadro acima de 33 ms; dupla fenda →
-lente com um único quadro de 150 ms (montagem do vale), antes do voo. Com
+- **Desenho prévio da bancada de destino** (com três bancadas, ADR 0010): antes do voo, a
+  cena é desenhada uma vez pela cadeia inteira de pós-processamento, com a câmera no
+  enquadramento de destino, e a câmera volta na mesma tarefa — o navegador só apresenta o
+  último desenho. Compila as variantes das passagens de profundidade e normais e envia as
+  texturas grandes (placas de equações) antes do movimento, e não quando a bancada entra
+  no quadro no meio do voo.
+
+Resultado medido (GPU, três bancadas): nenhum quadro acima de 17 ms durante os voos; o
+único quadro longo, de 100 ms, é a montagem do vale, parada, antes de a câmera se mexer. Com
 `prefers-reduced-motion`, a troca é um corte seco.
 
 ### O que é do laboratório e o que é do experimento
