@@ -8,7 +8,8 @@ import { PORTRAIT_COPY } from './portrait-copy';
  *
  * O quadro na tela tem as mesmas proporções do 3D (moldura, passe-partout,
  * foto) e começa exatamente sobre o retângulo do quadro na parede, projetado
- * pela câmera: a animação é uma só transformação (FLIP). Enquanto a foto
+ * pela câmera: a animação é uma só transformação (FLIP). Embaixo, a
+ * biografia resumida e o crédito da foto. Enquanto a foto
  * ampliada carrega, o ladrilho do atlas, já baixado pela cena, faz as vezes
  * dela.
  */
@@ -17,6 +18,8 @@ export interface PortraitEntry {
   readonly id: string;
   readonly name: string;
   readonly years: string;
+  /** Crédito da foto (autor, data, licença). */
+  readonly credit: string;
   /** Foto ampliada (só a foto, 3:4). */
   readonly imageUrl: string;
 }
@@ -120,11 +123,11 @@ export function createPortraitViewer({
   name.className = 'portrait-viewer__name';
   const years = document.createElement('p');
   years.className = 'portrait-viewer__years';
-  const advances = document.createElement('p');
-  advances.className = 'portrait-viewer__advances';
-  const benches = document.createElement('p');
-  benches.className = 'portrait-viewer__benches';
-  text.append(name, years, advances, benches);
+  const bio = document.createElement('p');
+  bio.className = 'portrait-viewer__bio';
+  const credit = document.createElement('p');
+  credit.className = 'portrait-viewer__credit';
+  text.append(name, years, bio, credit);
 
   stage.append(card, text);
   root.append(backdrop, stage);
@@ -137,8 +140,8 @@ export function createPortraitViewer({
     if (!entry) return;
     name.textContent = entry.name;
     years.textContent = copy ? `${entry.years} · ${copy.field}` : entry.years;
-    advances.textContent = copy?.advances ?? '';
-    benches.textContent = copy?.benches ?? '';
+    bio.textContent = copy?.bio ?? '';
+    credit.textContent = `${t('photoCredit', locale)}: ${entry.credit}`;
     root.setAttribute('aria-label', entry.name);
     card.setAttribute('aria-label', t('portraitBack', locale));
     card.title = t('portraitBack', locale);

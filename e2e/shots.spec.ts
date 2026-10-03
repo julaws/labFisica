@@ -334,27 +334,45 @@ test('selo: visualizações e Instagram no canto', async ({ page }, testInfo) =>
 });
 
 test('retratos: o quadro sai da parede e volta', async ({ page }, testInfo) => {
-  await openLab(page, '#/tunneling');
+  await openLab(page, '#/double-slit');
   const mobile = testInfo.project.name === 'mobile';
-  // Marie Curie no desktop; Paul Dirac no celular (o HUD cobre o centro dela).
-  const index = mobile ? 5 : 6;
+  // Paul Dirac: na vista padrão da dupla fenda, fora do HUD e do painel.
   type Centers = ({ x: number; y: number } | null)[];
   const centers = await page.evaluate(
     (): Centers => (window as unknown as { __labPortraits?: () => Centers }).__labPortraits?.() ?? [],
   );
-  const center = centers[index];
+  const center = centers[5];
   expect(center).toBeTruthy();
-  const x = center!.x;
-  const y = center!.y + (mobile ? 45 : 0);
-  if (mobile) await page.touchscreen.tap(x, y);
-  else await page.mouse.click(x, y);
-  const viewer = page.getByRole('dialog', { name: mobile ? 'Paul Dirac' : 'Marie Curie' });
+  if (mobile) await page.touchscreen.tap(center!.x, center!.y);
+  else await page.mouse.click(center!.x, center!.y);
+  const viewer = page.getByRole('dialog', { name: 'Paul Dirac' });
   await expect(viewer).toBeVisible();
-  await expect(viewer).toContainText('Nas bancadas');
+  // Só a biografia e o crédito da foto.
+  await expect(viewer).toContainText('pósitron');
+  await expect(viewer).toContainText('Foto: Fundação Nobel');
+  await expect(viewer).not.toContainText('Nas bancadas');
   await page.waitForTimeout(1200);
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-42-portrait.png` });
   await page.getByRole('button', { name: 'Devolver o quadro à parede' }).click();
   await expect(viewer).toBeHidden();
+});
+
+test('música: começa no primeiro gesto, troca de faixa e silencia', async ({ page }) => {
+  await openLab(page, '#/tunneling');
+  const music = page.getByRole('group', { name: 'Música' });
+  await expect(music).toBeVisible();
+  await expect(music.getByRole('slider', { name: 'Volume da música' })).toHaveValue('10');
+  const title = page.locator('.music__title span');
+  await expect(title).toHaveText('Bach · Ária na Corda Sol');
+  await music.getByRole('button', { name: 'Próxima música' }).click();
+  await expect(title).toHaveText('Beethoven · Sonata ao Luar, 1º mov.');
+  await music.getByRole('button', { name: 'Música anterior' }).click();
+  await music.getByRole('button', { name: 'Música anterior' }).click();
+  // Volta ao fim da lista: a sequência é um laço.
+  await expect(title).toHaveText('Mozart · Sonata K. 333, Andante');
+  const mute = music.getByRole('button', { name: 'Silenciar a música' });
+  await mute.click();
+  await expect(music.getByRole('button', { name: 'Ligar o som da música' })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('orçamento do tunelamento', async ({ page }) => {

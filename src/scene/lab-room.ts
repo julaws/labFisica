@@ -58,10 +58,21 @@ const FRONT_Z = 5.5;
 const ROOM = { width: 18, depth: FRONT_Z - BACK_Z, height: 3.4, centerZ: (FRONT_Z + BACK_Z) / 2 };
 
 /**
- * Retratos: três à esquerda da estante e quatro à direita (a estante vai de
- * −2,6 a 2,6 m), na ordem de `PORTRAITS`.
+ * Retratos, na ordem de `PORTRAITS`, em duas grades de duas colunas ao lado
+ * da estante (que vai de −2,6 a 2,6 m). À esquerda, os físicos em três
+ * fileiras de dois; à direita, as cientistas: duas fileiras de duas e Rosalind
+ * Franklin centrada embaixo. A fileira de baixo fica acima das bancadas.
  */
-const PORTRAIT_X = [-5.2, -4.25, -3.3, 3.3, 4.25, 5.2, 6.15] as const;
+const COLUMNS = { left: [-3.85, -3.25], right: [3.25, 3.85] } as const;
+const ROWS = [2.91, 2.18, 1.45] as const;
+const PORTRAIT_POSITIONS: readonly { x: number; y: number }[] = [
+  // Newton, Einstein / Schrödinger, Heisenberg / Planck, Dirac
+  ...ROWS.flatMap((y) => COLUMNS.left.map((x) => ({ x, y }))),
+  // Curie, Noether / Meitner, Wu
+  ...ROWS.slice(0, 2).flatMap((y) => COLUMNS.right.map((x) => ({ x, y }))),
+  // Franklin
+  { x: (COLUMNS.right[0] + COLUMNS.right[1]) / 2, y: ROWS[2] },
+];
 
 export function createLabRoom(materials: MaterialLibrary): LabRoom {
   const group = new THREE.Group();
@@ -96,7 +107,7 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   glowing.push(...decor.glowing);
 
   // --- Galeria de retratos ------------------------------------------------------
-  const portraits = createPortraitWall({ materials, xs: PORTRAIT_X, wallZ: BACK_Z });
+  const portraits = createPortraitWall({ materials, positions: PORTRAIT_POSITIONS, wallZ: BACK_Z });
   group.add(portraits.group);
   glowing.push(...portraits.glowing);
 

@@ -98,6 +98,13 @@ const STRINGS = {
     pageViewsLabel: 'Visualizações da página',
     instagram: 'Instagram de @juliophisico',
     portraitBack: 'Devolver o quadro à parede',
+    photoCredit: 'Foto',
+    music: 'Música',
+    previousTrack: 'Música anterior',
+    nextTrack: 'Próxima música',
+    mute: 'Silenciar a música',
+    unmute: 'Ligar o som da música',
+    volume: 'Volume da música',
   },
   en: {
     loading: 'Polishing the glass…',
@@ -125,6 +132,13 @@ const STRINGS = {
     pageViewsLabel: 'Page views',
     instagram: '@juliophisico on Instagram',
     portraitBack: 'Put the portrait back on the wall',
+    photoCredit: 'Photo',
+    music: 'Music',
+    previousTrack: 'Previous track',
+    nextTrack: 'Next track',
+    mute: 'Mute the music',
+    unmute: 'Unmute the music',
+    volume: 'Music volume',
   },
 } as const;
 

@@ -65,6 +65,23 @@ vértice, mais uma de latão, uma de cromo e uma acesa (bloom).
   menos desfocados. As luminárias do teto encurtam para 3,6 m (de −1,5 a 2,1 m em z) e
   ganham um pouco de intensidade (1,9 → 2,2) para a bancada receber a mesma luz.
 
+## Revisão de 03/10/2026: duas grades e as cientistas
+
+- **Só a biografia.** O visualizador mostra o campo, uma biografia curta e o crédito da
+  foto; os parágrafos sobre as bancadas saíram.
+- **Duas grades de duas colunas.** À esquerda da estante, os seis físicos em três
+  fileiras de dois (x = −3,85 e −3,25 m; y = 2,91, 2,18 e 1,45 m). À direita, Marie
+  Curie com Emmy Noether, Lise Meitner, Chien-Shiung Wu e Rosalind Franklin: duas
+  fileiras de duas e Franklin centrada embaixo. Os textos das quatro novas são os do
+  pedido, com tradução para o inglês.
+- **Quadros a 72%** do tamanho anterior (moldura 0,45 × 0,58 m), para três fileiras
+  caberem entre as bancadas e o teto. As luminárias de quadro saíram: numa grade, os
+  braços cruzariam as placas da fileira de cima.
+- **Licenças**: não há foto de domínio público de Wu nem de Franklin no Commons. Wu
+  vem do Smithsonian, "sem restrições de direitos conhecidas"; Franklin, do MRC LMB,
+  sob CC BY-SA 4.0. São exceções à regra do CC0, registradas em `CREDITS.md`, com o
+  crédito visível no visualizador.
+
 ## Consequências
 
 - Os textos dos cientistas citam números do motor (λ = 5,36 pm a 50 kV, 5,48 pm sem a

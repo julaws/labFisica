@@ -15,14 +15,17 @@ Cada bancada tem uma placa prateada com as equações do experimento: a das lent
 Schrödinger, as da força magnética e a da corrente de tunelamento.
 
 Na parede do fundo, logo atrás das bancadas, uma galeria de retratos em preto e
-branco (Newton, Einstein, Schrödinger, Heisenberg, Planck, Dirac e Marie Curie), cada
-um com a placa dourada do nome e dos anos. Clique num quadro: ele sai da parede para a
-frente da tela, nítido, com um texto curto sobre o que o cientista trouxe para a física
-e onde isso aparece nas bancadas; clique de novo e ele volta. Na prateleira do meio, enfeites de física: globo,
+branco, em duas grades ao lado da estante: à esquerda Newton, Einstein, Schrödinger,
+Heisenberg, Planck e Dirac; à direita Marie Curie, Emmy Noether, Lise Meitner,
+Chien-Shiung Wu e Rosalind Franklin. Cada um tem a placa dourada do nome e dos anos.
+Clique num quadro: ele sai da parede para a frente da tela, nítido, com uma biografia
+curta; clique de novo e ele volta. Na prateleira do meio, enfeites de física: globo,
 telescópio, átomo, foguete, pêndulo de Newton e ímã.
 
-No canto inferior direito, ao lado da navegação, dois botões só com ícone: o olho
-com o contador de visualizações da página e o link para o Instagram
+No canto inferior direito, ao lado da navegação: a música de fundo (Bach, Beethoven,
+Debussy, Satie e Mozart, gravações de domínio público, em sequência e em laço, a 10%
+do volume, com faixa anterior, próxima, mudo e volume), o olho com o contador de
+visualizações da página e o link para o Instagram
 [@juliophisico](https://www.instagram.com/juliophisico/).
 
 Só a bancada ativa fica montada, e o código de cada experimento é baixado só

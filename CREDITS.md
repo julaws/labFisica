@@ -16,9 +16,9 @@ Todo o resto da aparência é procedural, gerado em código em `src/scene/textur
 
 ## Retratos da galeria (domínio público)
 
-`src/assets/portraits/physicists.jpg`, usado por `src/scene/portrait-wall.ts`: sete
-retratos num atlas 4 × 2, recortados, convertidos para tons de cinza e com o
-passe-partout desenhado por cima (2080 × 1400 px, JPEG). Em `src/assets/portraits/hd/`,
+`src/assets/portraits/physicists.jpg`, usado por `src/scene/portrait-wall.ts`: onze
+retratos num atlas 4 × 3, recortados, convertidos para tons de cinza e com o
+passe-partout desenhado por cima (2080 × 2100 px, JPEG). Em `src/assets/portraits/hd/`,
 a mesma foto de cada um ampliada (660 × 880 px), que o visualizador baixa só quando
 o quadro é clicado. As fotos são de **domínio
 público**: sem direito autoral nenhum, o que cumpre a mesma exigência do CC0
@@ -33,6 +33,36 @@ público**: sem direito autoral nenhum, o que cumpre a mesma exigência do CC0
 | Max Planck | autor desconhecido, Berlim, 1933 | [Max Planck 1933.jpg](https://commons.wikimedia.org/wiki/File:Max_Planck_1933.jpg) |
 | Paul Dirac | Fundação Nobel, 1933 | [Paul Dirac, 1933.jpg](https://commons.wikimedia.org/wiki/File:Paul_Dirac,_1933.jpg) |
 | Marie Curie | Henri Manuel, c. 1920 | [Marie Curie c1920.jpg](https://commons.wikimedia.org/wiki/File:Marie_Curie_c1920.jpg) |
+| Emmy Noether | autor desconhecido, c. 1900 | [Noether.jpg](https://commons.wikimedia.org/wiki/File:Noether.jpg) |
+| Lise Meitner | autor desconhecido, 1916 | [Lise Meitner signed.jpg](https://commons.wikimedia.org/wiki/File:Lise_Meitner_signed.jpg) |
+
+**Duas exceções à regra do CC0**, para atender ao pedido de fotos reais das cientistas
+(não há foto de domínio público delas no Wikimedia Commons):
+
+| Retrato | Autor e data | Licença | Arquivo de origem |
+|---|---|---|---|
+| Chien-Shiung Wu | Smithsonian Institution Archives, 1958 (SIA2010-1511) | **sem restrições de direitos autorais conhecidas** (Flickr Commons: o Smithsonian não conhece direitos sobre a foto, mas não a declara domínio público) | [Chien-Shiung Wu (1912-1997) in 1958.jpg](https://commons.wikimedia.org/wiki/File:Chien-Shiung_Wu_(1912-1997)_in_1958.jpg) |
+| Rosalind Franklin | MRC Laboratory of Molecular Biology, 1955 (acervo de Jenifer Glynn) | **CC BY-SA 4.0**: exige o crédito, e o recorte em tons de cinza segue sob a mesma licença | [Rosalind Franklin.jpg](https://commons.wikimedia.org/wiki/File:Rosalind_Franklin.jpg) |
+
+O crédito de cada foto aparece no visualizador, embaixo da biografia. O recorte de
+Rosalind Franklin no atlas e em `hd/franklin.jpg` é obra derivada sob CC BY-SA 4.0.
+
+## Música de fundo (domínio público)
+
+`public/music/`, tocadas por `src/ui/music-player.ts`, em sequência e em laço. São as
+versões MP3 que o próprio Wikimedia Commons gera dos arquivos originais, obtidas em
+03/10/2026. Interpretações instrumentais, sem metais (piano solo, e cordas no Bach).
+
+| Faixa | Intérprete | Licença | Arquivo de origem |
+|---|---|---|---|
+| Bach, Ária da Suíte Orquestral nº 3, BWV 1068 ("Ária na Corda Sol") | The Air Force Strings (Banda da Força Aérea dos EUA), 2000 | domínio público (obra do governo dos EUA) | [Air.ogg](https://commons.wikimedia.org/wiki/File:Air.ogg) |
+| Beethoven, Sonata nº 14 "ao Luar", op. 27 nº 2, I. Adagio sostenuto | Paul Pitman (Musopen) | domínio público | [arquivo no Commons](https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_sonata_no._14_in_c_sharp_minor_%27moonlight%27,_op._27_no._2_-_i._adagio_sostenuto.ogg) |
+| Debussy, Clair de Lune (Suite bergamasque) | Laurens Goedhart, 2011 | domínio público | [arquivo no Commons](https://commons.wikimedia.org/wiki/File:Clair_de_lune_(Claude_Debussy)_Suite_bergamasque.ogg) |
+| Satie, Gymnopédie nº 1 | Robin Alciatore (Musopen) | domínio público | [arquivo no Commons](https://commons.wikimedia.org/wiki/File:Erik_Satie_-_gymnopedies_-_la_1_ere._lent_et_douloureux.ogg) |
+| Mozart, Sonata nº 13, K. 333, II. Andante cantabile | Musopen | domínio público | [arquivo no Commons](https://commons.wikimedia.org/wiki/File:Wolfgang_Amadeus_Mozart_-_sonata_no._13_in_b_flat_major,_k.333_-_ii._andante_cantabile.ogg) |
+
+No lugar de um concerto para piano de Mozart, entrou um movimento de sonata para
+piano solo: os concertos têm trompas na orquestra, e o pedido era evitar metais.
 
 ## Serviços externos
 

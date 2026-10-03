@@ -31,6 +31,7 @@ import { createHud } from './ui/hud';
 import { createPanel } from './ui/panel';
 import { createNavPad } from './ui/nav-pad';
 import { createSiteBadge } from './ui/site-badge';
+import { createMusicPlayer } from './ui/music-player';
 import { type ScreenRect, createPortraitViewer } from './ui/portrait-viewer';
 import { PORTRAITS, PORTRAIT_ATLAS, PORTRAIT_FRAME } from './scene/portrait-wall';
 import { createModal } from './ui/modal';
@@ -297,6 +298,8 @@ async function boot(): Promise<void> {
     onReset: () => cinematic.reset(),
   });
   const siteBadge = createSiteBadge({ parent: dock, locale });
+  // Música de fundo: à esquerda do selo (prepend), começa no primeiro gesto.
+  const music = createMusicPlayer({ parent: dock, locale, baseUrl: `${import.meta.env.BASE_URL}music/` });
 
   // --- Retratos da parede (ADR 0012) ------------------------------------------
   // Clicar num quadro o traz para a frente da tela; clicar de novo o devolve.
@@ -397,6 +400,7 @@ async function boot(): Promise<void> {
     current?.panel.setLocale(next);
     navPad.setLocale(next);
     siteBadge.setLocale(next);
+    music.setLocale(next);
     portraitViewer.setLocale(next);
     switcher.setLocale(next);
     refresh();

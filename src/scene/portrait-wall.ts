@@ -5,20 +5,18 @@ import type { MaterialLibrary } from './materials';
 import { nameplateAtlasTexture } from './textures/procedural';
 
 /**
- * Galeria da parede do fundo: sete retratos em preto e branco, três à
- * esquerda da estante e quatro à direita, cada um com a placa dourada do nome
- * e dos anos de nascimento e morte, e uma luminária de quadro por cima.
- * Clicar num quadro abre o retrato na frente da tela (`ui/portrait-viewer.ts`).
+ * Galeria da parede do fundo: onze retratos em preto e branco em duas grades
+ * de duas colunas, uma de cada lado da estante — os físicos à esquerda (três
+ * fileiras de dois) e as cientistas à direita, com Marie Curie. Cada quadro
+ * tem a placa dourada do nome e dos anos de nascimento e morte. Clicar num
+ * quadro abre o retrato na frente da tela (`ui/portrait-viewer.ts`).
  *
- * As fotos são de domínio público (Wikimedia Commons, ver CREDITS.md), já
- * recortadas, em tons de cinza e com o passe-partout desenhado, num JPEG só
- * (atlas 4 × 2); cada uma tem também uma versão ampliada em `hd/`.
- * Newton morreu 112 anos antes da primeira fotografia: o dele é o retrato
- * pintado por Godfrey Kneller em 1689, também em preto e branco.
+ * As fotos (Wikimedia Commons, ver CREDITS.md) já vêm recortadas, em tons de
+ * cinza e com o passe-partout desenhado, num JPEG só (atlas 4 × 3); cada uma
+ * tem também uma versão ampliada em `hd/`.
  *
- * Orçamento (SPEC §8): uma malha para as seis fotos, uma para as molduras,
- * uma para o latão (filetes e luminárias), uma para as placas e uma para as
- * lâmpadas acesas. Nada faz sombra: a parede fica fora do mapa de sombra.
+ * Orçamento (SPEC §8): uma malha para todas as fotos, uma para as molduras,
+ * uma para o latão (filetes e calços) e uma para as placas. Nada faz sombra.
  */
 
 export interface Portrait {
@@ -26,19 +24,35 @@ export interface Portrait {
   readonly id: string;
   readonly name: string;
   readonly years: string;
+  /** Crédito da foto, mostrado no visualizador. */
+  readonly credit: string;
 }
 
-/** Da esquerda para a direita, na ordem do atlas (linhas de 4 ladrilhos). */
+/** Na ordem do atlas (linhas de 4 ladrilhos); a posição na parede vem de fora. */
 export const PORTRAITS: readonly Portrait[] = [
   // Datas no calendário gregoriano (no juliano da Inglaterra de então,
   // 25/12/1642 a 20/3/1726).
-  { id: 'newton', name: 'Isaac Newton', years: '1643 – 1727' },
-  { id: 'einstein', name: 'Albert Einstein', years: '1879 – 1955' },
-  { id: 'schrodinger', name: 'Erwin Schrödinger', years: '1887 – 1961' },
-  { id: 'heisenberg', name: 'Werner Heisenberg', years: '1901 – 1976' },
-  { id: 'planck', name: 'Max Planck', years: '1858 – 1947' },
-  { id: 'dirac', name: 'Paul Dirac', years: '1902 – 1984' },
-  { id: 'curie', name: 'Marie Curie', years: '1867 – 1934' },
+  { id: 'newton', name: 'Isaac Newton', years: '1643 – 1727', credit: 'Godfrey Kneller, 1689 · domínio público' },
+  { id: 'einstein', name: 'Albert Einstein', years: '1879 – 1955', credit: 'Ferdinand Schmutzer, 1921 · domínio público' },
+  { id: 'schrodinger', name: 'Erwin Schrödinger', years: '1887 – 1961', credit: 'Narodowe Archiwum Cyfrowe, 1933 · domínio público' },
+  { id: 'heisenberg', name: 'Werner Heisenberg', years: '1901 – 1976', credit: 'autor desconhecido, c. 1927 · domínio público' },
+  { id: 'planck', name: 'Max Planck', years: '1858 – 1947', credit: 'autor desconhecido, 1933 · domínio público' },
+  { id: 'dirac', name: 'Paul Dirac', years: '1902 – 1984', credit: 'Fundação Nobel, 1933 · domínio público' },
+  { id: 'curie', name: 'Marie Curie', years: '1867 – 1934', credit: 'Henri Manuel, c. 1920 · domínio público' },
+  { id: 'noether', name: 'Emmy Noether', years: '1882 – 1935', credit: 'autor desconhecido, c. 1900 · domínio público' },
+  { id: 'meitner', name: 'Lise Meitner', years: '1878 – 1968', credit: 'autor desconhecido, 1916 · domínio público' },
+  {
+    id: 'wu',
+    name: 'Chien-Shiung Wu',
+    years: '1912 – 1997',
+    credit: 'Smithsonian Institution Archives, 1958 · sem restrições de direitos conhecidas',
+  },
+  {
+    id: 'franklin',
+    name: 'Rosalind Franklin',
+    years: '1920 – 1958',
+    credit: 'MRC Laboratory of Molecular Biology, 1955 · CC BY-SA 4.0',
+  },
 ];
 
 /**
@@ -49,20 +63,25 @@ export const PORTRAITS: readonly Portrait[] = [
 export const PORTRAIT_ATLAS = {
   url: portraitsUrl,
   columns: 4,
-  rows: 2,
+  rows: 3,
   tile: { width: 520, height: 700 },
   photo: { x: 60, y: 83.5, width: 400, height: 533 },
 } as const;
 
-/** Proporções do quadro, em metros: moldura, passe-partout e foto. */
+/**
+ * Tamanho do quadro, em metros: moldura e passe-partout. Em grade de três
+ * fileiras, os quadros são 72% do tamanho da primeira galeria (0,62 × 0,80 m),
+ * para caberem entre as bancadas e o teto.
+ */
+const SIZE = 0.72;
 export const PORTRAIT_FRAME = {
-  outer: { width: 0.62, height: 0.8 },
-  mat: { width: 0.52, height: 0.7 },
+  outer: { width: 0.62 * SIZE, height: 0.8 * SIZE },
+  mat: { width: 0.52 * SIZE, height: 0.7 * SIZE },
 } as const;
 
 export interface PortraitWall {
   readonly group: THREE.Group;
-  /** Lâmpadas das luminárias, para o bloom. */
+  /** Objetos com bloom (nenhum por enquanto: a galeria não tem luminárias). */
   readonly glowing: THREE.Object3D[];
   /** Malhas que o clique testa: fotos e molduras. */
   readonly targets: THREE.Object3D[];
@@ -77,23 +96,21 @@ export interface PortraitWall {
 
 export interface PortraitWallOptions {
   readonly materials: MaterialLibrary;
-  /** Centro de cada quadro em x, na ordem de `PORTRAITS`. */
-  readonly xs: readonly number[];
+  /** Centro de cada quadro na parede (x, y), na ordem de `PORTRAITS`. */
+  readonly positions: readonly { readonly x: number; readonly y: number }[];
   /** z da face da parede. */
   readonly wallZ: number;
-  /** Altura do centro dos quadros, m. */
-  readonly centerY?: number;
 }
 
 /** Passe-partout com a foto: o ladrilho do atlas inteiro. */
 const MAT = PORTRAIT_FRAME.mat;
 /** Moldura: largura da barra e profundidade. */
-const BAR = 0.05;
-const DEPTH = 0.04;
+const BAR = 0.05 * SIZE;
+const DEPTH = 0.04 * SIZE;
 /** Placa: proporção da textura (1024 × 300). */
-const PLATE = { width: 0.34, height: 0.34 * (300 / 1024) };
+const PLATE = { width: 0.34 * SIZE, height: 0.34 * SIZE * (300 / 1024) };
 
-export function createPortraitWall({ materials, xs, wallZ, centerY = 1.88 }: PortraitWallOptions): PortraitWall {
+export function createPortraitWall({ materials, positions, wallZ }: PortraitWallOptions): PortraitWall {
   const group = new THREE.Group();
   group.name = 'portrait-wall';
   const owned: (THREE.BufferGeometry | THREE.Material | THREE.Texture)[] = [];
@@ -103,15 +120,13 @@ export function createPortraitWall({ materials, xs, wallZ, centerY = 1.88 }: Por
   const frameParts: THREE.BufferGeometry[] = [];
   const brassParts: THREE.BufferGeometry[] = [];
   const plateParts: THREE.BufferGeometry[] = [];
-  const bulbParts: THREE.BufferGeometry[] = [];
 
   const outerW = MAT.width + BAR * 2;
   const outerH = MAT.height + BAR * 2;
   const front = wallZ + DEPTH;
 
   PORTRAITS.forEach((_, index) => {
-    const x = xs[index] ?? 0;
-    const y = centerY;
+    const { x, y } = positions[index] ?? { x: 0, y: 0 };
 
     // Foto: o ladrilho (coluna, linha) do atlas, com a linha de cima no alto
     // da textura.
@@ -136,7 +151,7 @@ export function createPortraitWall({ materials, xs, wallZ, centerY = 1.88 }: Por
     );
 
     // Filete de latão na borda interna da moldura.
-    const lip = 0.008;
+    const lip = 0.006;
     brassParts.push(
       new THREE.BoxGeometry(MAT.width + lip * 2, lip, 0.01).translate(x, y + MAT.height / 2 + lip / 2, front - 0.004),
       new THREE.BoxGeometry(MAT.width + lip * 2, lip, 0.01).translate(x, y - MAT.height / 2 - lip / 2, front - 0.004),
@@ -144,22 +159,8 @@ export function createPortraitWall({ materials, xs, wallZ, centerY = 1.88 }: Por
       new THREE.BoxGeometry(lip, MAT.height, 0.01).translate(x + MAT.width / 2 + lip / 2, y, front - 0.004),
     );
 
-    // Luminária de quadro: braço curto saindo da parede e a calha por cima.
-    const lampY = y + outerH / 2 + 0.07;
-    brassParts.push(
-      new THREE.CylinderGeometry(0.008, 0.008, 0.14, 8).rotateX(Math.PI / 2).translate(x, lampY, wallZ + 0.07),
-      new THREE.CylinderGeometry(0.022, 0.022, 0.03, 12).rotateX(Math.PI / 2).translate(x, lampY, wallZ + 0.015),
-      new THREE.CylinderGeometry(0.026, 0.026, 0.3, 16).rotateZ(Math.PI / 2).translate(x, lampY, wallZ + 0.15),
-    );
-    // A lâmpada acesa: uma faixa embaixo da calha, voltada para o quadro.
-    bulbParts.push(
-      new THREE.PlaneGeometry(0.27, 0.02)
-        .rotateX(Math.PI / 2)
-        .translate(x, lampY - 0.027, wallZ + 0.15),
-    );
-
     // Placa dourada embaixo, sobre um calço de latão.
-    const plateY = y - outerH / 2 - 0.085;
+    const plateY = y - outerH / 2 - 0.06;
     const plate = new THREE.PlaneGeometry(PLATE.width, PLATE.height);
     const plateUv = plate.attributes.uv!;
     for (let i = 0; i < plateUv.count; i += 1) {
@@ -218,7 +219,7 @@ export function createPortraitWall({ materials, xs, wallZ, centerY = 1.88 }: Por
   const plateTexture = nameplateAtlasTexture(PORTRAITS.map((portrait) => [portrait.name, portrait.years] as const));
   const plateMaterial = new THREE.MeshStandardMaterial({
     map: plateTexture,
-    // Um pouco de brilho próprio, como as fotos: a luminária pega a placa.
+    // Um pouco de brilho próprio, como as fotos: a parede do fundo é escura.
     emissiveMap: plateTexture,
     emissive: new THREE.Color(0xffffff),
     emissiveIntensity: 0.18,
@@ -231,10 +232,6 @@ export function createPortraitWall({ materials, xs, wallZ, centerY = 1.88 }: Por
   plates.name = 'portrait-plates';
   group.add(plates);
 
-  const bulbs = new THREE.Mesh(merge(bulbParts, 'as lâmpadas'), materials.emissive(0xffe2b0, 1.6));
-  bulbs.name = 'portrait-lamps';
-  group.add(bulbs);
-  glowing.push(bulbs);
 
   return {
     group,
@@ -243,14 +240,19 @@ export function createPortraitWall({ materials, xs, wallZ, centerY = 1.88 }: Por
 
     indexAt(point: THREE.Vector3): number {
       let best = 0;
-      xs.forEach((x, index) => {
-        if (Math.abs(x - point.x) < Math.abs((xs[best] ?? 0) - point.x)) best = index;
+      let bestDistance = Infinity;
+      positions.forEach(({ x, y }, index) => {
+        const distance = Math.hypot(x - point.x, y - point.y);
+        if (distance < bestDistance) {
+          best = index;
+          bestDistance = distance;
+        }
       });
       return best;
     },
 
     corners(index: number): THREE.Vector3[] {
-      const x = xs[index] ?? 0;
+      const { x, y } = positions[index] ?? { x: 0, y: 0 };
       group.updateWorldMatrix(true, false);
       return [
         [-1, 1],
@@ -258,7 +260,7 @@ export function createPortraitWall({ materials, xs, wallZ, centerY = 1.88 }: Por
         [1, -1],
         [-1, -1],
       ].map(([sx, sy]) =>
-        new THREE.Vector3(x + (sx! * outerW) / 2, centerY + (sy! * outerH) / 2, front).applyMatrix4(group.matrixWorld),
+        new THREE.Vector3(x + (sx! * outerW) / 2, y + (sy! * outerH) / 2, front).applyMatrix4(group.matrixWorld),
       );
     },
 
