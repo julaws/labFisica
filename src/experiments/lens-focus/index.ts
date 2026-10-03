@@ -33,13 +33,12 @@ const SUBJECT_DISTANCES = [
   { id: 'midground', distanceMm: DEFAULT_SUBJECT_DISTANCES_MM.midground },
   { id: 'background', distanceMm: DEFAULT_SUBJECT_DISTANCES_MM.background },
 ] as const;
-import { focusRingScale, nameplateTexture } from '../../scene/textures/procedural';
+import { nameplateTexture } from '../../scene/textures/procedural';
 import { DIORAMA_DEPTH, LENS_EXAGGERATION } from '../../scene/scale';
 import {
   RING_SWEEP,
   distanceToRingAngle,
   ringAngleToDistance,
-  ringMarks,
 } from './focus-ring';
 import { DEFAULT_IRIS, bladeSweepRadius } from './iris';
 import {
@@ -525,11 +524,9 @@ export function createLensFocusExperiment(): Experiment {
       root.add(opticsGroup);
 
       // --- Barril e anéis ---------------------------------------------------
-      const scaleTexture = focusRingScale(ringMarks(), RING_SWEEP / (Math.PI * 2));
       barrel = createBarrel(ctx.materials, {
         clearSemiDiameter: clearSemiDiameterMm,
         opticalLengthMm: lengthMm,
-        focusScaleTexture: scaleTexture,
       });
       geometries.push(...barrel.geometries);
       materials.push(...barrel.materials);

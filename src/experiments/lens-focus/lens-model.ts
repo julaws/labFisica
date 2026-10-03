@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { AIR, indexD } from '../../optics/glass';
 import type { Prescription, Surface } from '../../optics/prescription';
 import { glassElements, vertexPositions } from '../../optics/prescription';
@@ -303,8 +304,6 @@ export interface BarrelOptions {
   readonly clearSemiDiameter: number;
   /** Extensão axial do grupo óptico, mm. */
   readonly opticalLengthMm: number;
-  /** Textura da escala gravada no anel de foco. */
-  readonly focusScaleTexture: THREE.Texture;
 }
 
 /**
@@ -326,23 +325,36 @@ export const BARREL_LAYOUT = {
 } as const;
 
 /**
- * Anel oco (perfil retangular girado no torno): deixa ver o que está dentro,
- * ao contrário de um cilindro maciço.
+ * Perfil de anel com cantos arredondados, para o torno: retângulo de raio
+ * `inner` a `outer` e largura `width`, com cada canto trocado por um arco de
+ * raio `corner`. Os pontos vão em (raio, eixo).
  */
-function hollowRing(inner: number, outer: number, width: number, segments = 96): THREE.BufferGeometry {
+function roundedProfile(inner: number, outer: number, width: number, corner: number, steps = 6): THREE.Vector2[] {
   const half = width / 2;
-  const profile = [
-    new THREE.Vector2(inner, -half),
-    new THREE.Vector2(outer, -half),
-    new THREE.Vector2(outer, half),
-    new THREE.Vector2(inner, half),
-    new THREE.Vector2(inner, -half),
-  ];
-  const geometry = new THREE.LatheGeometry(profile, segments);
-  // O torno gira em torno de Y; o eixo óptico é X.
+  const r = Math.min(corner, (outer - inner) / 2, half);
+  const points: THREE.Vector2[] = [];
+  const arc = (cx: number, cy: number, from: number): void => {
+    for (let i = 0; i <= steps; i += 1) {
+      const angle = from + (Math.PI / 2) * (i / steps);
+      points.push(new THREE.Vector2(cx + r * Math.cos(angle), cy + r * Math.sin(angle)));
+    }
+  };
+  // Sentido anti-horário no plano (raio, eixo): base, face externa, topo, face interna.
+  arc(inner + r, -half + r, Math.PI);
+  arc(outer - r, -half + r, -Math.PI / 2);
+  arc(outer - r, half - r, 0);
+  arc(inner + r, half - r, Math.PI / 2);
+  points.push(points[0]!.clone());
+  return points;
+}
+
+/** Anel torneado com cantos arredondados, no eixo óptico (X), centrado em `x`. */
+function roundedRing(inner: number, outer: number, width: number, corner: number, x = 0, segments = 128): THREE.BufferGeometry {
+  const geometry = new THREE.LatheGeometry(roundedProfile(inner, outer, width, corner), segments);
   geometry.rotateZ(-Math.PI / 2);
+  geometry.translate(x, 0, 0);
   geometry.computeVertexNormals();
-  return geometry;
+  return geometry.toNonIndexed();
 }
 
 /**
@@ -351,7 +363,7 @@ function hollowRing(inner: number, outer: number, width: number, segments = 96):
  */
 export function createBarrel(
   materials: MaterialLibrary,
-  { clearSemiDiameter, opticalLengthMm, focusScaleTexture }: BarrelOptions,
+  { clearSemiDiameter, opticalLengthMm }: BarrelOptions,
 ): BarrelParts {
   const group = new THREE.Group();
   group.name = 'barrel';
@@ -422,59 +434,101 @@ export function createBarrel(
   liner.position.x = shell.position.x;
   group.add(liner);
 
-  // Anel de foco: borracha serrilhada, oca, na extensão dianteira do barril.
-  const focusRingGeometry = hollowRing(
-    outerRadius * 0.995,
-    outerRadius * 1.12,
-    lensMm(BARREL_LAYOUT.focusRingWidthMm),
-  );
-  geometries.push(focusRingGeometry);
+  // --- Anel de foco -----------------------------------------------------------
+  // Três peças torneadas, todas de cantos arredondados, que giram juntas:
+  // o corpo anodizado, a pegada serrilhada em relevo no meio e a coroa
+  // dourada na borda da frente (com um filete dourado atrás). Sem escala
+  // numerada: o foco se lê nos números da interface.
+  const ringWidth = lensMm(BARREL_LAYOUT.focusRingWidthMm);
+  const ringInner = outerRadius * 0.995;
+  const thick = outerRadius * 0.11;
 
+  // A pegada é o objeto de referência (é ela que se arrasta); as outras peças
+  // são filhas e acompanham o giro.
+  const gripGeometry = roundedRing(
+    ringInner + thick * 0.55,
+    ringInner + thick * 1.42,
+    ringWidth * 0.6,
+    thick * 0.32,
+  );
+  geometries.push(gripGeometry);
   const focusRingMaterial = materials.knurledRubber.clone();
   focusRingMaterial.normalMap = materials.knurledRubber.normalMap;
   ownedMaterials.push(focusRingMaterial);
-
-  const focusRing = new THREE.Mesh(focusRingGeometry, focusRingMaterial);
+  const focusRing = new THREE.Mesh(gripGeometry, focusRingMaterial);
   focusRing.name = 'focus-ring';
   focusRing.position.x = lensMm(BARREL_LAYOUT.focusRingCenterMm);
   focusRing.castShadow = true;
   group.add(focusRing);
 
-  // Faixa gravada, num cilindro um fio maior que o anel, na metade de trás.
-  const scaleGeometry = new THREE.CylinderGeometry(
-    outerRadius * 1.126,
-    outerRadius * 1.126,
-    lensMm(5.5),
-    96,
-    1,
-    true,
-  );
-  scaleGeometry.rotateZ(-Math.PI / 2);
-  geometries.push(scaleGeometry);
+  // Corpo anodizado: um pouco mais baixo que a pegada, com a borda da frente
+  // num degrau que recebe a coroa.
+  const bodyGeometry = roundedRing(ringInner, ringInner + thick, ringWidth, thick * 0.4);
+  geometries.push(bodyGeometry);
+  const body = new THREE.Mesh(bodyGeometry, materials.anodizedAluminum);
+  body.castShadow = true;
+  body.receiveShadow = true;
+  focusRing.add(body);
 
-  const scaleMaterial = new THREE.MeshStandardMaterial({
-    map: focusScaleTexture,
-    emissiveMap: focusScaleTexture,
-    emissive: new THREE.Color(0xc9d8ef),
-    emissiveIntensity: 0.3,
-    transparent: true,
-    roughness: 0.5,
-    metalness: 0.2,
-    side: THREE.DoubleSide,
-    depthWrite: false,
+  // Coroa dourada: aro polido na borda da frente, com dois sulcos finos, e um
+  // filete dourado na borda de trás. Mesmo material: uma malha só.
+  const gold = new THREE.MeshStandardMaterial({
+    color: 0xd9ad4f,
+    metalness: 1,
+    roughness: 0.2,
+    envMapIntensity: 1.3,
   });
-  ownedMaterials.push(scaleMaterial);
+  ownedMaterials.push(gold);
+  const crownWidth = ringWidth * 0.16;
+  const crownX = -ringWidth / 2 + crownWidth / 2 - ringWidth * 0.02;
+  const crownParts = [
+    roundedRing(ringInner + thick * 0.2, ringInner + thick * 1.18, crownWidth, thick * 0.3, crownX),
+    // Sulcos: dois anéis finos, mais altos, que fazem a coroa parecer frisada.
+    roundedRing(ringInner + thick * 1.1, ringInner + thick * 1.26, crownWidth * 0.18, thick * 0.07, crownX - crownWidth * 0.22),
+    roundedRing(ringInner + thick * 1.1, ringInner + thick * 1.26, crownWidth * 0.18, thick * 0.07, crownX + crownWidth * 0.22),
+    // Filete de trás.
+    roundedRing(ringInner + thick * 0.6, ringInner + thick * 1.08, ringWidth * 0.05, thick * 0.12, ringWidth * 0.44),
+  ];
+  const crownGeometry = mergeGeometries(crownParts);
+  for (const part of crownParts) part.dispose();
+  if (!crownGeometry) throw new Error('Falha ao montar a coroa do anel de foco');
+  geometries.push(crownGeometry);
+  const crown = new THREE.Mesh(crownGeometry, gold);
+  crown.name = 'focus-crown';
+  crown.castShadow = true;
+  focusRing.add(crown);
 
-  const scaleBand = new THREE.Mesh(scaleGeometry, scaleMaterial);
-  scaleBand.name = 'focus-scale';
-  focusRing.add(scaleBand);
-  scaleBand.position.x = lensMm(3.6);
+  // Índice: um triângulo dourado no alto do barril, logo atrás do anel, que
+  // marca onde o anel está. Preso à casca: na vista explodida, some com ela.
+  const indexGeometry = new THREE.ConeGeometry(thick * 0.28, thick * 0.5, 3);
+  indexGeometry.rotateZ(Math.PI);
+  indexGeometry.translate(lensMm(BARREL_LAYOUT.focusRingCenterMm) + ringWidth / 2 + thick * 0.45, outerRadius + thick * 0.18, 0);
+  shell.updateMatrix();
+  indexGeometry.applyMatrix4(shell.matrix.clone().invert());
+  geometries.push(indexGeometry);
+  const index = new THREE.Mesh(indexGeometry, gold);
+  index.name = 'focus-index';
+  shell.add(index);
 
-  // Flange traseiro de montagem, também oco, em latão.
-  const flangeGeometry = hollowRing(outerRadius * 0.6, outerRadius * 0.86, lensMm(3));
+  // --- Flange de montagem (baioneta) ------------------------------------------
+  // Dourado e torneado em degraus arredondados, com três garras da baioneta.
+  const flangeDepth = lensMm(3);
+  const flangeParts = [
+    roundedRing(outerRadius * 0.6, outerRadius * 0.9, flangeDepth, flangeDepth * 0.25),
+    roundedRing(outerRadius * 0.52, outerRadius * 0.7, flangeDepth * 1.6, flangeDepth * 0.2, flangeDepth * 0.25),
+    ...[0, 1, 2].map((i) => {
+      const lug = new THREE.BoxGeometry(flangeDepth * 0.7, outerRadius * 0.12, outerRadius * 0.32);
+      lug.translate(flangeDepth * 0.95, outerRadius * 0.66, 0);
+      lug.rotateX((i * 2 * Math.PI) / 3 + Math.PI / 6);
+      return lug.toNonIndexed();
+    }),
+  ];
+  const flangeGeometry = mergeGeometries(flangeParts);
+  for (const part of flangeParts) part.dispose();
+  if (!flangeGeometry) throw new Error('Falha ao montar o flange');
   geometries.push(flangeGeometry);
 
-  const flange = new THREE.Mesh(flangeGeometry, materials.brushedBrass);
+  const flange = new THREE.Mesh(flangeGeometry, gold);
   flange.position.x = lensMm(rearZ + 1.5);
   flange.castShadow = true;
   group.add(flange);

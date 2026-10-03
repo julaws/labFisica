@@ -208,7 +208,7 @@ function sectionsFor(facts: Facts, locale: Locale): Record<string, string> {
       ring:
         `Turning the ring moves the whole glass group away from the sensor. To focus at ${focus} the lens ` +
         `travels ${mm(facts.extension, locale)} beyond its ${n(facts.focalLength, 0)} mm focal length.\n\n` +
-        `The distance scale engraved on the ring uses the same map as the engine: the mark you read is the real distance.`,
+        `The ring turns along the same map the engine uses: the distance shown in the panel is the one the ring is set to.`,
       aperture:
         `The nine-blade diaphragm sets the pupil diameter, D = f/N. At ${fN}, D = ${mm(facts.pupilDiameter, locale)}. ` +
         `Closing one full stop halves the area and shrinks every disc in the same proportion; the sharp zone grows.\n\n` +
@@ -245,7 +245,7 @@ function sectionsFor(facts: Facts, locale: Locale): Record<string, string> {
     ring:
       `Girar o anel afasta o conjunto de vidros do sensor. Para focar em ${focus}, a lente anda ` +
       `${mm(facts.extension, locale)} além da distância focal de ${n(facts.focalLength, 0)} mm.\n\n` +
-      `A escala gravada no anel usa o mesmo mapa que o motor: a marca que você lê é a distância real.`,
+      `O anel gira pelo mesmo mapa que o motor usa: a distância que o painel mostra é a do anel.`,
     aperture:
       `O diafragma de nove lâminas define o diâmetro da pupila, D = f/N. Em ${fN}, D = ${mm(facts.pupilDiameter, locale)}. ` +
       `Fechar um stop completo corta a área pela metade e encolhe todos os discos na mesma proporção; a zona nítida cresce.\n\n` +
