@@ -205,23 +205,18 @@ export function createMagneticForceExperiment(): Experiment {
       root.add(tracks.group);
       for (const object of tracks.glowing) ctx.addGlow(object);
 
-      // --- Placa das equações, em pé no tampo, à direita ------------------------
-      const plateSize = { width: 0.68, height: 0.66 };
-      const equation = createEquationPlate({ spec: MAGNETIC_EQUATION_PLATE, ...plateSize });
-      const stand = new THREE.Group();
-      stand.name = 'magnetic-equation';
-      equation.mesh.position.y = 0.05 + plateSize.height / 2;
-      stand.add(equation.mesh);
-      const footGeometry = new THREE.BoxGeometry(plateSize.width * 0.7, 0.05, 0.12).translate(0, 0.025, 0);
-      geometries.push(footGeometry);
-      const foot = new THREE.Mesh(footGeometry, materials.anodizedAluminum);
-      foot.castShadow = true;
-      stand.add(foot);
-      stand.position.set(ctx.bench.width / 2 - plateSize.width / 2 - 0.06, ctx.bench.topY, 0.24);
-      stand.rotation.y = -0.22;
-      ctx.bench.group.add(stand);
+      // --- Placa das equações na frente da bancada ------------------------------
+      // Como nas bancadas do feixe de elétrons e do tunelamento: logo abaixo da
+      // faixa de LED, a parte da lateral que a vista padrão enquadra.
+      const equation = createEquationPlate({
+        spec: MAGNETIC_EQUATION_PLATE,
+        width: ctx.bench.width - 0.3,
+        height: 0.46,
+      });
+      equation.mesh.position.set(0, ctx.bench.topY - 0.36, ctx.bench.frontZ + 0.006);
+      ctx.bench.group.add(equation.mesh);
       disposers.push(() => {
-        stand.removeFromParent();
+        equation.mesh.removeFromParent();
         equation.dispose();
       });
 

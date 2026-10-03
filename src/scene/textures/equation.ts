@@ -31,8 +31,10 @@ export interface EquationPlateSpec {
   readonly title: string;
   /** Linhas de equação, de cima para baixo (ou lado a lado com `columns`). */
   readonly lines: readonly EquationLine[];
-  /** Legenda pequena embaixo. */
+  /** Legenda pequena embaixo (o que cada símbolo significa). */
   readonly caption?: string;
+  /** Altura da letra da legenda, em fração da altura da placa (padrão 0,055). */
+  readonly captionSize?: number;
   /** Distribui as linhas em colunas, lado a lado (placas muito largas). */
   readonly columns?: boolean;
 }
@@ -291,6 +293,9 @@ export function equationPlateTexture(spec: EquationPlateSpec, width: number, hei
     engrave(() => drawTitle(titleX, height / 2 + titleSize * 0.35), shadow);
     const start = titleX + titleWidth + width * 0.04;
     const free = width - start - inset * 2;
+    // Encolhe as equações até sobrar respiro entre elas.
+    const room = (free * 0.86) / boxes.reduce((sum, box) => sum + box.width, 0);
+    if (room < 1) boxes = layoutAll(room);
     const total = boxes.reduce((sum, box) => sum + box.width, 0);
     const gap = (free - total) / boxes.length;
     let cursor = start + gap / 2;
@@ -303,7 +308,7 @@ export function equationPlateTexture(spec: EquationPlateSpec, width: number, hei
   } else {
     const titleY = inset * 2 + titleSize;
     engrave(() => drawTitle((width - titleWidth) / 2, titleY), shadow);
-    const captionSize = Math.round(height * 0.055);
+    const captionSize = Math.round(height * (spec.captionSize ?? 0.055));
     const top = titleY + titleSize * 0.6;
     const bottom = height - inset * 2 - (spec.caption ? captionSize * 1.6 : 0);
     // Encolhe as linhas até caberem na altura e na largura, com folga.
@@ -325,8 +330,12 @@ export function equationPlateTexture(spec: EquationPlateSpec, width: number, hei
     }
     if (spec.caption) {
       const caption = spec.caption;
+      // A legenda encolhe se não couber na largura.
+      ctx.font = `500 ${captionSize}px 'DM Mono', ui-monospace, monospace`;
+      const captionFit = Math.min(1, (width - inset * 6) / ctx.measureText(caption).width);
+      const captionFont = `500 ${Math.floor(captionSize * captionFit)}px 'DM Mono', ui-monospace, monospace`;
       engrave(() => {
-        ctx.font = `500 ${captionSize}px 'DM Mono', ui-monospace, monospace`;
+        ctx.font = captionFont;
         ctx.textAlign = 'center';
         ctx.fillText(caption, width / 2, height - inset * 2.2);
         ctx.textAlign = 'left';
