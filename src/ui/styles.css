@@ -358,9 +358,62 @@ button {
   box-shadow: 0 18px 50px -20px rgba(0, 0, 0, 0.67);
 }
 
-.control-panel__more,
-.control-panel__handle {
+.control-panel__more {
   display: none;
+}
+
+/* Cabeçalho que minimiza o cartão (no celular, a alça da gaveta). */
+.control-panel__handle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 26px;
+  margin: -4px 0 6px;
+  padding: 0 3px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.control-panel__handle:hover {
+  color: var(--text);
+}
+
+.control-panel__chevron {
+  width: 7px;
+  height: 7px;
+  border: solid var(--focus);
+  border-width: 2px 2px 0 0;
+  transform: translateY(-2px) rotate(135deg);
+  transition: transform 200ms ease;
+}
+
+.control-panel--open .control-panel__chevron {
+  transform: translateY(2px) rotate(-45deg);
+}
+
+/* Minimizado: só o cabeçalho, num cartão estreito. */
+.control-panel:not(.control-panel--open) .control-row,
+.control-panel:not(.control-panel--open) .numbers {
+  display: none;
+}
+
+.control-panel:not(.control-panel--open) {
+  width: auto;
+  min-width: 168px;
+  padding: 8px 12px;
+}
+
+.control-panel:not(.control-panel--open) .control-panel__handle {
+  margin: 0;
 }
 
 .control-row {

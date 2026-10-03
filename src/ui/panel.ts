@@ -62,10 +62,11 @@ export function createPanel({
   element.className = 'control-panel';
   element.setAttribute('aria-label', t('controls', locale));
 
-  // Alça da gaveta, só no celular: o painel começa recolhido para a cena
-  // ocupar a tela, e abre ao toque. No desktop o CSS a esconde e o painel
-  // fica sempre aberto.
-  let open = false;
+  // Alça da gaveta: no celular o painel começa recolhido para a cena ocupar
+  // a tela, e abre ao toque. No desktop ela é o cabeçalho do cartão e
+  // minimiza o painel; ele abre minimizado se o experimento pedir.
+  const phone = window.matchMedia('(max-width: 820px)').matches;
+  let open = !phone && experiment.ui().startCollapsed !== true;
   const handle = document.createElement('button');
   handle.type = 'button';
   handle.className = 'control-panel__handle';

@@ -11,12 +11,12 @@ async function openLab(page: Page, query = ''): Promise<void> {
 }
 
 /**
- * No celular o painel começa recolhido (gaveta). Abre a gaveta se a alça
- * estiver à vista; no desktop a alça não existe e nada acontece.
+ * O painel pode começar recolhido: sempre no celular (gaveta) e, no desktop,
+ * na bancada da lente. Abre se estiver fechado.
  */
 async function openControls(page: Page): Promise<void> {
   const handle = page.getByRole('button', { name: 'Controles' });
-  if (await handle.isVisible()) {
+  if ((await handle.isVisible()) && (await handle.getAttribute('aria-expanded')) === 'false') {
     await handle.click();
     await page.waitForTimeout(300);
   }
@@ -164,6 +164,7 @@ test('troca de objetiva', async ({ page }, testInfo) => {
 test('seleção de raios', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name === 'mobile', 'no celular as caixas ficam em "Mais ajustes"');
   await openLab(page, '?shot=optical-path&focus=600');
+  await openControls(page);
   // Abre só com o pinheiro marcado e a lente explodida.
   await expect(page.getByRole('checkbox', { name: 'Pinheiro' })).toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Cabana' })).not.toBeChecked();
