@@ -337,7 +337,16 @@ via Computer Simulation*). Com u = γv:
 
 Os testes conferem: diâmetro do círculo integrado = 2p/(eB) a 0,1%; o raio não muda em 20
 voltas (1 em 10⁴); passo da hélice a 60° = 2πp·cos θ/(eB) a 0,1%; com E = vB o elétron
-atravessa o seletor reto (desvio < 1 µm).
+atravessa um filtro de Wien reto (desvio < 1 µm).
+
+**Solução exata no campo uniforme** (`helixPath`, usada pelo experimento): com b = B/|B|,
+v∥ e u⊥ as componentes da velocidade ao longo e perpendicular a b, e ω = e|B|/(γm), o
+elétron (carga negativa) gira em torno de +b:
+
+    r(θ) = r₀ + (v∥/ω)·b·θ + (u⊥/ω)·sen θ + ((b × u⊥)/ω)·(1 − cos θ),   θ = ωt
+
+O ponto de parada (vidro, tubo) é achado em passos de 4° e refinado por bisseção. Os
+testes comparam com o integrador de Boris: menos de 1 mm de diferença em 1,2 m de caminho.
 
 ---
 

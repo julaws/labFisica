@@ -235,6 +235,150 @@ export function traceElectron(options: TraceOptions): Trace {
   return { points: new Float32Array(points), length, end };
 }
 
+// --- Hélice analítica -----------------------------------------------------------
+
+export interface HelixOptions {
+  readonly position: Vec3;
+  /** Direção inicial da velocidade (será normalizada). */
+  readonly direction: Vec3;
+  /** Tensão de aceleração do elétron, V. */
+  readonly voltage: number;
+  /** Campo magnético uniforme, T (vetor). */
+  readonly field: Vec3;
+  /** Motivo de parada ou null; testado a cada amostra. */
+  readonly stop: (x: number, y: number, z: number) => string | null;
+  /** Ângulo de giro entre amostras, rad. */
+  readonly angleStep?: number;
+  /** Passo das amostras numa reta (campo nulo ou paralelo), m. */
+  readonly lineStep?: number;
+  /** Comprimento máximo do caminho, m. */
+  readonly maxLength?: number;
+}
+
+/**
+ * Trajetória exata de um elétron num campo magnético uniforme, como fórmula:
+ *
+ *     r(s) = origem + a·s + u·sen s + w·(1 − cos s),   0 ≤ s ≤ fim
+ *
+ * Na hélice, s é o ângulo girado θ = ω·t e, com b = B/|B|, v∥ a componente da
+ * velocidade ao longo de b e u⊥ a perpendicular, ω = e|B|/(γm):
+ *
+ *     a = v∥·b/ω,   u = u⊥/ω,   w = (b × u⊥)/ω
+ *
+ * (o elétron tem carga negativa e gira em torno de +b). Numa reta (campo nulo
+ * ou paralelo), a = direção·comprimento, u = w = 0 e s vai de 0 a 1.
+ *
+ * Por ser fórmula, quem desenha pode avaliá-la direto na placa de vídeo, sem
+ * enviar pontos: é o que o experimento da força magnética faz.
+ */
+export interface HelixPath {
+  readonly origin: Vec3;
+  readonly along: Vec3;
+  readonly sine: Vec3;
+  readonly cosine: Vec3;
+  /** Valor final de s, onde o elétron para. */
+  readonly end: number;
+  /** Comprimento de caminho por unidade de s, m. */
+  readonly lengthPerUnit: number;
+  /** Por que parou: o motivo de `stop`, ou 'length'. */
+  readonly reason: string;
+}
+
+/** Ponto da trajetória no parâmetro `s`. */
+export function helixPoint(path: HelixPath, s: number): [number, number, number] {
+  const sin = Math.sin(s);
+  const cos = 1 - Math.cos(s);
+  return [
+    path.origin[0] + path.along[0] * s + path.sine[0] * sin + path.cosine[0] * cos,
+    path.origin[1] + path.along[1] * s + path.sine[1] * sin + path.cosine[1] * cos,
+    path.origin[2] + path.along[2] * s + path.sine[2] * sin + path.cosine[2] * cos,
+  ];
+}
+
+/**
+ * Monta a trajetória e acha onde ela para: anda em passos de `angleStep` (ou
+ * `lineStep` na reta) testando `stop`, e refina o ponto de contato por
+ * bisseção. O caminho em si não é amostrado: quem desenha avalia a fórmula.
+ */
+export function helixPath(options: HelixOptions): HelixPath {
+  const angleStep = options.angleStep ?? (4 * Math.PI) / 180;
+  const lineStep = options.lineStep ?? 0.01;
+  const maxLength = options.maxLength ?? 3;
+  const [dx, dy, dz] = options.direction;
+  const norm = Math.hypot(dx, dy, dz) || 1;
+  const speed = electronSpeed(options.voltage);
+  const vx = (dx / norm) * speed;
+  const vy = (dy / norm) * speed;
+  const vz = (dz / norm) * speed;
+  const [Bx, By, Bz] = options.field;
+  const Bmag = Math.hypot(Bx, By, Bz);
+  const bx = Bmag > 0 ? Bx / Bmag : 0;
+  const by = Bmag > 0 ? By / Bmag : 0;
+  const bz = Bmag > 0 ? Bz / Bmag : 0;
+  const parallel = vx * bx + vy * by + vz * bz;
+  const ux = vx - parallel * bx;
+  const uy = vy - parallel * by;
+  const uz = vz - parallel * bz;
+
+  let along: Vec3;
+  let sine: Vec3 = [0, 0, 0];
+  let cosine: Vec3 = [0, 0, 0];
+  let lengthPerUnit: number;
+  let step: number;
+  let limit: number;
+  if (Bmag === 0 || Math.hypot(ux, uy, uz) < speed * 1e-9) {
+    // Reta: s de 0 a 1 percorre `maxLength`.
+    along = [(vx / speed) * maxLength, (vy / speed) * maxLength, (vz / speed) * maxLength];
+    lengthPerUnit = maxLength;
+    step = lineStep / maxLength;
+    limit = 1;
+  } else {
+    const omega = (ELEMENTARY_CHARGE * Bmag) / (electronGamma(options.voltage) * ELECTRON_MASS);
+    along = [(parallel * bx) / omega, (parallel * by) / omega, (parallel * bz) / omega];
+    sine = [ux / omega, uy / omega, uz / omega];
+    cosine = [(by * uz - bz * uy) / omega, (bz * ux - bx * uz) / omega, (bx * uy - by * ux) / omega];
+    lengthPerUnit = speed / omega;
+    step = angleStep;
+    limit = maxLength / lengthPerUnit;
+  }
+  const path = { origin: options.position, along, sine, cosine, end: limit, lengthPerUnit, reason: 'length' };
+
+  let previous = 0;
+  for (let s = step; ; s += step) {
+    const parameter = Math.min(s, limit);
+    const [x, y, z] = helixPoint(path, parameter);
+    const reason = options.stop(x, y, z);
+    if (reason) {
+      // Bisseção entre a última amostra boa e esta: o ponto de contato.
+      let lo = previous;
+      let hi = parameter;
+      for (let i = 0; i < 14; i += 1) {
+        const mid = (lo + hi) / 2;
+        const [mx, my, mz] = helixPoint(path, mid);
+        if (options.stop(mx, my, mz)) hi = mid;
+        else lo = mid;
+      }
+      return { ...path, end: hi, reason };
+    }
+    previous = parameter;
+    if (parameter >= limit) return path;
+  }
+}
+
+/**
+ * A mesma trajetória de `helixPath`, amostrada em pontos (a cada `angleStep`
+ * na hélice, `lineStep` na reta). Para quem precisa de uma polilinha.
+ */
+export function traceHelix(options: HelixOptions): Trace {
+  const path = helixPath(options);
+  const helical = path.sine.some((value) => value !== 0) || path.cosine.some((value) => value !== 0);
+  const step = helical ? (options.angleStep ?? (4 * Math.PI) / 180) : (options.lineStep ?? 0.01) / path.lengthPerUnit;
+  const points: number[] = [...path.origin];
+  for (let s = step; s < path.end; s += step) points.push(...helixPoint(path, s));
+  points.push(...helixPoint(path, path.end));
+  return { points: new Float32Array(points), length: path.end * path.lengthPerUnit, end: path.reason };
+}
+
 /** Aparelho padrão (ADR 0010). */
 export const DEFAULT_MAGNETIC = {
   /** Bobinas de Helmholtz: espiras por bobina e raio, m. */
@@ -248,16 +392,6 @@ export const DEFAULT_MAGNETIC = {
   /** Tensão do canhão, V. */
   voltage: 250,
   voltageRange: { min: 100, max: 500 },
-  /** Dispersão didática de energia: de 60% a 100% de eU. */
+  /** Dispersão didática de energia: de 60% a 100% de eU (cores e raios diferentes). */
   spread: { min: 0.6, max: 1 },
-  /** Seletor de velocidades: separação e comprimento das placas, m. */
-  selectorGap: 0.02,
-  selectorLength: 0.12,
-  /** Campo magnético do seletor, T (bobinas próprias, ligadas com ele). */
-  selectorField: 1e-3,
-  /** Tensão entre as placas do seletor, V. */
-  selectorVoltage: 150,
-  selectorVoltageRange: { min: 0, max: 300 },
-  /** Meia abertura da fenda na saída do seletor, m. */
-  selectorAperture: 1.5e-3,
 } as const;

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_MAGNETIC,
   type FieldSample,
   cyclotronPeriod,
   electronMomentum,
@@ -10,6 +9,7 @@ import {
   helmholtzCurrent,
   helmholtzField,
   traceElectron,
+  traceHelix,
   voltageForSpeed,
   wienSpeed,
 } from '../../src/optics/fields/lorentz';
@@ -133,8 +133,11 @@ describe('órbitas', () => {
   });
 });
 
-describe('seletor de velocidades', () => {
-  const B = DEFAULT_MAGNETIC.selectorField;
+describe('seletor de velocidades (filtro de Wien)', () => {
+  // Um seletor típico: 1 mT, placas a 2 cm, 12 cm de comprimento.
+  const B = 1e-3;
+  const length = 0.12;
+  const gap = 0.02;
 
   it('com E = vB o elétron passa reto', () => {
     const v = electronSpeed(250);
@@ -148,14 +151,14 @@ describe('seletor de velocidades', () => {
       voltage: 250,
       field: uniform([0, 0, B], [0, E, 0]),
       stop: never,
-      maxLength: DEFAULT_MAGNETIC.selectorLength,
+      maxLength: length,
     });
     expect(Math.abs(trace.points[trace.points.length - 2]!)).toBeLessThan(1e-6);
   });
 
   it('mais lento que E/B desvia para a placa positiva e para', () => {
     const E = electronSpeed(250) * B;
-    const half = DEFAULT_MAGNETIC.selectorGap / 2;
+    const half = gap / 2;
     const trace = traceElectron({
       position: [0, 0, 0],
       direction: [1, 0, 0],
@@ -166,5 +169,57 @@ describe('seletor de velocidades', () => {
     });
     expect(trace.end).toBe('placa');
     expect(trace.points[trace.points.length - 2]!).toBeLessThan(0);
+  });
+});
+
+describe('hélice analítica', () => {
+  const voltage = 250;
+  const field = 0.8e-3;
+
+  it('dá a mesma trajetória que o integrador de Boris', () => {
+    const theta = (70 * Math.PI) / 180;
+    const direction = [Math.sin(theta), 0, Math.cos(theta)] as const;
+    const length = 1.2;
+    const boris = traceElectron({
+      position: [0, 0, 0],
+      direction,
+      voltage,
+      field: uniform([0, 0, field]),
+      stop: never,
+      maxLength: length,
+      step: 2e-4,
+    });
+    const helix = traceHelix({ position: [0, 0, 0], direction, voltage, field: [0, 0, field], stop: never, maxLength: length });
+    const end = (p: Float32Array): [number, number, number] => [p[p.length - 3]!, p[p.length - 2]!, p[p.length - 1]!];
+    const [bx, by, bz] = end(boris.points);
+    const [hx, hy, hz] = end(helix.points);
+    // Mesmo comprimento de caminho, mesmo ponto final, a menos de 1 mm.
+    expect(Math.hypot(bx - hx, by - hy, bz - hz)).toBeLessThan(1e-3);
+  });
+
+  it('com campo paralelo à velocidade, segue reto', () => {
+    const helix = traceHelix({
+      position: [0, 0, 0],
+      direction: [0, 0, 1],
+      voltage,
+      field: [0, 0, field],
+      stop: never,
+      maxLength: 0.5,
+    });
+    const p = helix.points;
+    expect(p[p.length - 1]!).toBeCloseTo(0.5, 6);
+    expect(Math.hypot(p[p.length - 3]!, p[p.length - 2]!)).toBeLessThan(1e-9);
+  });
+
+  it('para no obstáculo, com o ponto de contato refinado', () => {
+    const helix = traceHelix({
+      position: [0, 0, 0],
+      direction: [1, 0, 0],
+      voltage,
+      field: [0, 0, field],
+      stop: (_x, y) => (y > 0.03 ? 'parede' : null),
+    });
+    expect(helix.end).toBe('parede');
+    expect(helix.points[helix.points.length - 2]!).toBeCloseTo(0.03, 5);
   });
 });
