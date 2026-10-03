@@ -94,7 +94,13 @@ export type PanelControl = PanelControlCommon &
         max: number;
         step: number;
         logarithmic?: boolean;
+        /**
+         * Unidade da leitura: 'mm' (ou ausente) mostra distância em cm ou m;
+         * qualquer outra sai como número e unidade ('µm', 'mT', 'V', '°').
+         */
         unit?: string;
+        /** Casas decimais da leitura, quando a unidade não é distância. */
+        decimals?: number;
         /**
          * Ids lidos com `experiment.get` para desenhar uma faixa sobre o
          * trilho do slider, como a zona nítida em volta do foco.

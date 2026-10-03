@@ -294,10 +294,10 @@ export function createPanel({
           }
           // A unidade declarada no schema escolhe a leitura: distância em
           // mm (cm ou m na tela) ou micrômetros.
+          const unit = control.unit ?? 'mm';
+          const number = formatNumber(value, control.decimals ?? 0, locale);
           aside.textContent =
-            control.unit === 'µm'
-              ? `${formatNumber(value, 0, locale)} µm`
-              : formatDistance(value, locale);
+            unit === 'mm' ? formatDistance(value, locale) : unit === '°' ? `${number}°` : `${number} ${unit}`;
           slider.input.setAttribute('aria-valuetext', aside.textContent);
         });
 

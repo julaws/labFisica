@@ -242,6 +242,12 @@ async function boot(): Promise<void> {
     station: 1,
     load: async () => (await import('./experiments/double-slit')).createDoubleSlitExperiment(),
   });
+  registry.register({
+    id: 'magnetic-force',
+    title: { 'pt-BR': 'Força magnética', en: 'Magnetic force' },
+    station: 2,
+    load: async () => (await import('./experiments/magnetic-force')).createMagneticForceExperiment(),
+  });
 
   const params = new URLSearchParams(window.location.search);
 
@@ -288,6 +294,8 @@ async function boot(): Promise<void> {
   let transitioning = false;
   /** Pedido de troca feito no meio de outra: atendido quando ela termina. */
   let pendingId: string | null = null;
+  /** Para onde a troca em andamento vai: as setas contam a partir daqui. */
+  let headingId: string | null = null;
 
   const refresh = (): void => {
     if (!current) return;
@@ -391,6 +399,7 @@ async function boot(): Promise<void> {
     }
     if (current?.entry.id === entry.id) return;
     transitioning = true;
+    headingId = entry.id;
     switcher.setBusy(true);
     switcher.setCurrent(entry.id);
 
@@ -479,6 +488,7 @@ async function boot(): Promise<void> {
       }
     } finally {
       transitioning = false;
+      headingId = null;
       switcher.setBusy(false);
       switcher.setCurrent(current?.entry.id ?? entry.id);
       const next = pendingId;
@@ -498,7 +508,9 @@ async function boot(): Promise<void> {
   });
 
   const stepExperiment = (direction: 1 | -1): void => {
-    const index = entries.findIndex((entry) => entry.id === current?.entry.id);
+    // No meio de um voo, "a próxima" é a seguinte ao destino, não à origem.
+    const from = pendingId ?? headingId ?? current?.entry.id;
+    const index = entries.findIndex((entry) => entry.id === from);
     const next = entries[(index + direction + entries.length) % entries.length];
     if (next) void mount(next.id, true);
   };

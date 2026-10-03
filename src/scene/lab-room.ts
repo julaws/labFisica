@@ -41,10 +41,10 @@ export interface LabRoom {
 }
 
 /** Posição x das bancadas (estações) na sala, da esquerda para a direita. */
-export const STATION_X: readonly number[] = [-2.9, 2.9];
+export const STATION_X: readonly number[] = [-4.3, 0, 4.3];
 
-// Larga o bastante para duas bancadas lado a lado (ADR 0008).
-const ROOM = { width: 13, depth: 11, height: 3.4 };
+// Larga o bastante para três bancadas lado a lado (ADR 0008 e 0010).
+const ROOM = { width: 15, depth: 11, height: 3.4 };
 
 export function createLabRoom(materials: MaterialLibrary): LabRoom {
   const group = new THREE.Group();
