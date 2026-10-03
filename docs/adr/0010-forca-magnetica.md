@@ -79,7 +79,7 @@ vetores com seta), sem dependência nova. Cada experimento monta a sua e a remov
 |---|---|---|
 | Lente e foco | 1/f = 1/u + 1/v, m = −v/u, N = f/D | em pé no canto frontal direito do tampo: o vidro da imagem ocupa o tampo de frente a fundo e a bandeja do vale a frente à esquerda; ali ela não cobre a imagem na vista padrão |
 | Dupla fenda | equação de Schrödinger | a lateral frontal inteira, abaixo da faixa de LED |
-| Força magnética | F = qv × B, r = mv/(\|q\|B), T = 2πm/(\|q\|B), eU = ½mv² | a lateral frontal, abaixo da faixa de LED, como na dupla fenda; as quatro equações lado a lado (`columns`). Até 03/10/2026 ficava em pé no tampo, à direita das bobinas |
+| Força magnética | F = qv × B, r = mv/(\|q\|B), T = 2πm/(\|q\|B), eU = ½mv² | a lateral frontal, abaixo da faixa de LED, como na dupla fenda: título em cima e as quatro equações lado a lado embaixo (`columns`). Até 03/10/2026 ficava em pé no tampo, à direita das bobinas |
 
 ## Consequências
 

@@ -35,7 +35,7 @@ export interface EquationPlateSpec {
   readonly caption?: string;
   /** Altura da letra da legenda, em fração da altura da placa (padrão 0,055). */
   readonly captionSize?: number;
-  /** Distribui as linhas em colunas, lado a lado (placas muito largas). */
+  /** Distribui as linhas lado a lado, sob o título (placas largas e baixas). */
   readonly columns?: boolean;
 }
 
@@ -267,8 +267,8 @@ export function equationPlateTexture(spec: EquationPlateSpec, width: number, hei
     return [...spec.title].reduce((sum, char) => sum + ctx.measureText(char).width + size * 0.18, 0);
   };
   // O título cabe na largura útil, mesmo numa placa estreita.
-  let titleSize = Math.round(height * (spec.columns ? 0.13 : 0.085));
-  const titleRoom = width * (spec.columns ? 0.3 : 0.86);
+  let titleSize = Math.round(height * 0.085);
+  const titleRoom = width * 0.86;
   if (measureTitle(titleSize) > titleRoom) titleSize = Math.floor((titleSize * titleRoom) / measureTitle(titleSize));
   const titleFont = `700 ${titleSize}px Outfit, ui-sans-serif, sans-serif`;
   const titleSpacing = titleSize * 0.18;
@@ -288,19 +288,25 @@ export function equationPlateTexture(spec: EquationPlateSpec, width: number, hei
   const shadow = Math.max(2, height * 0.006);
 
   if (spec.columns) {
-    // Título à esquerda, equações lado a lado.
-    const titleX = inset * 2.2;
-    engrave(() => drawTitle(titleX, height / 2 + titleSize * 0.35), shadow);
-    const start = titleX + titleWidth + width * 0.04;
-    const free = width - start - inset * 2;
-    // Encolhe as equações até sobrar respiro entre elas.
-    const room = (free * 0.86) / boxes.reduce((sum, box) => sum + box.width, 0);
+    // Título centrado em cima, como nas outras placas; equações lado a lado.
+    const titleY = inset * 2 + titleSize;
+    engrave(() => drawTitle((width - titleWidth) / 2, titleY), shadow);
+    const top = titleY + titleSize * 0.6;
+    const bottom = height - inset * 2;
+    const left = inset * 3;
+    const free = width - left * 2;
+    // Encolhe as equações até caberem na faixa, com respiro entre elas.
+    const room = Math.min(
+      (free * 0.86) / boxes.reduce((sum, box) => sum + box.width, 0),
+      ((bottom - top) * 0.86) / Math.max(...boxes.map((box) => box.ascent + box.descent)),
+    );
     if (room < 1) boxes = layoutAll(room);
     const total = boxes.reduce((sum, box) => sum + box.width, 0);
     const gap = (free - total) / boxes.length;
-    let cursor = start + gap / 2;
+    const middle = (top + bottom) / 2;
+    let cursor = left + gap / 2;
     for (const box of boxes) {
-      const baseline = height / 2 + (box.ascent - box.descent) / 2;
+      const baseline = middle + (box.ascent - box.descent) / 2;
       const x = cursor;
       engrave(() => box.draw(ctx, x, baseline), shadow);
       cursor += box.width + gap;
