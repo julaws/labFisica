@@ -36,6 +36,13 @@ export interface QualitySettings {
    * resolução; no nível Baixo o fundo fica nítido.
    */
   readonly depthOfField: boolean;
+  /**
+   * Modo leve, escolhido pela pessoa no botão do canto inferior esquerdo:
+   * além do nível Baixo, desliga sombras, bloom, AO e profundidade de campo,
+   * a luz de área do teto e os detalhes de superfície dos materiais (normal
+   * maps, rugosidade, verniz). O nível automático não sai dele sozinho.
+   */
+  readonly lightweight: boolean;
 }
 
 export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
@@ -51,6 +58,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     instanceBudget: 4000,
     transmissionScale: 0.5,
     depthOfField: true,
+    lightweight: false,
   },
   medium: {
     level: 'medium',
@@ -64,6 +72,7 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     instanceBudget: 2000,
     transmissionScale: 0.35,
     depthOfField: true,
+    lightweight: false,
   },
   low: {
     level: 'low',
@@ -77,7 +86,19 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
     instanceBudget: 700,
     transmissionScale: 0.2,
     depthOfField: false,
+    lightweight: false,
   },
+};
+
+/** O modo leve: o nível Baixo sem os efeitos de luz, sombra e textura. */
+export const LIGHTWEIGHT_SETTINGS: QualitySettings = {
+  ...QUALITY_PRESETS.low,
+  shadows: false,
+  ambientOcclusion: false,
+  bloom: false,
+  depthOfField: false,
+  transmissionScale: 0.15,
+  lightweight: true,
 };
 
 const ORDER: QualityLevel[] = ['low', 'medium', 'high'];
@@ -109,6 +130,13 @@ export interface QualityManager {
   sample(frameMs: number): void;
   /** Força um nível e avisa os assinantes. */
   set(level: QualityLevel): void;
+  /**
+   * Liga ou desliga o modo leve. Ligado, as configurações são as de
+   * `LIGHTWEIGHT_SETTINGS` e o ajuste automático para; desligado, volta ao
+   * nível em que estava.
+   */
+  setLightweight(on: boolean): void;
+  readonly lightweight: boolean;
   onChange(listener: (settings: QualitySettings) => void): () => void;
 }
 
@@ -126,7 +154,11 @@ export function createQualityManager(
   { budgetMs = 16.7, patience = 90, adaptive = true }: QualityOptions = {},
 ): QualityManager {
   let current = QUALITY_PRESETS[initial];
+  let lightweight = false;
   const listeners = new Set<(settings: QualitySettings) => void>();
+  const notify = (): void => {
+    for (const listener of listeners) listener(lightweight ? LIGHTWEIGHT_SETTINGS : current);
+  };
 
   let overBudget = 0;
   let underBudget = 0;
@@ -136,15 +168,25 @@ export function createQualityManager(
     current = QUALITY_PRESETS[level];
     overBudget = 0;
     underBudget = 0;
-    for (const listener of listeners) listener(current);
+    if (!lightweight) notify();
   };
 
   return {
     get settings(): QualitySettings {
-      return current;
+      return lightweight ? LIGHTWEIGHT_SETTINGS : current;
+    },
+    get lightweight(): boolean {
+      return lightweight;
+    },
+    setLightweight(on: boolean): void {
+      if (on === lightweight) return;
+      lightweight = on;
+      overBudget = 0;
+      underBudget = 0;
+      notify();
     },
     sample(frameMs: number): void {
-      if (!adaptive) return;
+      if (!adaptive || lightweight) return;
 
       if (frameMs > budgetMs * 1.35) {
         overBudget += 1;
