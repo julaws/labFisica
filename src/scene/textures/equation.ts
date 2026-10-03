@@ -5,7 +5,8 @@ import * as THREE from 'three';
  *
  * Um diagramador mínimo de fórmulas, sem dependência nova: texto, frações,
  * expoentes, índices e vetores com seta. Letras latinas e gregas minúsculas
- * saem em itálico, como manda a notação matemática; números, operadores,
+ * saem em itálico, como manda a notação matemática (também há raiz
+ * quadrada); números, operadores,
  * maiúsculas gregas e palavras marcadas com `up` saem retos.
  */
 
@@ -16,6 +17,7 @@ export type MathNode =
   | { readonly sup: readonly [MathNode, MathNode] }
   | { readonly sub: readonly [MathNode, MathNode] }
   | { readonly vec: MathNode }
+  | { readonly sqrt: MathNode }
   | readonly MathNode[];
 
 export interface EquationLine {
@@ -130,6 +132,36 @@ function layout(ctx: CanvasRenderingContext2D, node: MathNode, size: number): Bo
       draw(c, x, baseline): void {
         base.draw(c, x, baseline);
         script.draw(c, x + base.width + size * 0.02, baseline + shift);
+      },
+    };
+  }
+
+  if ('sqrt' in n) {
+    const radicand = layout(ctx, n.sqrt, size);
+    const sign = size * 0.62;
+    const gap = size * 0.12;
+    const line = Math.max(2, size * 0.055);
+    return {
+      width: sign + radicand.width + size * 0.12,
+      ascent: radicand.ascent + gap + line,
+      descent: radicand.descent + size * 0.04,
+      draw(c, x, baseline): void {
+        const top = baseline - radicand.ascent - gap;
+        const bottom = baseline + radicand.descent;
+        c.save();
+        c.lineWidth = line;
+        c.lineJoin = 'round';
+        c.strokeStyle = c.fillStyle;
+        c.beginPath();
+        // Tique, descida até embaixo, subida longa e o traço por cima.
+        c.moveTo(x + size * 0.04, baseline - size * 0.28);
+        c.lineTo(x + size * 0.16, baseline - size * 0.36);
+        c.lineTo(x + sign * 0.48, bottom);
+        c.lineTo(x + sign * 0.92, top);
+        c.lineTo(x + sign + radicand.width + size * 0.08, top);
+        c.stroke();
+        c.restore();
+        radicand.draw(c, x + sign, baseline);
       },
     };
   }

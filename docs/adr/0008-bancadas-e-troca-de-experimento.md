@@ -17,8 +17,8 @@ ao mesmo tempo passariam do orçamento, e o celular sofreria.
 
 ### Estações fixas, um experimento montado
 
-- A sala tem uma **estação** por experimento (`STATION_X` em `src/scene/lab-room.ts`; três
-  desde a ADR 0010), cada uma com sua
+- A sala tem uma **estação** por experimento (`STATION_X` em `src/scene/lab-room.ts`; quatro
+  desde a ADR 0011), cada uma com sua
   bancada e seu trilho. As bancadas vazias custam poucos draw calls e ficam sempre na sala.
 - Só **um** experimento fica montado por vez. Trocar de experimento desmonta o atual
   (`dispose`: carrinhos saem do trilho, etiquetas, atalhos, arrastes e brilhos são

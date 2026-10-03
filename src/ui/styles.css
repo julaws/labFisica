@@ -1180,6 +1180,12 @@ kbd {
     display: none;
   }
 
+  /* Quatro nomes não cabem na largura do celular: só a bancada atual entre
+     as setas, que levam às outras. */
+  .station-switcher__tab:not(.station-switcher__tab--active) {
+    display: none;
+  }
+
   .station-switcher__tab {
     height: 36px;
     padding: 0 10px;

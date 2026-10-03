@@ -41,10 +41,10 @@ export interface LabRoom {
 }
 
 /** Posição x das bancadas (estações) na sala, da esquerda para a direita. */
-export const STATION_X: readonly number[] = [-4.3, 0, 4.3];
+export const STATION_X: readonly number[] = [-6.3, -2.1, 2.1, 6.3];
 
-// Larga o bastante para três bancadas lado a lado (ADR 0008 e 0010).
-const ROOM = { width: 15, depth: 11, height: 3.4 };
+// Larga o bastante para quatro bancadas lado a lado (ADR 0008 e 0011).
+const ROOM = { width: 18, depth: 11, height: 3.4 };
 
 export function createLabRoom(materials: MaterialLibrary): LabRoom {
   const group = new THREE.Group();
@@ -212,20 +212,22 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   // característico nos metais e no vidro (SPEC §3.1).
   const ceilingStrips = new THREE.Group();
   const housingParts: THREE.BufferGeometry[] = [];
-  // Uma faixa de luz sobre cada bancada.
+  // Uma luminária sobre cada bancada, mas uma luz de área só, que acompanha
+  // a bancada ativa (`focusOn`). Cada luz de área custa em cada pixel de cada
+  // material; com quatro bancadas, eram quatro, e as das bancadas vazias não
+  // iluminavam nada que estivesse no quadro.
+  const strip = new THREE.RectAreaLight(0xcfe0ff, 1.9, 0.34, 5.2);
+  strip.position.set(STATION_X[0] ?? 0, ROOM.height - 0.12, -0.4);
+  strip.rotation.x = -Math.PI / 2;
+  ceilingStrips.add(strip);
   for (const x of STATION_X) {
-    const strip = new THREE.RectAreaLight(0xcfe0ff, 1.9, 0.34, 5.2);
-    strip.position.set(x, ROOM.height - 0.12, -0.4);
-    strip.rotation.x = -Math.PI / 2;
-    ceilingStrips.add(strip);
-
     housingParts.push(
       new THREE.PlaneGeometry(0.34, 5.2)
         .rotateX(Math.PI / 2)
         .translate(x, ROOM.height - 0.124, -0.4),
     );
   }
-  // As duas luminárias, uma malha só.
+  // As luminárias, uma malha só.
   const housingGeometry = mergeGeometries(housingParts);
   for (const part of housingParts) part.dispose();
   if (!housingGeometry) throw new Error('Falha ao mesclar as luminárias');
@@ -247,9 +249,9 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   const fill = new THREE.HemisphereLight(0x7890cc, 0x0a0806, 0.5);
   group.add(fill);
 
-  // Luzes práticas: uma por bancada, mais uma para a troca, quando dois
-  // experimentos convivem na cena por alguns segundos.
-  const pointLights = Array.from({ length: STATION_X.length + 1 }, () => {
+  // Luzes práticas: duas bastam — numa troca de bancada convivem no máximo
+  // dois experimentos. Mesmo apagada, cada luz entra na conta de cada pixel.
+  const pointLights = Array.from({ length: 2 }, () => {
     const light = new THREE.PointLight(0xffffff, 0, 1, 2);
     light.name = 'practical-light';
     group.add(light);
@@ -263,6 +265,7 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
     glowing,
 
     focusOn(x: number): void {
+      strip.position.x = x;
       keyLight.position.x = x + 0.6;
       keyLight.target.position.x = x;
       rimLight.position.x = x - 1.4;
