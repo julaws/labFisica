@@ -348,6 +348,34 @@ elétron (carga negativa) gira em torno de +b:
 O ponto de parada (vidro, tubo) é achado em passos de 4° e refinado por bisseção. Os
 testes comparam com o integrador de Boris: menos de 1 mm de diferença em 1,2 m de caminho.
 
+## 11. Tunelamento por barreira retangular (ADR 0011)
+
+Código em `src/optics/quantum/tunneling.ts`, testes em `tests/optics/tunneling.test.ts`.
+
+**Equação de Schrödinger estacionária** em uma dimensão, −(ħ²/2m)ψ″ + V(x)ψ = Eψ, com
+V = V₀ entre x = 0 e x = a e zero fora (Griffiths, *Introduction to Quantum Mechanics*,
+cap. 2, barreira e poço finitos). Por trechos:
+
+    x < 0:      ψ = e^{ikx} + r·e^{−ikx}            k = √(2mE)/ħ
+    0 < x < a:  ψ = C·e^{iKx} + D·e^{−iKx}          K = √(2m(E − V₀))/ħ  (iκ abaixo da barreira)
+    x > a:      ψ = τ·e^{ik(x − a)}
+
+ψ e ψ′ contínuas em x = a dão C = τ(K + k)/(2K)·e^{−iKa} e D = τ(K − k)/(2K)·e^{iKa}; em
+x = 0, C(1 + K/k) + D(1 − K/k) = 2, que fixa τ. A transmissão é T = |τ|²:
+
+    E < V₀:  T = [1 + V₀² senh²(κa) / (4E(V₀ − E))]⁻¹,   κ = √(2m(V₀ − E))/ħ
+    E > V₀:  T = [1 + V₀² sen²(Ka) / (4E(E − V₀))]⁻¹      (T = 1 quando Ka = nπ)
+    E = V₀:  T = [1 + m·a²·V₀ / (2ħ²)]⁻¹
+
+Para κa ≫ 1, senh(κa) ≈ e^{κa}/2 e T ≈ 16E(V₀ − E)/V₀² · e^{−2κa}.
+
+**Corrente de tunelamento**: com o feixe incidente I₀, I = I₀·T. No microscópio de
+varredura por tunelamento (Binnig e Rohrer, *Physical Review Letters* 49, 57, 1982), a
+dependência exponencial com a distância faz a corrente mudar cerca de dez vezes por 0,1 nm.
+
+Valores no padrão (E = 1 eV, V₀ = 2 eV, a = 0,4 nm): κ = 5,123 nm⁻¹, λ = 1,226 nm,
+T = 6,424%; com a = 0,5 nm, T = 2,355%.
+
 ---
 
 ## Situação por tema
@@ -367,3 +395,4 @@ testes comparam com o integrador de Boris: menos de 1 mm de diferença em 1,2 m 
 | Ampliação do plano da imagem | 2× sobre a escala da lente, com a chegada dos cones ajustada para o cone seguir batendo com o anel de CoC (ADR 0006) | 02/10/2026 ✔ |
 | Dupla fenda com elétrons (de Broglie relativístico, Fresnel de fendas longas, detector) | documentado (§9) e testado, ADR 0009 | 02/10/2026 ✔ |
 | Força magnética (Lorentz, Helmholtz, Boris relativístico, filtro de Wien) | documentado (§10) e testado, ADR 0010 | 02/10/2026 ✔ |
+| Tunelamento por barreira retangular (solução exata de Schrödinger, T, corrente I₀·T) | documentado (§11) e testado, ADR 0011 | 03/10/2026 ✔ |
