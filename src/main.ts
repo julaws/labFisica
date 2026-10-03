@@ -354,6 +354,7 @@ async function boot(): Promise<void> {
       onKey: (key, action) => input.onKey(key, action),
       invalidate: () => loop.invalidate(),
       labels,
+      addScreenPass: (pass) => post.insertPass(pass),
     });
     experiment.setLocale(locale);
     const roots: THREE.Object3D[] = [];

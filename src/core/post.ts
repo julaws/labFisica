@@ -7,6 +7,7 @@ import {
   KernelSize,
   NoiseEffect,
   NormalPass,
+  type Pass,
   RenderPass,
   SMAAEffect,
   SMAAPreset,
@@ -44,6 +45,12 @@ export interface PostPipeline {
    */
   readonly focusTarget: THREE.Vector3;
   render(dt: number): void;
+  /**
+   * Insere uma passagem de tela logo depois da cena (antes da profundidade de
+   * campo da câmera, do bloom e do tone mapping). Devolve a função que a tira.
+   * É por aqui que um experimento acrescenta um efeito seu.
+   */
+  insertPass(pass: Pass): () => void;
   setSize(width: number, height: number): void;
   applyQuality(settings: QualitySettings): void;
   dispose(): void;
@@ -151,6 +158,13 @@ export function createPostPipeline({
     focusTarget,
     render(dt: number): void {
       composer.render(dt);
+    },
+    insertPass(pass: Pass): () => void {
+      composer.addPass(pass, composer.passes.indexOf(dofPass));
+      return () => {
+        composer.removePass(pass);
+        pass.dispose();
+      };
     },
     setSize(width: number, height: number): void {
       composer.setSize(width, height);

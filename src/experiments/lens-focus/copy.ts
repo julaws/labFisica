@@ -223,7 +223,10 @@ function sectionsFor(facts: Facts, locale: Locale): Record<string, string> {
         `the enlarged scale of the lens. The chief-ray angle is the scene's, not the physical one. The point where ` +
         `each cone closes, and the width of the cone at the glass, are not exaggerated at all.\n\n` +
         `The thin line where the focus plane cuts the valley has a fixed width so it stays visible; the wide band ` +
-        `around it is the real sharp zone.`,
+        `around it is the real sharp zone.\n\n` +
+        `The valley itself also blurs away from the focus plane. It is a conceptual view: the blur on screen is ` +
+        `proportional to the blur disc the engine computes for each point of the valley (the same one drawn on the ` +
+        `ground glass), with a cap so the far background does not dissolve.`,
       swap: swapText(facts, locale),
       lens: lensText(facts, locale),
     };
@@ -260,7 +263,10 @@ function sectionsFor(facts: Facts, locale: Locale): Record<string, string> {
       `ampliada da lente. O ângulo do raio principal é o da cena, não o da física. Já o ponto onde cada cone se ` +
       `fecha, e a largura do cone no vidro, não têm exagero nenhum.\n\n` +
       `A linha fina onde o plano de foco corta o vale tem largura fixa, para continuar visível; a faixa larga em ` +
-      `volta dela é a zona nítida real.`,
+      `volta dela é a zona nítida real.\n\n` +
+      `O próprio vale também borra longe do plano de foco. É uma visualização conceitual: o borrado na tela é ` +
+      `proporcional ao disco de desfoque que o motor calcula para cada ponto do vale (o mesmo desenhado no vidro ` +
+      `fosco), com um teto para o fundo não desmanchar.`,
     swap: swapText(facts, locale),
     lens: lensText(facts, locale),
   };

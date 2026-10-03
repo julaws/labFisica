@@ -57,10 +57,11 @@ import {
   createLensFocusStore,
   stepFNumber,
 } from './state';
-import { type Diorama, MOUNTAIN, TRAY_WIDTH, createDiorama } from './diorama';
+import { type Diorama, MOUNTAIN, SKY_HEIGHT, TRAY_WIDTH, createDiorama } from './diorama';
 import { PALETTE } from '../../scene/materials';
 import { createEquationPlate } from '../../scene/equation-plate';
 import { LENS_EQUATION_PLATE } from './equation';
+import { DioramaBlurPass } from './scene-blur';
 import { millimetersToRailX } from '../../scene/bench';
 import { type RayBundle, createRayBundle } from '../../scene/rays';
 import { type FocusPlane, type IntersectionPatch, attachIntersectionPatch, createFocusPlane } from './focus-plane';
@@ -229,6 +230,9 @@ export function createLensFocusExperiment(): Experiment {
 
   /** Objetiva montada agora. */
   let lens: LensFacts = lensFacts(store.get().lens);
+  /** Desfoque do vale na cena (scene-blur.ts) e a distância do sensor que ele usa, mm. */
+  let sceneBlur: DioramaBlurPass | null = null;
+  let plateMm = HOME_PLATE_MM;
   let lensStopZMm = vertexPositions(lens.prescription.surfaces)[stopIndex(lens.prescription.surfaces)]!;
 
   /**
@@ -451,6 +455,8 @@ export function createLensFocusExperiment(): Experiment {
     if (diorama && rays && imagePlane && opticsGroup) {
       const opticsOffset = opticsGroup.position.x;
       const rearPrincipalX = opticsOffset + lensMm(lens.length + lens.rearPrincipal);
+      // A mesma distância do sensor que os raios usam vale para o desfoque do vale.
+      plateMm = (imagePlaneX - rearPrincipalX) / lensMm(1);
 
       // Os pontos do diorama estão no espaço do próprio diorama; os raios
       // vivem no espaço do experimento, então sobem pelo deslocamento da
@@ -580,6 +586,22 @@ export function createLensFocusExperiment(): Experiment {
         stand.removeFromParent();
         equation.dispose();
       });
+
+      // --- Desfoque do vale pela objetiva ----------------------------------------
+      // O que está longe do plano de foco borra na própria cena (scene-blur.ts).
+      if (ctx.addScreenPass) {
+        const pass = new DioramaBlurPass({
+          xMin: -(DIORAMA_DEPTH.gapScene + DIORAMA_DEPTH.spanScene + 0.06),
+          xMax: -(DIORAMA_DEPTH.gapScene - 0.06),
+          yMin: -0.08,
+          yMax: SKY_HEIGHT,
+          halfWidth: TRAY_WIDTH / 2 + 0.32,
+        });
+        sceneBlur = pass;
+        disposers.push(ctx.addScreenPass(pass), () => {
+          sceneBlur = null;
+        });
+      }
 
       // Lâmpada da cabana: luz quente de alcance curto, emprestada da sala.
       const lamp = ctx.room.borrowPointLight();
@@ -779,6 +801,16 @@ export function createLensFocusExperiment(): Experiment {
       }
       rays?.update(dt);
       focusPlane?.update(elapsed);
+      if (sceneBlur && diorama && context) {
+        const state = store.get();
+        sceneBlur.update({
+          camera: context.camera,
+          dioramaMatrixWorld: diorama.group.matrixWorld,
+          focalLength: state.focalLength,
+          fNumber: state.fNumber,
+          plateDistance: plateMm,
+        });
+      }
 
       // A imagem no sensor só é recalculada quando algo muda: é um render da
       // cena inteira a mais por vez, o item mais caro desta fase.
@@ -1046,6 +1078,9 @@ export function createLensFocusExperiment(): Experiment {
     ui(): PanelSchema {
       const en = locale === 'en';
       return {
+        // No desktop o painel abre minimizado: a bancada da lente é larga e
+        // o cartão cobria a imagem no vidro.
+        startCollapsed: true,
         groups: [
           {
             id: 'focus',

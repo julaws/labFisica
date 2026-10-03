@@ -4,6 +4,7 @@ import type { Bench } from '../scene/bench';
 import type { LabRoom } from '../scene/lab-room';
 import type { QualityManager } from './quality';
 import type { LabelLayer } from '../scene/labels';
+import type { Pass } from 'postprocessing';
 
 /**
  * Interface de experimento e registro (SPEC §7).
@@ -37,6 +38,12 @@ export interface LabContext {
   readonly invalidate: () => void;
   /** Etiquetas 3D projetadas na tela (SPEC §3.3). */
   readonly labels: LabelLayer;
+  /**
+   * Acrescenta uma passagem de pós-processamento logo depois da cena (antes
+   * da profundidade de campo, do bloom e do tone mapping). Devolve a função
+   * que a remove, e o experimento a chama ao sair.
+   */
+  readonly addScreenPass?: (pass: Pass) => () => void;
 }
 
 /** Objeto 3D que responde a arraste (anel de foco, carrinhos). */
@@ -64,6 +71,11 @@ export interface DragEvent3D {
 /** Descrição declarativa dos controles; a UI da F7 é quem renderiza. */
 export interface PanelSchema {
   readonly groups: readonly PanelGroup[];
+  /**
+   * No desktop, o painel abre minimizado (só o cabeçalho "Controles"). No
+   * celular ele sempre começa recolhido, como gaveta.
+   */
+  readonly startCollapsed?: boolean;
 }
 
 export interface PanelGroup {
