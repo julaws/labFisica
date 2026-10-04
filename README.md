@@ -177,6 +177,11 @@ typecheck, lint e testes e publica no GitHub Pages
 
 ## Créditos e licenças
 
+O experimento da lente foi inspirado em **The Plane of Focus**
+([sael.net/plane-of-focus](https://sael.net/plane-of-focus/), @ryansael), cujo desenho,
+iluminação e console ele segue; o crédito também está gravado no console da bancada e
+no "?" da lente.
+
 O código está sob a licença MIT ([`LICENSE`](LICENSE)). HDRI (CC0), dados de
 vidro (CC0) e fontes Outfit e DM Mono (OFL, que continua valendo para as
 fontes): veja [`CREDITS.md`](CREDITS.md).

@@ -378,12 +378,8 @@ export function createLensFocusExperiment(): Experiment {
     const prescription = lens.prescription;
     lensStopZMm = vertexPositions(prescription.surfaces)[stopIndex(prescription.surfaces)]!;
 
-    // Células do mesmo diâmetro externo para todos os vidros, como os discos
-    // pretos da referência.
-    const cellOuter = lensMm(clearSemiDiameterMm + 3);
     for (const [front, back] of elementIndices(prescription)) {
-      const element = createLensElement(prescription, front, back, context ? { materials: context.materials, outerRadius: cellOuter } : undefined);
-      if (element.glow) context?.addGlow(element.glow);
+      const element = createLensElement(prescription, front, back);
       elements.push(element);
       lensGeometries.push(...element.geometries);
       lensMaterials.push(...element.materials);
@@ -663,13 +659,45 @@ export function createLensFocusExperiment(): Experiment {
         });
       }
 
+      // Luz dourada: na referência, os metais da objetiva refletem uma luz
+      // quente forte. A luz principal esquenta e o recorte de trás fica âmbar;
+      // ao sair da bancada, a sala volta ao tom padrão.
+      ctx.room.setAccent({
+        key: { color: 0xffcf96, intensity: 3.8 },
+        rim: { color: 0xff9640, intensity: 3.2 },
+      });
+      disposers.push(() => ctx.room.setAccent(null));
+
+      // Fileira de LEDs âmbar na frente do trilho, como na referência: uma
+      // malha instanciada só, com bloom.
+      {
+        const dots = 46;
+        const dotGeometry = new THREE.SphereGeometry(0.0055, 10, 6);
+        geometries.push(dotGeometry);
+        const ledMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb35a).multiplyScalar(2.2), toneMapped: false });
+        materials.push(ledMaterial);
+        const leds = new THREE.InstancedMesh(dotGeometry, ledMaterial, dots);
+        leds.name = 'rail-leds';
+        const span = ctx.bench.width - 0.3;
+        const matrix = new THREE.Matrix4();
+        for (let i = 0; i < dots; i += 1) {
+          matrix.makeTranslation(-span / 2 + (span * i) / (dots - 1), ctx.bench.topY + 0.004, ctx.bench.frontZ - 0.075);
+          leds.setMatrixAt(i, matrix);
+        }
+        leds.instanceMatrix.needsUpdate = true;
+        leds.frustumCulled = false;
+        ctx.bench.group.add(leds);
+        ctx.addGlow(leds);
+        disposers.push(() => leds.removeFromParent());
+      }
+
       // Brilho âmbar no diafragma, como o da referência: uma luz quente de
       // alcance curto dentro da objetiva, que tinge as bordas dos vidros
       // vizinhos. Também emprestada da sala (o número de luzes não muda).
       ember = ctx.room.borrowPointLight();
       if (ember) {
         ember.color.setHex(0xff8a2a);
-        ember.intensity = 0.5;
+        ember.intensity = 0.9;
         ember.distance = 0.55;
         ember.decay = 2;
         const borrowed = ember;
@@ -766,8 +794,11 @@ export function createLensFocusExperiment(): Experiment {
         // As miniaturas cresceram 3× (ADR 0006): meia resolução do sensor.
         thumbnailSize: Math.max(256, Math.round(quality.sensorTargetSize / 2)),
         samples: 16,
+        locale,
         onPickFocus: (millimeters) => store.set({ focusDistance: millimeters }),
+        onPickAperture: (fNumber) => store.set({ fNumber }),
       });
+      for (const object of consoleScreens.glowing) ctx.addGlow(object);
       // Em pé na face frontal da bancada, de frente para quem está diante
       // dela, embaixo do meio do conjunto.
       consoleScreens.group.position.set(
@@ -915,8 +946,10 @@ export function createLensFocusExperiment(): Experiment {
         const target = center + order * EXPLODE_SPREAD_MM;
         element.group.position.x = lensMm(lerp(element.centerMm, target));
 
-        // A haste cresce do trilho até o eixo óptico conforme explode.
-        posts?.place(index, element.group.position.x, eased * axisHeight);
+        // A haste cresce do trilho até a borda de baixo do vidro conforme
+        // explode: segura a lente pela base, não atravessa o vidro.
+        const top = -element.radius;
+        posts?.place(index, element.group.position.x, eased * (axisHeight - element.radius), top);
       });
       if (posts) posts.mesh.visible = eased > 0.01;
 

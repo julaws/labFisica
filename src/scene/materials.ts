@@ -163,8 +163,10 @@ export function createMaterialLibrary(): MaterialLibrary {
       normalMap: powder.normalMap,
       normalScale: new THREE.Vector2(0.22, 0.22),
       metalness: 0.2,
-      clearcoat: 0.3,
-      clearcoatRoughness: 0.32,
+      // Verniz liso: a faixa de luz do teto se reflete nítida no corpo, como
+      // no console laqueado da referência.
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.14,
     }),
   );
 
@@ -173,8 +175,8 @@ export function createMaterialLibrary(): MaterialLibrary {
   const benchTop = track(benchBody.clone());
   benchTop.color.setHex(0x0a0d12);
   benchTop.normalScale.set(0.12, 0.12);
-  benchTop.clearcoat = 0.22;
-  benchTop.clearcoatRoughness = 0.5;
+  benchTop.clearcoat = 0.65;
+  benchTop.clearcoatRoughness = 0.1;
 
   const board = breadboardMaps();
   for (const texture of [board.map, board.roughnessMap, board.normalMap]) {
@@ -189,8 +191,9 @@ export function createMaterialLibrary(): MaterialLibrary {
       normalMap: board.normalMap,
       normalScale: new THREE.Vector2(0.9, 0.9),
       metalness: 0.55,
-      clearcoat: 0.15,
-      clearcoatRoughness: 0.5,
+      // Anodizado selado: reflete as luminárias do teto em faixas largas.
+      clearcoat: 0.55,
+      clearcoatRoughness: 0.12,
       envMapIntensity: 1.1,
     }),
   );

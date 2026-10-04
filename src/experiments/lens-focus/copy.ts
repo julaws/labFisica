@@ -226,7 +226,11 @@ function sectionsFor(facts: Facts, locale: Locale): Record<string, string> {
         `around it is the real sharp zone.\n\n` +
         `The valley itself also blurs away from the focus plane. It is a conceptual view: the blur on screen is ` +
         `proportional to the blur disc the engine computes for each point of the valley (the same one drawn on the ` +
-        `ground glass), with a cap so the far background does not dissolve.`,
+        `ground glass), with a cap so the far background does not dissolve.
+
+` +
+        `Credits: this lens experiment was inspired by “The Plane of Focus”, at sael.net/plane-of-focus ` +
+        `(@ryansael), whose design, lighting and console it follows.`,
       swap: swapText(facts, locale),
       lens: lensText(facts, locale),
     };
@@ -266,7 +270,11 @@ function sectionsFor(facts: Facts, locale: Locale): Record<string, string> {
       `volta dela é a zona nítida real.\n\n` +
       `O próprio vale também borra longe do plano de foco. É uma visualização conceitual: o borrado na tela é ` +
       `proporcional ao disco de desfoque que o motor calcula para cada ponto do vale (o mesmo desenhado no vidro ` +
-      `fosco), com um teto para o fundo não desmanchar.`,
+      `fosco), com um teto para o fundo não desmanchar.
+
+` +
+      `Créditos: este experimento com lentes foi inspirado em “The Plane of Focus”, em sael.net/plane-of-focus ` +
+      `(@ryansael), cujo desenho, iluminação e console ele segue.`,
     swap: swapText(facts, locale),
     lens: lensText(facts, locale),
   };

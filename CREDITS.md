@@ -4,6 +4,13 @@ O projeto prefere **texturas procedurais geradas em código** (CLAUDE.md §10).
 Todo asset externo precisa ser **CC0** e aparecer nesta tabela, com fonte e data
 de obtenção, antes de entrar no repositório.
 
+## Inspiração
+
+O experimento da lente segue o desenho, a iluminação e o console de **The Plane of
+Focus** ([sael.net/plane-of-focus](https://sael.net/plane-of-focus/), @ryansael). Nenhum
+arquivo de lá foi copiado: a geometria, as texturas e o código são próprios. O crédito
+aparece gravado no console da bancada e no "?" da lente.
+
 ## Assets externos
 
 | Asset | Tipo | Fonte | Licença | Obtido em | Onde é usado |

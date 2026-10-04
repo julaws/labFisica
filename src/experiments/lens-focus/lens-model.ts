@@ -82,8 +82,8 @@ export function elementProfile(
 export interface LensElementMesh {
   readonly group: THREE.Group;
   readonly glass: THREE.Mesh;
-  /** Aro aceso da célula, para o bloom (quando há célula). */
-  readonly glow: THREE.Mesh | null;
+  /** Raio do vidro, em unidades de cena: a haste do modo explodido para aí. */
+  readonly radius: number;
   /** Posição do centro do elemento ao longo do eixo, em mm de física. */
   readonly centerMm: number;
   readonly geometries: THREE.BufferGeometry[];
@@ -140,7 +140,6 @@ export function createLensElement(
   prescription: Prescription,
   frontIndex: number,
   backIndex: number,
-  cell?: { readonly materials: MaterialLibrary; readonly outerRadius: number },
 ): LensElementMesh {
   const surfaces = prescription.surfaces;
   const vertices = vertexPositions(surfaces);
@@ -177,33 +176,12 @@ export function createLensElement(
   group.add(glass);
   group.position.x = lensMm(centerMm);
 
-  const geometries: THREE.BufferGeometry[] = [glassGeometry];
-  let glow: THREE.Mesh | null = null;
-  if (cell) {
-    // A célula é um anel de retenção fino no meio da borda do vidro: o vidro
-    // passa dos dois lados dela, e entre células vizinhas sobra vão para ver
-    // os vidros, como na referência. Fina mesmo nos vidros grossos.
-    const faceSag = (surface: Surface): number => surfaceSag(surface.radius, Math.min(semiDiameter, surface.semiDiameter));
-    const frontRim = frontZ + faceSag(front);
-    const backRim = backZ + faceSag(back);
-    const widthMm = Math.min(Math.max(Math.abs(backRim - frontRim) * 0.6, 1.2), 2.6);
-    const parts = createElementCell(cell.materials, {
-      innerRadius: lensMm(semiDiameter) * 0.97,
-      outerRadius: Math.max(cell.outerRadius, lensMm(semiDiameter + 2.5)),
-      width: lensMm(widthMm),
-    });
-    parts.group.position.x = lensMm((frontRim + backRim) / 2 - centerMm);
-    group.add(parts.group);
-    geometries.push(...parts.geometries);
-    glow = parts.glow;
-  }
-
   return {
     group,
     glass,
-    glow,
+    radius: lensMm(semiDiameter),
     centerMm,
-    geometries,
+    geometries: [glassGeometry],
     materials: [glassMaterial],
   };
 }
@@ -216,8 +194,11 @@ export function createLensElement(
  */
 export function createElementPosts(count: number): {
   mesh: THREE.InstancedMesh;
-  /** Põe a haste `index` sob o elemento em `x`, com `height` de altura. */
-  place(index: number, x: number, height: number): void;
+  /**
+   * Põe a haste `index` sob o elemento em `x`: o topo fica em `top` (abaixo do
+   * eixo, na borda de baixo do vidro) e ela desce `height`.
+   */
+  place(index: number, x: number, height: number, top?: number): void;
   geometries: THREE.BufferGeometry[];
   materials: THREE.Material[];
 } {
@@ -241,8 +222,8 @@ export function createElementPosts(count: number): {
 
   return {
     mesh,
-    place(index: number, x: number, height: number): void {
-      position.set(x, 0, 0);
+    place(index: number, x: number, height: number, top = 0): void {
+      position.set(x, top, 0);
       scale.set(1, Math.max(height, 1e-4), 1);
       matrix.compose(position, rotation, scale);
       mesh.setMatrixAt(index, matrix);
@@ -524,42 +505,6 @@ function machinedBrass(): THREE.MeshPhysicalMaterial {
     clearcoatRoughness: 0.3,
     envMapIntensity: 1.25,
   });
-}
-
-/**
- * Célula de um elemento: o anel de alumínio anodizado que segura o vidro pela
- * borda, como nas objetivas reais (e como na referência, onde cada vidro é um
- * disco preto com o vidro no meio), mais um aro aceso na borda do vidro, que
- * desenha o contorno de cada elemento com o bloom.
- */
-export function createElementCell(
-  materials: MaterialLibrary,
-  { innerRadius, outerRadius, width }: { innerRadius: number; outerRadius: number; width: number },
-): { group: THREE.Group; glow: THREE.Mesh; geometries: THREE.BufferGeometry[] } {
-  const group = new THREE.Group();
-  group.name = 'element-cell';
-  const depth = outerRadius - innerRadius;
-  const cellGeometry = roundedRing(innerRadius, outerRadius, width, Math.min(width, depth) * 0.3, 0, 96);
-  const cell = new THREE.Mesh(cellGeometry, materials.anodizedAluminum);
-  cell.castShadow = true;
-  cell.receiveShadow = true;
-  group.add(cell);
-
-  // Aro aceso: um toro fino na borda do vidro, dos dois lados da célula.
-  const glowGeometry = mergeGeometries([
-    new THREE.TorusGeometry(innerRadius * 0.995, Math.max(lensMm(0.16), width * 0.045), 8, 96)
-      .rotateY(Math.PI / 2)
-      .translate(-width / 2, 0, 0),
-    new THREE.TorusGeometry(innerRadius * 0.995, Math.max(lensMm(0.12), width * 0.035), 8, 96)
-      .rotateY(Math.PI / 2)
-      .translate(width / 2, 0, 0),
-  ]);
-  if (!glowGeometry) throw new Error('Falha ao montar o aro aceso');
-  const glow = new THREE.Mesh(glowGeometry, materials.emissive(PALETTE.focus, 2.4));
-  glow.name = 'element-rim';
-  group.add(glow);
-
-  return { group, glow, geometries: [cellGeometry, glowGeometry] };
 }
 
 /**

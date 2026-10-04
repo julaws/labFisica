@@ -48,7 +48,19 @@ export interface LabRoom {
    * Mudar o número de luzes recompila os shaders uma vez.
    */
   setLightweight(on: boolean): void;
+  /**
+   * Tom da luz principal e do recorte para a bancada ativa (null volta ao
+   * padrão). Só cor e intensidade mudam: nenhuma luz entra nem sai, então
+   * nada recompila.
+   */
+  setAccent(accent: LightAccent | null): void;
   dispose(): void;
+}
+
+/** Cor e intensidade da luz principal e do recorte. */
+export interface LightAccent {
+  readonly key: { readonly color: THREE.ColorRepresentation; readonly intensity: number };
+  readonly rim: { readonly color: THREE.ColorRepresentation; readonly intensity: number };
 }
 
 /** Posição x das bancadas (estações) na sala, da esquerda para a direita. */
@@ -345,6 +357,13 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
     returnPointLight(light: THREE.PointLight): void {
       if (!lent.delete(light)) return;
       light.intensity = 0;
+    },
+
+    setAccent(accent: LightAccent | null): void {
+      keyLight.color.set(accent?.key.color ?? 0xffe8cc);
+      keyLight.intensity = accent?.key.intensity ?? 3.4;
+      rimLight.color.set(accent?.rim.color ?? 0x9cc8ff);
+      rimLight.intensity = accent?.rim.intensity ?? 1.6;
     },
 
     setLightweight(on: boolean): void {

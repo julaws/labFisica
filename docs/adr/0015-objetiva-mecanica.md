@@ -40,6 +40,28 @@ stop, foco) continua vindo da prescrição e do motor.
   `BarrelParts.sync`).
 - **Manípulo** serrilhado de latão na frente do carrinho.
 
+## Revisão de 04/10/2026: console da referência, luz dourada e crédito
+
+- **Sem células**: os anéis pretos em volta dos vidros (e os aros acesos deles)
+  saíram; o contorno dos vidros volta a ser o brilho de Fresnel do próprio vidro.
+- **Hastes do modo explodido** param na borda de baixo de cada vidro, em vez de
+  atravessá-lo até o eixo.
+- **Luz dourada**: na bancada da lente, a luz principal esquenta (0xffcf96, 3,8) e o
+  recorte de trás fica âmbar (0xff9640, 3,2) — `LabRoom.setAccent`, só cor e
+  intensidade, sem recompilar; ao sair da bancada, a sala volta ao tom padrão. O brilho
+  do diafragma ficou mais forte, e uma fileira de LEDs âmbar corre na frente do trilho
+  (uma malha instanciada, com bloom).
+- **Bancadas mais reflexivas** (todas): verniz liso no corpo (0,5 / 0,14), no tampo
+  (0,65 / 0,1) e na mesa óptica (0,55 / 0,12); a faixa de luz do teto se reflete nítida.
+- **Console** (`console-screens.ts`), no desenho da referência: a miniatura do foco
+  atual ganha uma moldura neon azul com halo (bloom); embaixo da tira, uma régua com
+  trilho aceso, um cursor de aço que acompanha o foco (interpolado em escala log entre
+  as miniaturas) e setas ‹ › que passam à vizinha; à direita, os três diafragmas de
+  atalho (f/2, f/5,6, f/16), clicáveis, com aro dourado e luz embaixo no da abertura
+  atual. As miniaturas encolheram de 0,45 para 0,38 m para caber o painel.
+- **Crédito** gravado no painel do console, embaixo da régua: "Inspirado em “The Plane
+  of Focus” · sael.net/plane-of-focus · @ryansael", e repetido no modal "?" da lente.
+
 ## Consequências
 
 - Na alta qualidade, a vista padrão da lente passa de ~300 para ~390 chamadas de
