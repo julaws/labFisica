@@ -19,9 +19,28 @@ export function preferredLocale(): Locale {
   } catch {
     // Armazenamento bloqueado (aba privada, política do navegador): segue.
   }
-  // O idioma padrão do laboratório é o português (CLAUDE.md §7), qualquer que
-  // seja o navegador; o inglês é escolhido explicitamente no painel.
-  return 'pt-BR';
+  return browserLocale();
+}
+
+/**
+ * Idioma inicial pelo navegador: português para qualquer variante de
+ * português (pt-BR, pt-PT, pt), inglês para o resto. A escolha feita no
+ * painel, quando houver, vale mais (`preferredLocale`).
+ */
+export function browserLocale(languages: readonly string[] = navigatorLanguages()): Locale {
+  // Na ordem de preferência do navegador, o primeiro idioma que o laboratório
+  // fala decide; se nenhum for português nem inglês, fica o inglês.
+  for (const language of languages) {
+    const code = language.toLowerCase();
+    if (code.startsWith('pt')) return 'pt-BR';
+    if (code.startsWith('en')) return 'en';
+  }
+  return 'en';
+}
+
+function navigatorLanguages(): readonly string[] {
+  if (typeof navigator === 'undefined') return [];
+  return navigator.languages.length > 0 ? navigator.languages : [navigator.language];
 }
 
 export function rememberLocale(locale: Locale): void {

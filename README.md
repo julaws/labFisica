@@ -22,10 +22,11 @@ Clique num quadro: ele sai da parede para a frente da tela, nítido, com uma bio
 curta; clique de novo e ele volta. Na prateleira do meio, enfeites de física: globo,
 telescópio, átomo, foguete, pêndulo de Newton e ímã.
 
-No canto inferior esquerdo, o botão **Alta qualidade** liga e desliga os efeitos
-caros (sombras, brilho, oclusão ambiente, profundidade de campo, luz de área e as
-texturas finas dos materiais): desligado, o modo leve roda bem em computadores e
-celulares mais fracos (ADR 0014).
+No canto inferior esquerdo, o botão **Alta qualidade** liga os efeitos caros
+(sombras, brilho, oclusão ambiente, profundidade de campo, luz de área e as texturas
+finas dos materiais). Toda visita começa no modo leve, que roda bem em computadores e
+celulares mais fracos (ADR 0014). O idioma inicial segue o do navegador: português
+para quem usa português, inglês para os demais.
 
 No canto inferior direito, ao lado da navegação: a música de fundo (Bach, Beethoven,
 Debussy, Satie e Mozart, gravações de domínio público, em sequência e em laço, a 10%

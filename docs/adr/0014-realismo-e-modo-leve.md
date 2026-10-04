@@ -48,8 +48,9 @@ ganha o ar de estúdio.
   (`LIGHTWEIGHT_SETTINGS`): o nível Baixo sem sombras, bloom, SSAO e profundidade de
   campo, sem a luz de área do teto (com o preenchimento reforçado) e sem os detalhes
   de superfície dos materiais (normal maps, mapas de rugosidade, verniz, anisotropia).
-  O ajuste automático de qualidade não sai do modo leve sozinho. A escolha fica no
-  `localStorage` e vale já na próxima visita.
+  O ajuste automático de qualidade não sai do modo leve sozinho. **Toda visita começa
+  no modo leve** (revisão de 04/10/2026): a alta qualidade é ligada no botão, e a
+  escolha não é guardada.
 - Medido na bancada da força magnética (RTX 3050): 2,8 ms → 0,9 ms por quadro e 203 →
   57 chamadas de desenho.
 - A troca recompila os shaders. Feita no quadro seguinte, travava a tela por ~2,7 s.
@@ -57,6 +58,14 @@ ganha o ar de estúdio.
   com `compileAsync` — **com o render target do pós-processamento ativo**, porque a
   cena é desenhada nele (saída linear, sem tone mapping) e essas variantes de shader
   são outras. A primeira troca leva no máximo ~0,3 s; as seguintes, um quadro.
+
+## Idioma inicial (04/10/2026)
+
+O idioma inicial segue o navegador (`browserLocale`): na ordem de preferência de
+`navigator.languages`, o primeiro que for português (qualquer variante) ou inglês
+decide; se nenhum dos dois aparecer, inglês. A escolha feita no botão de idioma
+continua guardada e vale mais. Os testes de navegador rodam com `locale: 'pt-BR'`,
+e um teste com `en-US` confere a abertura em inglês.
 
 ## Consequências
 

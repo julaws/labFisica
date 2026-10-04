@@ -32,7 +32,7 @@ import { createPanel } from './ui/panel';
 import { createNavPad } from './ui/nav-pad';
 import { createSiteBadge } from './ui/site-badge';
 import { createMusicPlayer } from './ui/music-player';
-import { createQualityToggle, savedLightweight } from './ui/quality-toggle';
+import { createQualityToggle } from './ui/quality-toggle';
 import { type ScreenRect, createPortraitViewer } from './ui/portrait-viewer';
 import { PORTRAITS, PORTRAIT_ATLAS, PORTRAIT_FRAME } from './scene/portrait-wall';
 import { createModal } from './ui/modal';
@@ -61,8 +61,9 @@ async function boot(): Promise<void> {
 
   const renderer = createRenderer({ canvas });
   const quality = createQualityManager(detectQualityLevel(renderer));
-  // O modo leve escolhido na visita anterior vale desde o primeiro quadro.
-  if (savedLightweight()) quality.setLightweight(true);
+  // Toda visita começa no modo leve; a alta qualidade é ligada no botão do
+  // canto inferior esquerdo (ADR 0014).
+  quality.setLightweight(true);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.settings.maxPixelRatio));
 
   // A bancada é larga; num retrato de celular o mesmo enquadramento vira um

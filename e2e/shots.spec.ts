@@ -376,27 +376,34 @@ test('música: começa no primeiro gesto, troca de faixa e silencia', async ({ p
   await expect(music.getByRole('button', { name: 'Ligar o som da música' })).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('alta qualidade: o botão liga o modo leve e volta', async ({ page }, testInfo) => {
+test('alta qualidade: começa desligada, liga e volta desligada na próxima visita', async ({ page }, testInfo) => {
   await openLab(page, '#/double-slit');
   const toggle = page.locator('.quality-toggle');
   await expect(toggle).toBeVisible();
-  // O SwiftShader dos testes já começa no nível Baixo; o modo leve é outra coisa.
-  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
-  const before = await page.evaluate(() => window.__lab?.drawCalls ?? 0);
-  await toggle.click();
+  // Toda visita começa no modo leve.
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  const light = await page.evaluate(() => window.__lab?.drawCalls ?? 0);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-43-lightweight.png` });
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
   await expect(toggle).toBeEnabled({ timeout: 30_000 });
   await page.waitForTimeout(800);
-  const after = await page.evaluate(() => window.__lab?.drawCalls ?? 0);
-  // Sem sombras e sem bloom, sobram bem menos chamadas de desenho.
-  expect(after).toBeLessThan(before);
-  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-43-lightweight.png` });
-  // A escolha fica para a próxima visita.
+  const high = await page.evaluate(() => window.__lab?.drawCalls ?? 0);
+  // Com sombras e bloom, há mais chamadas de desenho.
+  expect(high).toBeGreaterThan(light);
   await page.reload();
   await page.waitForFunction(() => window.__labReady === true, undefined, { timeout: 60_000 });
   await expect(page.locator('.quality-toggle')).toHaveAttribute('aria-pressed', 'false');
-  await page.locator('.quality-toggle').click();
-  await expect(page.locator('.quality-toggle')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test.describe('navegador em inglês', () => {
+  test.use({ locale: 'en-US' });
+
+  test('o laboratório abre em inglês', async ({ page }) => {
+    await openLab(page, '#/tunneling');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await expect(page.getByRole('button', { name: /High quality/ })).toBeVisible();
+  });
 });
 
 test('orçamento do tunelamento', async ({ page }) => {

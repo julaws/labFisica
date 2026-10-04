@@ -6,8 +6,8 @@ import { type Locale, t } from './i18n';
  * sombras, bloom, oclusão ambiente, profundidade de campo, luz de área e
  * detalhes de superfície — para computadores e celulares mais fracos.
  *
- * A escolha fica guardada no navegador de quem visita, quando ele deixa, e
- * vale já na próxima visita (`savedLightweight`).
+ * Toda visita começa no modo leve (chave desligada): quem tem uma máquina
+ * boa liga a alta qualidade quando quiser. A escolha não é guardada.
  */
 
 export interface QualityToggle {
@@ -23,25 +23,6 @@ export interface QualityToggleOptions {
   readonly locale: Locale;
   readonly lightweight: boolean;
   readonly onChange: (lightweight: boolean) => void;
-}
-
-const STORAGE_KEY = 'optics-lab:lightweight';
-
-/** O modo leve ficou ligado da última vez? */
-export function savedLightweight(): boolean {
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function remember(lightweight: boolean): void {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, lightweight ? '1' : '0');
-  } catch {
-    // Só uma preferência: sem armazenamento, a próxima visita volta ao padrão.
-  }
 }
 
 const SPARK_ICON =
@@ -84,7 +65,6 @@ export function createQualityToggle({
 
   element.addEventListener('click', () => {
     lightweight = !lightweight;
-    remember(lightweight);
     render();
     onChange(lightweight);
   });

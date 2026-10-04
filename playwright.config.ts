@@ -15,6 +15,8 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: `http://localhost:${PORT}`,
+    // O idioma inicial segue o navegador: os testes falam português.
+    locale: 'pt-BR',
     // O WebGL depende de GPU; o Chromium do Playwright usa SwiftShader por padrão.
     launchOptions: {
       args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
