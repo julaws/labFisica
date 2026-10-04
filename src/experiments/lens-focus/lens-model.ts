@@ -84,6 +84,12 @@ export interface LensElementMesh {
   readonly glass: THREE.Mesh;
   /** Raio do vidro, em unidades de cena: a haste do modo explodido para aí. */
   readonly radius: number;
+  /**
+   * Onde fica o meio da borda do vidro, em x, relativo ao centro do elemento
+   * (unidades de cena). Num menisco, a borda não está no meio dos vértices: a
+   * haste do modo explodido vai aqui.
+   */
+  readonly rimOffset: number;
   /** Posição do centro do elemento ao longo do eixo, em mm de física. */
   readonly centerMm: number;
   readonly geometries: THREE.BufferGeometry[];
@@ -180,6 +186,14 @@ export function createLensElement(
     group,
     glass,
     radius: lensMm(semiDiameter),
+    rimOffset: lensMm(
+      (frontZ +
+        surfaceSag(front.radius, Math.min(semiDiameter, front.semiDiameter)) +
+        backZ +
+        surfaceSag(back.radius, Math.min(semiDiameter, back.semiDiameter))) /
+        2 -
+        centerMm,
+    ),
     centerMm,
     geometries: [glassGeometry],
     materials: [glassMaterial],

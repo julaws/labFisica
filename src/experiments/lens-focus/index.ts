@@ -995,7 +995,7 @@ export function createLensFocusExperiment(): Experiment {
         // A haste cresce do trilho até a borda de baixo do vidro conforme
         // explode: segura a lente pela base, não atravessa o vidro.
         const top = -element.radius;
-        posts?.place(index, element.group.position.x, eased * (axisHeight - element.radius), top);
+        posts?.place(index, element.group.position.x + element.rimOffset, eased * (axisHeight - element.radius), top);
       });
       if (posts) posts.mesh.visible = eased > 0.01;
 
