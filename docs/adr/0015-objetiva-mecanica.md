@@ -62,6 +62,12 @@ stop, foco) continua vindo da prescrição e do motor.
 - **Crédito** gravado no painel do console, embaixo da régua: "Inspirado em “The Plane
   of Focus” · sael.net/plane-of-focus · @ryansael", e repetido no modal "?" da lente.
 
+- **Mais brilho na bancada da lente** (pedido seguinte): a mesa desta bancada usa
+  cópias dos materiais com o dobro de verniz (até 1) e de reflexo do ambiente e o
+  verniz duas vezes mais liso; a luminária do teto sobre ela brilha o dobro
+  (`LightAccent.ceiling`); os neons do console, os LEDs do trilho e a faixa de LED da
+  borda brilham o dobro. As outras bancadas ficam como estavam, e tudo volta ao sair.
+
 ## Consequências
 
 - Na alta qualidade, a vista padrão da lente passa de ~300 para ~390 chamadas de

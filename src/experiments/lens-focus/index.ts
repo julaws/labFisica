@@ -665,8 +665,54 @@ export function createLensFocusExperiment(): Experiment {
       ctx.room.setAccent({
         key: { color: 0xffcf96, intensity: 3.8 },
         rim: { color: 0xff9640, intensity: 3.2 },
+        // A luminária do teto sobre esta bancada brilha o dobro: a mesa
+        // envernizada a reflete como uma faixa larga de luz.
+        ceiling: 2,
       });
       disposers.push(() => ctx.room.setAccent(null));
+
+      // Mesa desta bancada com o dobro de reflexo: cópias dos materiais da
+      // biblioteca (as outras bancadas ficam como estão) com o dobro de
+      // verniz e de reflexo do ambiente e o verniz duas vezes mais liso. A
+      // faixa de LED da borda brilha o dobro. Tudo volta ao sair da bancada.
+      {
+        const swaps = new Map<THREE.Material, THREE.Material>();
+        const glossy = (material: THREE.Material): THREE.Material => {
+          const cached = swaps.get(material);
+          if (cached) return cached;
+          const copy = material.clone();
+          if (copy instanceof THREE.MeshPhysicalMaterial) {
+            copy.clearcoat = Math.min(1, copy.clearcoat * 2);
+            copy.clearcoatRoughness *= 0.5;
+            copy.envMapIntensity *= 2;
+            copy.roughness *= 0.7;
+          }
+          swaps.set(material, copy);
+          materials.push(copy);
+          return copy;
+        };
+        const surfaces = new Set<THREE.Material>([ctx.materials.benchBody, ctx.materials.benchTop, ctx.materials.breadboard]);
+        const brighterLed = ctx.materials.emissive(PALETTE.focus, 2.3);
+        const restore: (() => void)[] = [];
+        for (const child of ctx.bench.group.children) {
+          if (!(child instanceof THREE.Mesh)) continue;
+          const original = child.material as THREE.Material | THREE.Material[];
+          if (Array.isArray(original)) {
+            if (!original.some((material) => surfaces.has(material))) continue;
+            child.material = original.map((material) => (surfaces.has(material) ? glossy(material) : material));
+          } else if (surfaces.has(original)) {
+            child.material = glossy(original);
+          } else if (ctx.bench.glowing.includes(child)) {
+            child.material = brighterLed;
+          } else continue;
+          restore.push(() => {
+            child.material = original;
+          });
+        }
+        disposers.push(() => {
+          for (const undo of restore) undo();
+        });
+      }
 
       // Fileira de LEDs âmbar na frente do trilho, como na referência: uma
       // malha instanciada só, com bloom.
@@ -674,7 +720,7 @@ export function createLensFocusExperiment(): Experiment {
         const dots = 46;
         const dotGeometry = new THREE.SphereGeometry(0.0055, 10, 6);
         geometries.push(dotGeometry);
-        const ledMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb35a).multiplyScalar(2.2), toneMapped: false });
+        const ledMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb35a).multiplyScalar(4.4), toneMapped: false });
         materials.push(ledMaterial);
         const leds = new THREE.InstancedMesh(dotGeometry, ledMaterial, dots);
         leds.name = 'rail-leds';

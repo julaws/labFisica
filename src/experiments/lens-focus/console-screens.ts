@@ -190,7 +190,7 @@ export function createConsoleScreens({
   geometries.push(neonGeometry);
   const neonMaterial = new THREE.MeshBasicMaterial({
     map: neonTexture,
-    color: new THREE.Color(PALETTE.focus).multiplyScalar(1.6),
+    color: new THREE.Color(PALETTE.focus).multiplyScalar(3.2),
     transparent: true,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
@@ -206,7 +206,7 @@ export function createConsoleScreens({
   // --- Régua: trilho aceso, cursor e setas --------------------------------------
   const track = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 0.007).translate(0.5, 0, 0),
-    new THREE.MeshBasicMaterial({ color: new THREE.Color(PALETTE.focus).multiplyScalar(1.4), toneMapped: false }),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(PALETTE.focus).multiplyScalar(2.8), toneMapped: false }),
   );
   geometries.push(track.geometry);
   materials.push(track.material);
@@ -287,7 +287,7 @@ export function createConsoleScreens({
   for (const part of ringParts) part.dispose();
   if (!ringGeometry) throw new Error('Falha ao montar o aro do diafragma');
   geometries.push(ringGeometry);
-  const ringMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb45c).multiplyScalar(1.5), toneMapped: false });
+  const ringMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffb45c).multiplyScalar(3), toneMapped: false });
   materials.push(ringMaterial);
   const apertureMark = new THREE.Mesh(ringGeometry, ringMaterial);
   apertureMark.name = 'aperture-mark';

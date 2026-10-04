@@ -61,6 +61,8 @@ export interface LabRoom {
 export interface LightAccent {
   readonly key: { readonly color: THREE.ColorRepresentation; readonly intensity: number };
   readonly rim: { readonly color: THREE.ColorRepresentation; readonly intensity: number };
+  /** Multiplica a luminária do teto sobre a bancada (padrão 1). */
+  readonly ceiling?: number;
 }
 
 /** Posição x das bancadas (estações) na sala, da esquerda para a direita. */
@@ -290,7 +292,7 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   // iluminavam nada que estivesse no quadro.
   // Mais curta que antes (5,2 m) para caber entre a parede do fundo e a
   // frente da sala; um pouco mais intensa para dar a mesma luz na bancada.
-  const strip = new THREE.RectAreaLight(0xcfe0ff, 2.2, 0.34, STRIP_LENGTH);
+  const strip = new THREE.RectAreaLight(0xcfe0ff, STRIP_INTENSITY, 0.34, STRIP_LENGTH);
   // Centrada um pouco à frente, para a ponta não atravessar a parede do fundo.
   strip.position.set(STATION_X[0] ?? 0, ROOM.height - 0.12, STRIP_Z);
   strip.rotation.x = -Math.PI / 2;
@@ -364,6 +366,7 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
       keyLight.intensity = accent?.key.intensity ?? 3.4;
       rimLight.color.set(accent?.rim.color ?? 0x9cc8ff);
       rimLight.intensity = accent?.rim.intensity ?? 1.6;
+      strip.intensity = STRIP_INTENSITY * (accent?.ceiling ?? 1);
     },
 
     setLightweight(on: boolean): void {
@@ -389,6 +392,9 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
     },
   };
 }
+
+/** Intensidade padrão da luminária do teto. */
+const STRIP_INTENSITY = 2.2;
 
 /** Posição da luz principal em relação à bancada ativa. */
 const KEY_OFFSET = { x: 1.6, y: 3.4, z: 1.7 } as const;
