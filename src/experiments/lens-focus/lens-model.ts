@@ -85,6 +85,12 @@ export interface LensElementMesh {
   /** Raio do vidro, em unidades de cena: a haste do modo explodido para aí. */
   readonly radius: number;
   /**
+   * Contorno aceso do corte da lente (o perfil, no plano voltado para a
+   * câmera), quando pedido: deixa o formato do vidro legível no modo
+   * explodido. Fica escondido até o experimento mostrá-lo.
+   */
+  readonly outline: THREE.Mesh | null;
+  /**
    * Onde fica o meio da borda do vidro, em x, relativo ao centro do elemento
    * (unidades de cena). Num menisco, a borda não está no meio dos vértices: a
    * haste do modo explodido vai aqui.
@@ -146,6 +152,7 @@ export function createLensElement(
   prescription: Prescription,
   frontIndex: number,
   backIndex: number,
+  { outline = false }: { outline?: boolean } = {},
 ): LensElementMesh {
   const surfaces = prescription.surfaces;
   const vertices = vertexPositions(surfaces);
@@ -182,9 +189,41 @@ export function createLensElement(
   group.add(glass);
   group.position.x = lensMm(centerMm);
 
+  // Contorno do corte: o perfil do torno no plano XY (x ao longo do eixo, y
+  // radial), a metade de cima e o espelho embaixo, num tubo fino aceso.
+  let outlineMesh: THREE.Mesh | null = null;
+  const extraGeometries: THREE.BufferGeometry[] = [];
+  if (outline) {
+    const upper = profile.map((point) => new THREE.Vector3(point.y, point.x, 0));
+    const lower = [...profile].reverse().map((point) => new THREE.Vector3(point.y, -point.x, 0));
+    const section = [...upper, ...lower].filter(
+      (point, index, all) => index === 0 || point.distanceToSquared(all[index - 1]!) > 1e-10,
+    );
+    const curve = new THREE.CatmullRomCurve3(section, true, 'centripetal');
+    const tube = new THREE.TubeGeometry(curve, 240, lensMm(0.14), 6, true);
+    extraGeometries.push(tube);
+    outlineMesh = new THREE.Mesh(
+      tube,
+      // Desenhado depois do vidro e sem teste de profundidade: o vidro
+      // transmissivo é pintado por cima do que é opaco e apagaria o contorno.
+      new THREE.MeshBasicMaterial({
+        color: new THREE.Color(PALETTE.focus).multiplyScalar(2.2),
+        toneMapped: false,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+    outlineMesh.renderOrder = 10;
+    outlineMesh.name = 'lens-outline';
+    outlineMesh.visible = false;
+    group.add(outlineMesh);
+  }
+
   return {
     group,
     glass,
+    outline: outlineMesh,
     radius: lensMm(semiDiameter),
     rimOffset: lensMm(
       (frontZ +
@@ -195,8 +234,8 @@ export function createLensElement(
         centerMm,
     ),
     centerMm,
-    geometries: [glassGeometry],
-    materials: [glassMaterial],
+    geometries: [glassGeometry, ...extraGeometries],
+    materials: outlineMesh ? [glassMaterial, outlineMesh.material as THREE.Material] : [glassMaterial],
   };
 }
 

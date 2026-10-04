@@ -154,6 +154,12 @@ const EXPLODE_SECONDS = 0.8;
  */
 const EXPLODE_SPREAD_MM = 11;
 
+/**
+ * Numa lente de um vidro só, quanto o diafragma explodido fica atrás do vidro,
+ * mm de física: longe o bastante para não cobrir o perfil da lente.
+ */
+const IRIS_CLEARANCE_MM = 15;
+
 /** Folga entre o último elemento explodido e os anéis, mm de física. */
 const EXPLODE_RING_GAP_MM = { focus: 14, flange: 12 } as const;
 
@@ -378,8 +384,13 @@ export function createLensFocusExperiment(): Experiment {
     const prescription = lens.prescription;
     lensStopZMm = vertexPositions(prescription.surfaces)[stopIndex(prescription.surfaces)]!;
 
-    for (const [front, back] of elementIndices(prescription)) {
-      const element = createLensElement(prescription, front, back);
+    // Numa lente de um vidro só, o formato do vidro é o assunto: ele ganha o
+    // contorno aceso do corte, que aparece no modo explodido. O Gauss duplo
+    // fica como está.
+    const indices = elementIndices(prescription);
+    for (const [front, back] of indices) {
+      const element = createLensElement(prescription, front, back, { outline: indices.length === 1 });
+      if (element.outline) context?.addGlow(element.outline);
       elements.push(element);
       lensGeometries.push(...element.geometries);
       lensMaterials.push(...element.materials);
@@ -998,9 +1009,17 @@ export function createLensFocusExperiment(): Experiment {
         posts?.place(index, element.group.position.x + element.rimOffset, eased * (axisHeight - element.radius), top);
       });
       if (posts) posts.mesh.visible = eased > 0.01;
+      for (const element of elements) {
+        if (element.outline) element.outline.visible = eased > 0.5;
+      }
 
       if (iris) {
-        iris.group.position.x = lensMm(lerp(lensStopZMm, center));
+        // No Gauss duplo o diafragma fica no vão do meio, entre os vidros.
+        // Numa lente simples o stop está no próprio vidro: explodido no centro,
+        // o diafragma cobriria o perfil da lente, que é o que se quer ver.
+        // Ele vai para trás dela, a meio caminho do flange.
+        const irisTarget = elements.length > 1 ? center : center + IRIS_CLEARANCE_MM;
+        iris.group.position.x = lensMm(lerp(lensStopZMm, irisTarget));
       }
 
       if (barrel) {
