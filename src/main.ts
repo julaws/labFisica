@@ -62,8 +62,9 @@ async function boot(): Promise<void> {
   const renderer = createRenderer({ canvas });
   const quality = createQualityManager(detectQualityLevel(renderer));
   // Toda visita começa no modo leve; a alta qualidade é ligada no botão do
-  // canto inferior esquerdo (ADR 0014).
-  quality.setLightweight(true);
+  // canto inferior esquerdo (ADR 0014). `?hq=1` abre já em alta qualidade
+  // (capturas de tela e comparações).
+  quality.setLightweight(new URLSearchParams(window.location.search).get('hq') !== '1');
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, quality.settings.maxPixelRatio));
 
   // A bancada é larga; num retrato de celular o mesmo enquadramento vira um

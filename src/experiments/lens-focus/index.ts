@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type {
   CinematicShot,
   Experiment,
@@ -187,6 +188,18 @@ export function createLensFocusExperiment(): Experiment {
   let posts: ReturnType<typeof createElementPosts> | null = null;
   let barrel: ReturnType<typeof createBarrel> | null = null;
   let opticsGroup: THREE.Group | null = null;
+  /** Brilho âmbar de dentro da objetiva, no diafragma (luz prática emprestada). */
+  let ember: THREE.PointLight | null = null;
+  const emberPosition = new THREE.Vector3();
+
+  /** Leva o brilho do diafragma para onde a íris está agora. */
+  function placeEmber(): void {
+    if (!ember || !iris) return;
+    iris.group.updateWorldMatrix(true, false);
+    iris.group.getWorldPosition(emberPosition);
+    ember.parent?.worldToLocal(emberPosition);
+    ember.position.copy(emberPosition);
+  }
 
   /**
    * Giro lento dos leques de raios em volta do eixo, como na referência:
@@ -365,8 +378,12 @@ export function createLensFocusExperiment(): Experiment {
     const prescription = lens.prescription;
     lensStopZMm = vertexPositions(prescription.surfaces)[stopIndex(prescription.surfaces)]!;
 
+    // Células do mesmo diâmetro externo para todos os vidros, como os discos
+    // pretos da referência.
+    const cellOuter = lensMm(clearSemiDiameterMm + 3);
     for (const [front, back] of elementIndices(prescription)) {
-      const element = createLensElement(prescription, front, back);
+      const element = createLensElement(prescription, front, back, context ? { materials: context.materials, outerRadius: cellOuter } : undefined);
+      if (element.glow) context?.addGlow(element.glow);
       elements.push(element);
       lensGeometries.push(...element.geometries);
       lensMaterials.push(...element.materials);
@@ -416,6 +433,38 @@ export function createLensFocusExperiment(): Experiment {
     // de cima entraria na base.
     plate.position.set(0, 0.005, 0.127);
     carriageGroup.add(plate);
+
+    // Manípulo de trava do carrinho: botão serrilhado de latão na frente do
+    // trilho, como na referência.
+    const knobGeometry = new THREE.CylinderGeometry(0.042, 0.046, 0.05, 48);
+    knobGeometry.rotateX(Math.PI / 2);
+    // Tampa polida e haste: mesmo material, uma malha só.
+    const capParts = [
+      new THREE.CylinderGeometry(0.03, 0.042, 0.012, 48).rotateX(Math.PI / 2).translate(0, 0, 0.031),
+      new THREE.CylinderGeometry(0.01, 0.01, 0.05, 16).rotateX(Math.PI / 2).translate(0, 0, -0.04),
+    ];
+    const capGeometry = mergeGeometries(capParts);
+    for (const part of capParts) part.dispose();
+    if (!capGeometry) throw new Error('Falha ao montar o manípulo');
+    geometries.push(knobGeometry, capGeometry);
+    const knurl = new THREE.MeshPhysicalMaterial({
+      color: 0xc8842c,
+      metalness: 1,
+      roughness: 0.32,
+      normalMap: ctx.materials.knurledRubber.normalMap,
+      normalScale: new THREE.Vector2(0.9, 0.9),
+      clearcoat: 0.3,
+      clearcoatRoughness: 0.3,
+    });
+    const polished = new THREE.MeshStandardMaterial({ color: 0xe0a64a, metalness: 1, roughness: 0.15 });
+    materials.push(knurl, polished);
+    const knob = new THREE.Group();
+    knob.name = 'carriage-knob';
+    const grip = new THREE.Mesh(knobGeometry, knurl);
+    grip.castShadow = true;
+    knob.add(grip, new THREE.Mesh(capGeometry, polished));
+    knob.position.set(-0.24, 0.035, 0.17);
+    carriageGroup.add(knob);
   }
 
   /** Aplica o estado à cena: íris, deslocamento de foco e rotação do anel. */
@@ -434,7 +483,11 @@ export function createLensFocusExperiment(): Experiment {
     const extension = ringExtension(state.focalLength, state.focusDistance, HOME_PLATE_MM);
     if (opticsGroup) opticsGroup.position.x = lensBaseX(lens) - lensMm(extension);
 
-    if (barrel) barrel.focusRing.rotation.x = distanceToRingAngle(state.focusDistance);
+    if (barrel) {
+      barrel.focusRing.rotation.x = distanceToRingAngle(state.focusDistance);
+      barrel.sync();
+    }
+    placeEmber();
 
     explodeTarget = state.lensMode === 'exploded' ? 1 : 0;
 
@@ -521,10 +574,17 @@ export function createLensFocusExperiment(): Experiment {
       opticsGroup = new THREE.Group();
       opticsGroup.name = 'optics';
 
-      iris = createIris();
+      // A boca da carcaça é a abertura em f/2: aberto, o diafragma some; fechando,
+      // as lâminas avançam para dentro dela.
+      iris = createIris(DEFAULT_IRIS, {
+        materials: ctx.materials,
+        innerRadiusMm: stopSemiDiameter(2) * 1.04,
+        outerRadiusMm: clearSemiDiameterMm + 3,
+      });
       geometries.push(...iris.geometries);
       materials.push(...iris.materials);
       opticsGroup.add(iris.group);
+      for (const object of iris.glowing) ctx.addGlow(object);
 
       buildLensElements(store.get().lens);
       root.add(opticsGroup);
@@ -600,6 +660,22 @@ export function createLensFocusExperiment(): Experiment {
         sceneBlur = pass;
         disposers.push(ctx.addScreenPass(pass), () => {
           sceneBlur = null;
+        });
+      }
+
+      // Brilho âmbar no diafragma, como o da referência: uma luz quente de
+      // alcance curto dentro da objetiva, que tinge as bordas dos vidros
+      // vizinhos. Também emprestada da sala (o número de luzes não muda).
+      ember = ctx.room.borrowPointLight();
+      if (ember) {
+        ember.color.setHex(0xff8a2a);
+        ember.intensity = 0.5;
+        ember.distance = 0.55;
+        ember.decay = 2;
+        const borrowed = ember;
+        disposers.push(() => {
+          ctx.room.returnPointLight(borrowed);
+          ember = null;
         });
       }
 
@@ -869,7 +945,9 @@ export function createLensFocusExperiment(): Experiment {
           lerp(barrel.restMm.focusRing, base + center - span - gap.focus),
         );
         barrel.flange.position.x = lensMm(lerp(barrel.restMm.flange, base + center + span + gap.flange));
+        barrel.sync();
       }
+      placeEmber();
 
       context?.invalidate();
     },

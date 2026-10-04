@@ -82,6 +82,8 @@ export function elementProfile(
 export interface LensElementMesh {
   readonly group: THREE.Group;
   readonly glass: THREE.Mesh;
+  /** Aro aceso da célula, para o bloom (quando há célula). */
+  readonly glow: THREE.Mesh | null;
   /** Posição do centro do elemento ao longo do eixo, em mm de física. */
   readonly centerMm: number;
   readonly geometries: THREE.BufferGeometry[];
@@ -138,6 +140,7 @@ export function createLensElement(
   prescription: Prescription,
   frontIndex: number,
   backIndex: number,
+  cell?: { readonly materials: MaterialLibrary; readonly outerRadius: number },
 ): LensElementMesh {
   const surfaces = prescription.surfaces;
   const vertices = vertexPositions(surfaces);
@@ -174,11 +177,33 @@ export function createLensElement(
   group.add(glass);
   group.position.x = lensMm(centerMm);
 
+  const geometries: THREE.BufferGeometry[] = [glassGeometry];
+  let glow: THREE.Mesh | null = null;
+  if (cell) {
+    // A célula é um anel de retenção fino no meio da borda do vidro: o vidro
+    // passa dos dois lados dela, e entre células vizinhas sobra vão para ver
+    // os vidros, como na referência. Fina mesmo nos vidros grossos.
+    const faceSag = (surface: Surface): number => surfaceSag(surface.radius, Math.min(semiDiameter, surface.semiDiameter));
+    const frontRim = frontZ + faceSag(front);
+    const backRim = backZ + faceSag(back);
+    const widthMm = Math.min(Math.max(Math.abs(backRim - frontRim) * 0.6, 1.2), 2.6);
+    const parts = createElementCell(cell.materials, {
+      innerRadius: lensMm(semiDiameter) * 0.97,
+      outerRadius: Math.max(cell.outerRadius, lensMm(semiDiameter + 2.5)),
+      width: lensMm(widthMm),
+    });
+    parts.group.position.x = lensMm((frontRim + backRim) / 2 - centerMm);
+    group.add(parts.group);
+    geometries.push(...parts.geometries);
+    glow = parts.glow;
+  }
+
   return {
     group,
     glass,
+    glow,
     centerMm,
-    geometries: [glassGeometry],
+    geometries,
     materials: [glassMaterial],
   };
 }
@@ -230,16 +255,33 @@ export function createElementPosts(count: number): {
 
 export interface IrisMesh {
   readonly group: THREE.Group;
+  /** Aro aceso na boca da carcaça, para o bloom. */
+  readonly glowing: THREE.Object3D[];
   /** Abre ou fecha a íris para o raio livre pedido, em mm de física. */
   setClearRadius(millimeters: number): void;
   readonly geometries: THREE.BufferGeometry[];
   readonly materials: THREE.Material[];
 }
 
-/** Diafragma de 9 lâminas, sincronizado com o semidiâmetro do stop. */
-export function createIris(config: IrisConfig = DEFAULT_IRIS): IrisMesh {
+/**
+ * Diafragma de 9 lâminas, sincronizado com o semidiâmetro do stop, dentro da
+ * sua carcaça: duas placas anulares que escondem a parte recolhida das
+ * lâminas e deixam ver só a boca, como num diafragma de verdade. Na boca, um
+ * aro âmbar aceso, como o brilho quente do diafragma na referência.
+ */
+export function createIris(
+  config: IrisConfig = DEFAULT_IRIS,
+  housing?: {
+    readonly materials: MaterialLibrary;
+    readonly innerRadiusMm: number;
+    /** Raio externo da carcaça, mm: as lâminas são recortadas nele. */
+    readonly outerRadiusMm: number;
+  },
+): IrisMesh {
   const group = new THREE.Group();
   group.name = 'iris';
+  const glowing: THREE.Object3D[] = [];
+  const housingGeometries: THREE.BufferGeometry[] = [];
 
   const bladeGeometry = new THREE.CylinderGeometry(
     lensMm(config.bladeRadius),
@@ -258,6 +300,27 @@ export function createIris(config: IrisConfig = DEFAULT_IRIS): IrisMesh {
     side: THREE.DoubleSide,
   });
 
+  // As lâminas reais giram dentro da carcaça e só a boca aparece. Aqui elas são
+  // discos grandes (o modelo geométrico de iris.ts), que passariam muito do
+  // tamanho das células dos vidros: o shader descarta o que fica fora do raio
+  // da carcaça, e a carcaça fica do tamanho das células.
+  if (housing) {
+    const clip = lensMm(housing.outerRadiusMm) * 0.985;
+    bladeMaterial.onBeforeCompile = (shader) => {
+      shader.uniforms.irisClip = { value: clip };
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec2 vIrisRadial;')
+        .replace(
+          '#include <begin_vertex>',
+          '#include <begin_vertex>\nvec4 irisLocal = vec4(transformed, 1.0);\n#ifdef USE_INSTANCING\nirisLocal = instanceMatrix * irisLocal;\n#endif\nvIrisRadial = irisLocal.yz;',
+        );
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', '#include <common>\nvarying vec2 vIrisRadial;\nuniform float irisClip;')
+        .replace('#include <clipping_planes_fragment>', '#include <clipping_planes_fragment>\nif (length(vIrisRadial) > irisClip) discard;');
+    };
+    bladeMaterial.customProgramCacheKey = () => 'iris-clip-v1';
+  }
+
   // Uma InstancedMesh para as nove lâminas: um draw call em vez de nove, em
   // cada um dos passes (principal, sombra, transmissão). SPEC §8.
   const blades = new THREE.InstancedMesh(bladeGeometry, bladeMaterial, config.bladeCount);
@@ -266,8 +329,39 @@ export function createIris(config: IrisConfig = DEFAULT_IRIS): IrisMesh {
 
   const bladeMatrix = new THREE.Matrix4();
 
+  if (housing) {
+    const stackHalf = lensMm(config.bladeCount * 0.11) / 2 + lensMm(0.25);
+    const inner = lensMm(housing.innerRadiusMm);
+    const outer = lensMm(housing.outerRadiusMm);
+    const plate = lensMm(0.9);
+    const plates = mergeGeometries([
+      roundedRing(inner, outer, plate, plate * 0.4, -stackHalf - plate / 2, 96),
+      roundedRing(inner, outer, plate, plate * 0.4, stackHalf + plate / 2, 96),
+      // Cinta externa que fecha a carcaça.
+      roundedRing(outer - lensMm(1), outer, stackHalf * 2 + plate * 2, plate * 0.4, 0, 96),
+    ]);
+    if (!plates) throw new Error('Falha ao montar a carcaça do diafragma');
+    housingGeometries.push(plates);
+    const housingMesh = new THREE.Mesh(plates, housing.materials.anodizedAluminum);
+    housingMesh.name = 'iris-housing';
+    housingMesh.castShadow = true;
+    group.add(housingMesh);
+
+    const ember = mergeGeometries([
+      new THREE.TorusGeometry(inner, lensMm(0.45), 10, 96).rotateY(Math.PI / 2).translate(-stackHalf - plate, 0, 0),
+      new THREE.TorusGeometry(inner, lensMm(0.45), 10, 96).rotateY(Math.PI / 2).translate(stackHalf + plate, 0, 0),
+    ]);
+    if (!ember) throw new Error('Falha ao montar o aro do diafragma');
+    housingGeometries.push(ember);
+    const emberMesh = new THREE.Mesh(ember, housing.materials.emissive(0xff9a3c, 2.6));
+    emberMesh.name = 'iris-ember';
+    group.add(emberMesh);
+    glowing.push(emberMesh);
+  }
+
   return {
     group,
+    glowing,
     setClearRadius(millimeters: number): void {
       const psi = bladeAngleForAperture(config, millimeters);
       const placements = bladePlacements(config, psi);
@@ -282,7 +376,7 @@ export function createIris(config: IrisConfig = DEFAULT_IRIS): IrisMesh {
       });
       blades.instanceMatrix.needsUpdate = true;
     },
-    geometries: [bladeGeometry],
+    geometries: [bladeGeometry, ...housingGeometries],
     materials: [bladeMaterial],
   };
 }
@@ -295,6 +389,12 @@ export interface BarrelParts {
   readonly flange: THREE.Mesh;
   /** Posições de repouso ao longo do eixo, em mm de física. */
   readonly restMm: { focusRing: number; flange: number };
+  /**
+   * Acompanha o anel de foco e o flange: leva os blocos, o pinhão e as barras-
+   * guia para onde eles estão e gira o pinhão engrenado na coroa do anel.
+   * Chame depois de mover ou girar o anel de foco ou o flange.
+   */
+  sync(): void;
   readonly geometries: THREE.BufferGeometry[];
   readonly materials: THREE.Material[];
 }
@@ -355,6 +455,111 @@ function roundedRing(inner: number, outer: number, width: number, corner: number
   geometry.translate(x, 0, 0);
   geometry.computeVertexNormals();
   return geometry.toNonIndexed();
+}
+
+/**
+ * Engrenagem de dentes retos, no eixo óptico (X), centrada em x = 0: o perfil
+ * de dentes trapezoidais é extrudado na largura `width`, com um chanfro leve
+ * nas arestas (é ele que pega a luz e desenha cada dente) e um furo central.
+ */
+export function gearGeometry({
+  teeth,
+  rootRadius,
+  tipRadius,
+  bore,
+  width,
+}: {
+  teeth: number;
+  rootRadius: number;
+  tipRadius: number;
+  bore: number;
+  width: number;
+}): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  const pitch = (Math.PI * 2) / teeth;
+  const at = (radius: number, angle: number): [number, number] => [radius * Math.cos(angle), radius * Math.sin(angle)];
+  for (let i = 0; i < teeth; i += 1) {
+    const a = i * pitch;
+    // Vale, flanco que sobe, topo, flanco que desce.
+    const points: [number, number][] = [
+      at(rootRadius, a),
+      at(rootRadius, a + pitch * 0.18),
+      at(tipRadius, a + pitch * 0.32),
+      at(tipRadius, a + pitch * 0.62),
+      at(rootRadius, a + pitch * 0.76),
+    ];
+    points.forEach(([x, y], index) => {
+      if (i === 0 && index === 0) shape.moveTo(x, y);
+      else shape.lineTo(x, y);
+    });
+  }
+  shape.closePath();
+  const hole = new THREE.Path();
+  hole.absarc(0, 0, bore, 0, Math.PI * 2, true);
+  shape.holes.push(hole);
+
+  const bevel = Math.min(width * 0.12, (tipRadius - rootRadius) * 0.18);
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    depth: width - bevel * 2,
+    bevelEnabled: true,
+    bevelThickness: bevel,
+    bevelSize: bevel,
+    bevelSegments: 2,
+    curveSegments: 48,
+  });
+  geometry.translate(0, 0, -(width - bevel * 2) / 2);
+  geometry.rotateY(Math.PI / 2);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** Latão usinado das engrenagens e dos blocos: dourado acobreado, polido. */
+function machinedBrass(): THREE.MeshPhysicalMaterial {
+  return new THREE.MeshPhysicalMaterial({
+    color: 0xc8842c,
+    metalness: 1,
+    roughness: 0.3,
+    anisotropy: 0.35,
+    clearcoat: 0.25,
+    clearcoatRoughness: 0.3,
+    envMapIntensity: 1.25,
+  });
+}
+
+/**
+ * Célula de um elemento: o anel de alumínio anodizado que segura o vidro pela
+ * borda, como nas objetivas reais (e como na referência, onde cada vidro é um
+ * disco preto com o vidro no meio), mais um aro aceso na borda do vidro, que
+ * desenha o contorno de cada elemento com o bloom.
+ */
+export function createElementCell(
+  materials: MaterialLibrary,
+  { innerRadius, outerRadius, width }: { innerRadius: number; outerRadius: number; width: number },
+): { group: THREE.Group; glow: THREE.Mesh; geometries: THREE.BufferGeometry[] } {
+  const group = new THREE.Group();
+  group.name = 'element-cell';
+  const depth = outerRadius - innerRadius;
+  const cellGeometry = roundedRing(innerRadius, outerRadius, width, Math.min(width, depth) * 0.3, 0, 96);
+  const cell = new THREE.Mesh(cellGeometry, materials.anodizedAluminum);
+  cell.castShadow = true;
+  cell.receiveShadow = true;
+  group.add(cell);
+
+  // Aro aceso: um toro fino na borda do vidro, dos dois lados da célula.
+  const glowGeometry = mergeGeometries([
+    new THREE.TorusGeometry(innerRadius * 0.995, Math.max(lensMm(0.16), width * 0.045), 8, 96)
+      .rotateY(Math.PI / 2)
+      .translate(-width / 2, 0, 0),
+    new THREE.TorusGeometry(innerRadius * 0.995, Math.max(lensMm(0.12), width * 0.035), 8, 96)
+      .rotateY(Math.PI / 2)
+      .translate(width / 2, 0, 0),
+  ]);
+  if (!glowGeometry) throw new Error('Falha ao montar o aro aceso');
+  const glow = new THREE.Mesh(glowGeometry, materials.emissive(PALETTE.focus, 2.4));
+  glow.name = 'element-rim';
+  group.add(glow);
+
+  return { group, glow, geometries: [cellGeometry, glowGeometry] };
 }
 
 /**
@@ -533,12 +738,130 @@ export function createBarrel(
   flange.castShadow = true;
   group.add(flange);
 
+  // --- Mecânica à mostra: coroas, pinhão, blocos e barras-guia ---------------
+  // Como na referência: duas coroas dentadas de latão (uma no anel de foco,
+  // que gira com ele; outra na frente do flange), um pinhão (o "helicoide")
+  // engrenado por cima da coroa do anel, blocos de latão que abraçam as
+  // coroas e duas barras-guia ligando os grupos. Tudo de cena, sem óptica.
+  const brass = machinedBrass();
+  ownedMaterials.push(brass);
+  const gearWidth = lensMm(4.2);
+  const gearRoot = outerRadius * 1.1;
+  const gearTip = outerRadius * 1.2;
+  const gearTeeth = 96;
+  const gearPitchRadius = (gearRoot + gearTip) / 2;
+
+  // Coroa do anel de foco, logo atrás da pegada: gira com o anel.
+  const focusGearGeometry = gearGeometry({ teeth: gearTeeth, rootRadius: gearRoot, tipRadius: gearTip, bore: ringInner, width: gearWidth });
+  geometries.push(focusGearGeometry);
+  const focusGear = new THREE.Mesh(focusGearGeometry, brass);
+  focusGear.name = 'focus-gear';
+  focusGear.position.x = ringWidth / 2 + gearWidth / 2 + lensMm(0.6);
+  focusGear.castShadow = true;
+  focusRing.add(focusGear);
+
+  // Coroa traseira, na frente do flange.
+  const rearTip = gearTip * 0.97;
+  const rearGearGeometry = gearGeometry({ teeth: gearTeeth, rootRadius: gearRoot * 0.97, tipRadius: rearTip, bore: outerRadius * 0.9, width: gearWidth });
+  geometries.push(rearGearGeometry);
+  const rearGear = new THREE.Mesh(rearGearGeometry, brass);
+  rearGear.name = 'rear-gear';
+  rearGear.position.x = -flangeDepth * 1.6;
+  rearGear.castShadow = true;
+  flange.add(rearGear);
+
+  // Blocos de latão em cima e embaixo de cada coroa.
+  const clampSize = { x: gearWidth * 1.9, y: outerRadius * 0.16, z: outerRadius * 0.34 };
+  const pair = (make: (side: number) => THREE.BufferGeometry, what: string): THREE.BufferGeometry => {
+    const parts = [1, -1].map((side) => make(side).toNonIndexed());
+    const merged = mergeGeometries(parts);
+    for (const part of parts) part.dispose();
+    if (!merged) throw new Error(`Falha ao montar ${what}`);
+    geometries.push(merged);
+    return merged;
+  };
+  const clampGeometry = (radius: number): THREE.BufferGeometry =>
+    pair((side) => new THREE.BoxGeometry(clampSize.x, clampSize.y, clampSize.z).translate(0, side * (radius + clampSize.y / 2), 0), 'os blocos');
+
+  // O carro do anel de foco não gira: leva os blocos e o pinhão.
+  const focusCarrier = new THREE.Group();
+  focusCarrier.name = 'focus-carrier';
+  group.add(focusCarrier);
+  const focusClamps = new THREE.Mesh(clampGeometry(gearTip * 1.005), brass);
+  focusClamps.castShadow = true;
+  focusClamps.position.x = focusGear.position.x;
+  focusCarrier.add(focusClamps);
+
+  const rearClamps = new THREE.Mesh(clampGeometry(rearTip * 1.005), brass);
+  rearClamps.castShadow = true;
+  rearClamps.position.x = rearGear.position.x;
+  flange.add(rearClamps);
+
+  // Pinhão do helicoide: engrenado por cima da coroa do anel, inclinado para o
+  // lado da câmera, num eixo de aço com cubo de latão.
+  const pinionTeeth = 18;
+  const pinionRoot = gearPitchRadius * (pinionTeeth / gearTeeth) * 0.94;
+  const pinionTip = pinionRoot + (gearTip - gearRoot);
+  const pinionPitch = (pinionRoot + pinionTip) / 2;
+  const pinionGear = gearGeometry({ teeth: pinionTeeth, rootRadius: pinionRoot, tipRadius: pinionTip, bore: pinionRoot * 0.25, width: gearWidth * 1.4 });
+  // O cubo de latão é da mesma peça: uma malha só.
+  const hub = new THREE.CylinderGeometry(pinionRoot * 0.42, pinionRoot * 0.42, gearWidth * 0.9, 24)
+    .rotateZ(Math.PI / 2)
+    .translate(gearWidth * 1.15, 0, 0);
+  const pinionGeometry = mergeGeometries([pinionGear, hub.toNonIndexed()]);
+  pinionGear.dispose();
+  hub.dispose();
+  if (!pinionGeometry) throw new Error('Falha ao montar o pinhão');
+  geometries.push(pinionGeometry);
+  const pinion = new THREE.Mesh(pinionGeometry, brass);
+  pinion.name = 'helicoid-pinion';
+  pinion.castShadow = true;
+  const pinionMount = new THREE.Group();
+  pinionMount.name = 'helicoid';
+  const meshAngle = 0.35;
+  const centerDistance = gearPitchRadius + pinionPitch;
+  pinionMount.position.set(focusGear.position.x, centerDistance * Math.cos(meshAngle), centerDistance * Math.sin(meshAngle));
+  pinionMount.add(pinion);
+  const shaftGeometry = new THREE.CylinderGeometry(pinionRoot * 0.22, pinionRoot * 0.22, gearWidth * 4.2, 20).rotateZ(Math.PI / 2);
+  geometries.push(shaftGeometry);
+  const steel = new THREE.MeshStandardMaterial({ color: 0xc9ced6, metalness: 1, roughness: 0.22 });
+  ownedMaterials.push(steel);
+  pinionMount.add(new THREE.Mesh(shaftGeometry, steel));
+  focusCarrier.add(pinionMount);
+
+  // Barras-guia: duas hastes de aço escuro, nas laterais, do carro do anel ao
+  // flange. Geometria de comprimento 1, esticada a cada `sync`.
+  const rodRadius = outerRadius * 0.035;
+  const rodOffset = outerRadius * 1.02;
+  const rodGeometry = pair(
+    (side) => new THREE.CylinderGeometry(rodRadius, rodRadius, 1, 16).rotateZ(Math.PI / 2).translate(0.5, side * rodOffset * 0.45, -rodOffset * 0.9),
+    'as barras-guia',
+  );
+  const rodMaterial = new THREE.MeshStandardMaterial({ color: 0x1b1e24, metalness: 0.9, roughness: 0.3 });
+  ownedMaterials.push(rodMaterial);
+  const rods = new THREE.Mesh(rodGeometry, rodMaterial);
+  rods.name = 'guide-rods';
+  rods.castShadow = true;
+  group.add(rods);
+
+  const sync = (): void => {
+    focusCarrier.position.x = focusRing.position.x;
+    // O pinhão gira ao contrário da coroa, na razão dos dentes.
+    pinion.rotation.x = -focusRing.rotation.x * (gearTeeth / pinionTeeth) + Math.PI / pinionTeeth;
+    const from = focusRing.position.x + focusGear.position.x;
+    const to = flange.position.x + rearGear.position.x;
+    rods.position.x = from;
+    rods.scale.x = Math.max(to - from, 1e-4);
+  };
+  sync();
+
   return {
     group,
     focusRing,
     shell,
     liner,
     flange,
+    sync,
     restMm: {
       focusRing: BARREL_LAYOUT.focusRingCenterMm,
       flange: rearZ + 1.5,
