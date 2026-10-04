@@ -50,6 +50,7 @@ import {
   createLensElement,
   elementIndices,
   lensMm,
+  surfaceSag,
 } from './lens-model';
 import {
   type LensFocusStore,
@@ -143,6 +144,9 @@ const SENSOR_CAMERA_X = -(DIORAMA_DEPTH.gapScene - SENSOR_STANDOFF);
 /** Segundos por volta do giro lento dos leques de raios. */
 const RAY_SPIN_PERIOD = 72;
 
+/** Duração da transição da troca de objetiva, em segundos. */
+const SWAP_SECONDS = 1.1;
+
 /** Duração da transição montada ↔ explodida, em segundos (SPEC §6.3). */
 const EXPLODE_SECONDS = 0.8;
 
@@ -197,6 +201,43 @@ export function createLensFocusExperiment(): Experiment {
   /** Brilho âmbar de dentro da objetiva, no diafragma (luz prática emprestada). */
   let ember: THREE.PointLight | null = null;
   const emberPosition = new THREE.Vector3();
+
+  /**
+   * Onde o feixe entra: o primeiro vértice da objetiva, no grupo do
+   * experimento. No modo explodido o primeiro vidro anda para a frente, e a
+   * entrada vai junto com ele.
+   */
+  function entranceX(): number {
+    const first = elements[0];
+    const shift = first ? first.group.position.x - lensMm(first.centerMm) : 0;
+    return (opticsGroup?.position.x ?? 0) + shift;
+  }
+
+  /** Sagita da primeira superfície na altura do raio, em x de cena. */
+  function entranceSag(radiusMm: number): number {
+    const front = lens.prescription.surfaces[0];
+    if (!front) return 0;
+    return lensMm(surfaceSag(front.radius, Math.min(radiusMm, front.semiDiameter)));
+  }
+
+  /** O diafragma na cena: onde está agora e o raio da abertura em f/N. */
+  function stopGeometry(fNumber: number): { x: number; radiusMm: number } | undefined {
+    if (!iris || !opticsGroup) return undefined;
+    return { x: opticsGroup.position.x + iris.group.position.x, radiusMm: stopSemiDiameter(fNumber) };
+  }
+
+  /** Redesenha os raios com o giro, a entrada e o diafragma atuais. */
+  function refreshRays(): void {
+    if (!fanInputs || !rays) return;
+    const [subjects, fanState, geometry] = fanInputs;
+    rays.setPaths(
+      buildRayFans(
+        subjects,
+        { ...fanState, spin: raySpin },
+        { ...geometry, entrancePupilX: entranceX(), stop: stopGeometry(fanState.fNumber) },
+      ).paths,
+    );
+  }
 
   /** Leva o brilho do diafragma para onde a íris está agora. */
   function placeEmber(): void {
@@ -362,6 +403,43 @@ export function createLensFocusExperiment(): Experiment {
     return adjusted.surfaces.find((surface) => surface.isStop)!.semiDiameter;
   }
 
+  /** Transição da troca de objetiva: os vidros que saem e o progresso, 0 → 1. */
+  let swap: {
+    leaving: LensElementMesh[];
+    geometries: THREE.BufferGeometry[];
+    materials: THREE.Material[];
+    t: number;
+  } | null = null;
+
+  /** Encerra a transição: tira e descarta os vidros que saíram. */
+  function finishSwap(): void {
+    if (!swap) return;
+    for (const element of swap.leaving) element.group.removeFromParent();
+    for (const geometry of swap.geometries) geometry.dispose();
+    for (const material of swap.materials) material.dispose();
+    for (const element of elements) element.group.scale.setScalar(1);
+    swap = null;
+  }
+
+  /** Avança a transição da troca de objetiva. */
+  function advanceSwap(dt: number): void {
+    if (!swap) return;
+    swap.t = Math.min(1, swap.t + dt / SWAP_SECONDS);
+    const ease = (x: number): number => {
+      const c = Math.min(Math.max(x, 0), 1);
+      return c < 0.5 ? 4 * c * c * c : 1 - (-2 * c + 2) ** 3 / 2;
+    };
+    // Os antigos somem na primeira metade; os novos crescem na segunda, com
+    // um pouco de sobreposição.
+    const out = 1 - ease(swap.t / 0.5);
+    const grow = ease((swap.t - 0.4) / 0.6);
+    for (const element of swap.leaving) element.group.scale.setScalar(Math.max(out, 1e-3));
+    for (const element of elements) element.group.scale.setScalar(Math.max(grow, 1e-3));
+    if (posts) posts.mesh.visible = grow > 0.5 && explodeProgress > 0.01;
+    if (swap.t >= 1) finishSwap();
+    context?.invalidate();
+  }
+
   /** Vidros e hastes da objetiva montada agora; trocados na troca de objetiva. */
   const lensGeometries: THREE.BufferGeometry[] = [];
   const lensMaterials: THREE.Material[] = [];
@@ -372,10 +450,18 @@ export function createLensFocusExperiment(): Experiment {
    */
   function buildLensElements(id: LensId): void {
     if (!opticsGroup) return;
-    for (const element of elements) element.group.removeFromParent();
     posts?.mesh.removeFromParent();
-    for (const geometry of lensGeometries) geometry.dispose();
-    for (const material of lensMaterials) material.dispose();
+    // Troca de objetiva: os vidros que saem encolhem até sumir enquanto os
+    // novos crescem no lugar (`advanceSwap`). Na montagem não há transição.
+    const animate = elements.length > 0;
+    finishSwap();
+    if (animate) {
+      swap = { leaving: elements, geometries: [...lensGeometries], materials: [...lensMaterials], t: 0 };
+    } else {
+      for (const element of elements) element.group.removeFromParent();
+      for (const geometry of lensGeometries) geometry.dispose();
+      for (const material of lensMaterials) material.dispose();
+    }
     lensGeometries.length = 0;
     lensMaterials.length = 0;
     elements = [];
@@ -402,6 +488,12 @@ export function createLensFocusExperiment(): Experiment {
     lensGeometries.push(...posts.geometries);
     lensMaterials.push(...posts.materials);
     opticsGroup.add(posts.mesh);
+
+    // Os vidros novos nascem pequenos e crescem durante a transição.
+    if (animate) {
+      for (const element of elements) element.group.scale.setScalar(1e-3);
+      posts.mesh.visible = false;
+    }
 
     // A íris mora no stop da prescrição.
     if (iris) iris.group.position.x = lensMm(lensStopZMm);
@@ -536,7 +628,9 @@ export function createLensFocusExperiment(): Experiment {
           // O feixe entra no primeiro vértice e sai pelo plano principal
           // traseiro: é desse plano que a lente fina mede v, e só assim o
           // cone na placa mede exatamente o b(d) do motor (ver ray-fans.ts).
-          entrancePupilX: opticsOffset,
+          entrancePupilX: entranceX(),
+          entranceSag,
+          stop: stopGeometry(state.fNumber),
           exitPupilX: rearPrincipalX,
           projectionCenterX: SENSOR_CAMERA_X,
           rearPrincipalX,
@@ -957,11 +1051,13 @@ export function createLensFocusExperiment(): Experiment {
     },
 
     update(dt: number, elapsed: number): void {
-      // Giro lento dos raios: só refaz o desenho, sem mexer no resto.
-      if (raySpinEnabled && fanInputs && rays) {
-        raySpin = (raySpin + (dt * Math.PI * 2) / RAY_SPIN_PERIOD) % (Math.PI * 2);
-        const [subjects, fanState, geometry] = fanInputs;
-        rays.setPaths(buildRayFans(subjects, { ...fanState, spin: raySpin }, geometry).paths);
+      advanceSwap(dt);
+      // Giro lento dos raios (e a entrada acompanhando o primeiro vidro no
+      // modo explodido): só refaz o desenho, sem mexer no resto.
+      const exploding = explodeProgress !== explodeTarget;
+      if (raySpinEnabled || exploding) {
+        if (raySpinEnabled) raySpin = (raySpin + (dt * Math.PI * 2) / RAY_SPIN_PERIOD) % (Math.PI * 2);
+        refreshRays();
       }
       rays?.update(dt);
       focusPlane?.update(elapsed);
@@ -1008,7 +1104,8 @@ export function createLensFocusExperiment(): Experiment {
         const top = -element.radius;
         posts?.place(index, element.group.position.x + element.rimOffset, eased * (axisHeight - element.radius), top);
       });
-      if (posts) posts.mesh.visible = eased > 0.01;
+      // Durante a troca de objetiva quem decide é a transição (advanceSwap).
+      if (posts && !swap) posts.mesh.visible = eased > 0.01;
       for (const element of elements) {
         if (element.outline) element.outline.visible = eased > 0.5;
       }
@@ -1534,6 +1631,7 @@ export function createLensFocusExperiment(): Experiment {
 
       for (const geometry of geometries) geometry.dispose();
       for (const material of materials) material.dispose();
+      finishSwap();
       for (const geometry of lensGeometries) geometry.dispose();
       for (const material of lensMaterials) material.dispose();
       geometries.length = 0;

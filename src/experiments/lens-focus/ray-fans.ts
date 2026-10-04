@@ -52,6 +52,22 @@ export interface RayFanGeometry {
    */
   readonly entrancePupilX: number;
   /**
+   * Quanto a primeira superfície fica adiante (ou atrás) do vértice na altura
+   * `radiusMm` do raio, em x de cena (a sagita). O raio dobra onde toca o
+   * vidro, não no vértice: sem isso ele mudava de direção um pouco antes de
+   * chegar à lente.
+   */
+  readonly entranceSag?: (radiusMm: number) => number;
+  /**
+   * O diafragma: posição em x de cena e raio da abertura em mm de física (o
+   * semidiâmetro do stop que o motor calcula). Entre a entrada e a saída, o
+   * raio passa rente à borda da abertura: a pupila de entrada é a imagem do
+   * stop, e é por isso que o feixe e a borda do diafragma andam juntos quando
+   * a abertura muda. A saída continua no raio da pupila, e o cone na placa
+   * não muda.
+   */
+  readonly stop?: { readonly x: number; readonly radiusMm: number } | undefined;
+  /**
    * Onde o feixe sai da objetiva, em x de cena. Para o cone na placa medir
    * exatamente `b(d)`, este plano precisa ser o **plano principal traseiro**:
    * é dele que a lente fina mede `v`. (Até 02/10/2026 era a pupila de saída;
@@ -116,6 +132,7 @@ export function buildRayFans(
   const { focalLength: f, fNumber: N } = state;
 
   const pupilRadius = lensMm(pupilDiameter(f, N) / 2);
+  const entryX = geometry.entrancePupilX + (geometry.entranceSag?.(pupilDiameter(f, N) / 2) ?? 0);
   // Distância do plano principal traseiro ao sensor, em mm de física: é ela
   // que decide onde cada cone está quando chega à placa (ADR 0007).
   const plateMmFromPrincipal = (geometry.imagePlaneX - geometry.rearPrincipalX) / lensMm(1);
@@ -168,8 +185,15 @@ export function buildRayFans(
       const offsetY = Math.cos(angle) * pupilRadius;
       const offsetZ = Math.sin(angle) * pupilRadius;
 
-      const entry = new THREE.Vector3(geometry.entrancePupilX, offsetY, offsetZ);
+      const entry = new THREE.Vector3(entryX, offsetY, offsetZ);
       const exit = new THREE.Vector3(geometry.exitPupilX, offsetY, offsetZ);
+      // Rente à borda do diafragma, quando ele está entre a entrada e a saída.
+      const inside: THREE.Vector3[] = [];
+      const stop = geometry.stop;
+      if (stop && stop.x > entryX && stop.x < geometry.exitPupilX) {
+        const r = lensMm(stop.radiusMm);
+        inside.push(new THREE.Vector3(stop.x, Math.cos(angle) * r, Math.sin(angle) * r));
+      }
 
       // Onde o raio original cruza a placa.
       const atPlate = new THREE.Vector3().lerpVectors(exit, converge, alpha);
@@ -182,7 +206,7 @@ export function buildRayFans(
           .subVectors(atPlate, exit)
           .multiplyScalar(1 + OVERSHOOT)
           .add(exit);
-        paths.push({ points: [object, entry, exit, atPlate, beyond], color: subject.color, opacity: 0.55 });
+        paths.push({ points: [object, entry, ...inside, exit, atPlate, beyond], color: subject.color, opacity: 0.55 });
         paths.push({ points: [converge, exit], color: subject.color, opacity: 0.22 });
         continue;
       }
@@ -202,7 +226,7 @@ export function buildRayFans(
         .add(meet);
 
       paths.push({
-        points: [object, entry, exit, meet, beyond],
+        points: [object, entry, ...inside, exit, meet, beyond],
         color: subject.color,
         opacity: side === 'on' ? 0.9 : 0.62,
       });

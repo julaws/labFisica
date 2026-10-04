@@ -363,6 +363,8 @@ export function createIris(
 
   const bladeMatrix = new THREE.Matrix4();
 
+  /** Aro aceso da boca e o raio em que ele foi desenhado (cena). */
+  let emberRing: { mesh: THREE.Mesh; radius: number } | null = null;
   if (housing) {
     const stackHalf = lensMm(config.bladeCount * 0.11) / 2 + lensMm(0.25);
     const inner = lensMm(housing.innerRadiusMm);
@@ -391,12 +393,19 @@ export function createIris(
     emberMesh.name = 'iris-ember';
     group.add(emberMesh);
     glowing.push(emberMesh);
+    emberRing = { mesh: emberMesh, radius: inner };
   }
 
   return {
     group,
     glowing,
     setClearRadius(millimeters: number): void {
+      // O aro aceso marca a borda da abertura atual: encolhe com ela, e o
+      // feixe de raios passa rente a ele (ray-fans.ts, `stop`).
+      if (emberRing) {
+        const scale = Math.min(lensMm(millimeters) / emberRing.radius, 1);
+        emberRing.mesh.scale.set(1, scale, scale);
+      }
       const psi = bladeAngleForAperture(config, millimeters);
       const placements = bladePlacements(config, psi);
 
