@@ -144,6 +144,9 @@ const SENSOR_CAMERA_X = -(DIORAMA_DEPTH.gapScene - SENSOR_STANDOFF);
 /** Segundos por volta do giro lento dos leques de raios. */
 const RAY_SPIN_PERIOD = 72;
 
+/** Duração da transição de foco ao escolher um plano (console, teclas, painel). */
+const FOCUS_TWEEN_SECONDS = 0.9;
+
 /** Duração da transição da troca de objetiva, em segundos. */
 const SWAP_SECONDS = 1.1;
 
@@ -392,6 +395,7 @@ export function createLensFocusExperiment(): Experiment {
 
   /** Ajuste fino do foco: 2% do curso do anel por toque (teclas [ e ]). */
   function nudgeFocus(direction: 1 | -1): void {
+    focusTween = null;
     const current = store.get().focusDistance;
     const fraction = -distanceToRingAngle(current) / RING_SWEEP;
     store.set({ focusDistance: ringAngleToDistance(-(fraction + direction * 0.02) * RING_SWEEP) });
@@ -401,6 +405,40 @@ export function createLensFocusExperiment(): Experiment {
   function stopSemiDiameter(fNumber: number): number {
     const adjusted = withFNumber(lens.prescription, fNumber);
     return adjusted.surfaces.find((surface) => surface.isStop)!.semiDiameter;
+  }
+
+  /**
+   * Transição de foco: escolher um plano (miniatura do console, setas, teclas
+   * 1 2 3, botões do painel) leva o foco até lá aos poucos, em escala log, em
+   * vez de saltar. A objetiva anda, o anel gira, os raios e a imagem se
+   * refazem a cada quadro pelo caminho. Arrastar o anel ou o slider continua
+   * imediato (a pessoa já está conduzindo o movimento).
+   */
+  let focusTween: { from: number; to: number; t: number } | null = null;
+
+  /** Começa uma transição de foco até `millimeters`. */
+  function glideFocus(millimeters: number): void {
+    const from = store.get().focusDistance;
+    if (!Number.isFinite(from) || !Number.isFinite(millimeters) || Math.abs(from - millimeters) < 1e-6) {
+      focusTween = null;
+      store.set({ focusDistance: millimeters });
+      return;
+    }
+    focusTween = { from, to: millimeters, t: 0 };
+    context?.invalidate();
+  }
+
+  /** Avança a transição de foco. */
+  function advanceFocus(dt: number): void {
+    if (!focusTween) return;
+    focusTween.t = Math.min(1, focusTween.t + dt / FOCUS_TWEEN_SECONDS);
+    const x = focusTween.t;
+    const ease = x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2;
+    const value = Math.exp(Math.log(focusTween.from) + ease * (Math.log(focusTween.to) - Math.log(focusTween.from)));
+    const done = focusTween.t >= 1;
+    const target = focusTween.to;
+    if (done) focusTween = null;
+    store.set({ focusDistance: done ? target : value });
   }
 
   /** Transição da troca de objetiva: os vidros que saem e o progresso, 0 → 1. */
@@ -946,7 +984,7 @@ export function createLensFocusExperiment(): Experiment {
         thumbnailSize: Math.max(256, Math.round(quality.sensorTargetSize / 2)),
         samples: 16,
         locale,
-        onPickFocus: (millimeters) => store.set({ focusDistance: millimeters }),
+        onPickFocus: (millimeters) => glideFocus(millimeters),
         onPickAperture: (fNumber) => store.set({ fNumber }),
       });
       for (const object of consoleScreens.glowing) ctx.addGlow(object);
@@ -1012,13 +1050,14 @@ export function createLensFocusExperiment(): Experiment {
             const fraction = -distanceToRingAngle(dragDistance) / RING_SWEEP;
             const next = fraction + event.deltaX / 420;
             dragDistance = ringAngleToDistance(-next * RING_SWEEP);
+            focusTween = null;
             store.set({ focusDistance: dragDistance });
           },
         }),
       );
 
       // --- Atalhos (SPEC §6.3) ----------------------------------------------
-      const setFocus = (millimeters: number): void => store.set({ focusDistance: millimeters });
+      const setFocus = (millimeters: number): void => glideFocus(millimeters);
 
       disposers.push(
         ctx.onKey('1', () => setFocus(370)),
@@ -1052,6 +1091,7 @@ export function createLensFocusExperiment(): Experiment {
 
     update(dt: number, elapsed: number): void {
       advanceSwap(dt);
+      advanceFocus(dt);
       // Giro lento dos raios (e a entrada acompanhando o primeiro vidro no
       // modo explodido): só refaz o desenho, sem mexer no resto.
       const exploding = explodeProgress !== explodeTarget;
@@ -1149,8 +1189,12 @@ export function createLensFocusExperiment(): Experiment {
 
     set(id: string, value: string | number | boolean): void {
       switch (id) {
+        // Os botões de plano deslizam até o foco; o slider é imediato.
         case 'focusPreset':
+          glideFocus(Number(value));
+          break;
         case 'focusDistance':
+          focusTween = null;
           store.set({ focusDistance: Number(value) });
           break;
         case 'fNumber':
