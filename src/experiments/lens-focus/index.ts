@@ -99,6 +99,8 @@ import {
 } from './sensor-render';
 import { SCENE_UNITS_PER_MM } from '../../scene/scale';
 import { type ConsoleScreens, createConsoleScreens } from './console-screens';
+import { type VideoTv, createVideoTv } from './video-tv';
+import videoPosterUrl from '../../assets/video-poster.jpg?url';
 
 /**
  * Experimento 1: Lente e plano de foco (SPEC §6).
@@ -196,6 +198,7 @@ export function createLensFocusExperiment(): Experiment {
   let intersection: IntersectionPatch | null = null;
   let sensor: SensorRender | null = null;
   let consoleScreens: ConsoleScreens | null = null;
+  let videoTv: VideoTv | null = null;
   let locale: Locale = 'pt-BR';
   let iris: ReturnType<typeof createIris> | null = null;
   let posts: ReturnType<typeof createElementPosts> | null = null;
@@ -355,6 +358,10 @@ export function createLensFocusExperiment(): Experiment {
       `${en ? 'Plane of focus' : 'Plano de foco'} · ${formatDistance(state.focusDistance, locale)}`,
     );
     context.labels.setText('zone', `${en ? 'Sharp zone' : 'Zona nítida'} · ${zone}`);
+    if (videoTv) {
+      context.labels.setText('video', en ? 'Explainer video · click' : 'Vídeo explicativo · clique');
+      videoTv.setCaption(videoCaption(locale));
+    }
   }
 
   /** Números atuais para os textos do modal, todos vindos do motor. */
@@ -785,6 +792,52 @@ export function createLensFocusExperiment(): Experiment {
         stand.removeFromParent();
         equation.dispose();
       });
+
+      // --- TV do vídeo explicativo ---------------------------------------------------
+      // Na ponta esquerda do tampo, à frente: o único canto livre além do da
+      // placa da equação. Clicar nela (ou a tecla V) abre "Planka e as Lentes".
+      if (ctx.openVideo) {
+        const tv = createVideoTv({
+          materials: ctx.materials,
+          posterUrl: videoPosterUrl,
+          title: 'Planka e as Lentes',
+          caption: videoCaption(locale),
+          invalidate: () => ctx.invalidate(),
+        });
+        videoTv = tv;
+        tv.group.position.set(-ctx.bench.width / 2 + 0.215, ctx.bench.topY, ctx.bench.frontZ - 0.15);
+        tv.group.rotation.y = 0.22;
+        ctx.bench.group.add(tv.group);
+        for (const object of tv.glowing) ctx.addGlow(object);
+        const openVideo = (): void =>
+          ctx.openVideo?.({
+            src: `${import.meta.env.BASE_URL}video/planka-lentes.mp4`,
+            poster: videoPosterUrl,
+            title: { 'pt-BR': 'Planka e as Lentes', en: 'Planka and the Lenses' },
+            description: {
+              'pt-BR': 'Um passeio de 8 minutos pelas lentes convergentes, divergentes e pelo Gauss duplo, com a Planka.',
+              en: 'An 8-minute tour of converging lenses, diverging lenses and the double Gauss, with Planka (in Portuguese).',
+            },
+            anchor: tv.screen,
+          });
+        ctx.labels.add({ id: 'video', anchor: tv.group, offset: { x: 0, y: tv.height + 0.04, z: 0 }, text: '' });
+        disposers.push(() => {
+          ctx.labels.remove('video');
+          tv.dispose();
+          videoTv = null;
+        });
+        if (ctx.registerClickable) {
+          disposers.push(
+            ctx.registerClickable({
+              targets: [tv.group],
+              cursor: 'pointer',
+              occluders: () => ctx.scene,
+              onClick: openVideo,
+            }),
+          );
+        }
+        disposers.push(ctx.onKey('v', openVideo));
+      }
 
       // --- Desfoque do vale pela objetiva ----------------------------------------
       // O que está longe do plano de foco borra na própria cena (scene-blur.ts).
@@ -1692,4 +1745,9 @@ export function createLensFocusExperiment(): Experiment {
       context = null;
     },
   };
+}
+
+/** Legenda na tela da TV do vídeo explicativo. */
+function videoCaption(locale: Locale): string {
+  return locale === 'en' ? 'Click to watch' : 'Clique para assistir';
 }

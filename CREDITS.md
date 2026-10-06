@@ -71,6 +71,21 @@ versões MP3 que o próprio Wikimedia Commons gera dos arquivos originais, obtid
 No lugar de um concerto para piano de Mozart, entrou um movimento de sonata para
 piano solo: os concertos têm trompas na orquestra, e o pedido era evitar metais.
 
+## Vídeo explicativo "Planka e as Lentes"
+
+`public/video/planka-lentes.mp4` (1080p, 30 fps, 8 min 06 s) e a capa
+`src/assets/video-poster.jpg`, abertos pela TV da bancada da lente
+(`src/experiments/lens-focus/video-tv.ts`). São **obra própria do projeto**:
+
+- **Animação:** feita em Manim Community Edition (licença MIT) a partir do código em
+  `planka_lentes/` (cenas, física em `optics.py`, mascote Planka desenhada em código).
+- **Narração:** voz sintética gerada na ElevenLabs (modelo `eleven_multilingual_v2`,
+  voz "Fernanda - Natural Conversations") pela conta do autor, a partir do roteiro
+  de `planka_lentes/roteiro.py`. O uso segue os termos do plano dessa conta.
+- **Música de fundo do vídeo:** sintetizada do zero em Python
+  (`planka_lentes/musica/gerar_trilha_animada.py`), sem amostras nem gravações de
+  terceiros.
+
 ## Serviços externos
 
 | Serviço | Para quê | O que recebe |

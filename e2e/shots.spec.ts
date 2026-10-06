@@ -124,7 +124,8 @@ test('modal de ajuda', async ({ page }, testInfo) => {
   await openControls(page);
   await page.getByRole('button', { name: 'Ajuda' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Sobre as escalas' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sobre os tamanhos' })).toBeVisible();
+  await expect(page.getByRole('dialog')).toContainText('pegadora de luz');
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-14-modal.png` });
 });
 
@@ -457,4 +458,25 @@ test.describe('imagem OG', () => {
     await page.waitForTimeout(300);
     await page.screenshot({ path: 'public/og.png' });
   });
+});
+
+test('vídeo explicativo: a TV abre o vídeo e cala a música', async ({ page }, testInfo) => {
+  await openLab(page);
+  // Um gesto antes, para a música de fundo começar.
+  await page.mouse.click(5, 450);
+  await page.keyboard.press('v');
+  const viewer = page.getByRole('dialog', { name: 'Planka e as Lentes' });
+  await expect(viewer).toBeVisible();
+  await expect(page.locator('.music')).toHaveClass(/music--suspended/);
+  await expect(page.locator('.music__title span')).toHaveText('Pausada durante o vídeo');
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-44-video.png` });
+  await page.getByRole('button', { name: 'Fechar o vídeo' }).click();
+  await expect(viewer).toBeHidden();
+  await expect(page.locator('.music')).not.toHaveClass(/music--suspended/);
+});
+
+test('vídeo explicativo: TV na bancada', async ({ page }, testInfo) => {
+  await openLab(page, '?shot=overview');
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-45-video-tv.png` });
 });
