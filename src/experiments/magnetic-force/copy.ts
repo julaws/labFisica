@@ -129,78 +129,95 @@ export function buildMagneticCopy(facts: MagneticFacts): ExperimentCopy {
     shortcuts: MAGNETIC_SHORTCUTS,
     sections: [
       section('experiment', 'O experimento', 'The experiment'),
-      section('force', 'A força de Lorentz', 'The Lorentz force'),
+      section('force', 'Um empurrão de lado', 'A sideways push'),
       section('helix', 'Girando as bobinas', 'Rotating the coils'),
-      section('scales', 'Sobre as escalas e as cores', 'About the scales and the colours'),
+      section('scales', 'Sobre os tamanhos e as cores', 'About the sizes and the colours'),
     ],
   };
 }
 
 function sections(f: MagneticFacts, locale: Locale): Record<string, string> {
   const n = (value: number, decimals: number): string => formatNumber(value, decimals, locale);
-  const B = formatField(f.field, locale);
-  const I = `${n(f.current, 2)} A`;
-  const U = `${n(f.voltage, 0)} V`;
-  const v = formatSpeed(f.speed, locale);
-  const beta = `${n(f.beta * 100, 1)}%`;
+  const beta = `${n(f.beta * 100, 0)}%`;
   const r = formatCm(f.radiusMax, locale);
-  const T = `${n(f.period * 1e9, 1)} ns`;
+  const straight = f.mode === 'straight-no-field' || f.mode === 'straight-parallel';
+  const paragraphs = (list: readonly string[]): string => list.join('\n\n');
 
   if (locale === 'en') {
     return {
-      experiment:
-        `An electron gun accelerates electrons through ${U}; the fastest leave at ${v} (${beta} of the speed of ` +
-        `light). The beam runs through a glass neck into a glass sphere between two Helmholtz coils. With ${I} in the coils, the field at the centre is ${B}.\n\n` +
-        `The sphere holds a little low-pressure gas: where an electron passes, the gas glows. That is how the ` +
-        `paths become visible, as in a fine-beam tube or the tracks of a bubble chamber.`,
-      force:
-        `A charge moving in a magnetic field feels F = q·v × B: perpendicular to both the velocity and the ` +
-        `field. It never speeds the electron up or slows it down — it only bends the path. With the field ` +
-        `perpendicular to the beam, the bending is the same at every point: a circle of radius r = m·v / (|q|·B), ` +
-        `now ${r}. One turn takes ${T}, whatever the radius: faster electrons make bigger circles in the same time.\n\n` +
-        `Stronger field, tighter circle; higher voltage, wider circle.`,
-      helix:
-        `The coils turn around the vertical axis, and the field turns with them. Only the part of the velocity ` +
-        `perpendicular to B is bent; the part along B is untouched. At 0° the beam is perpendicular to the ` +
-        `field (circle); at an angle the circle drifts along the field (helix); at 90° the beam is parallel ` +
-        `to the field and goes straight; at 180° the field is reversed and the circle bends the other way.`,
-      scales:
-        `Everything is life size: coils of ${n(30, 0)} cm radius, a sphere of ${n(f.chamberRadius * 200, 0)} cm, ` +
-        `real fields and voltages. Three simplifications: the field is taken as uniform inside the sphere and ` +
-        `zero outside it; the tube the beam comes out of inside the sphere is shielded; and the moving dots go ` +
-        `far slower than real electrons.\n\n` +
-        `The gun in this experiment releases electrons with energies spread from 60% to 100% of eU, to show ` +
-        `side by side how the radius depends on the speed (a real gun spreads by less than 1 eV; choose "single ` +
-        `energy" to see it). Electrons have no colour: the colour shows the speed — red for the slowest, blue ` +
-        `for the fastest.`,
+      experiment: paragraphs([
+        `A cannon launches really fast electrons — the fastest reach ${beta} of the speed of light! They enter a ` +
+          `glass ball placed between two big coils, rings of wire carrying electric current. That current creates ` +
+          `a magnetic field in the middle of the ball, like an invisible magnet.`,
+        `And how can we see where the electrons go? The ball holds a little gas: wherever an electron passes, the ` +
+          `gas glows and leaves a luminous trail, like the white trail of a plane in the sky.`,
+      ]),
+      force: paragraphs([
+        `The invisible magnet pushes the electron in a curious way: always sideways, never forwards or backwards. ` +
+          `It does not speed the electron up or slow it down, it only bends its path. And what does a push that is ` +
+          `always sideways do? It makes the electron go round in a circle, like a ball on a string that you swing ` +
+          `in the air!`,
+        straight
+          ? `Right now there is no sideways push (the field is off, or pointing along the beam), so the electrons ` +
+            `fly straight. Turn the field up and watch them curve.`
+          : `Right now it is ${r} from the centre of the circle to its edge. Play with the controls: a stronger field makes ` +
+            `the circle tighter; faster electrons make wider circles. And a fun fact: big or small, every circle ` +
+            `takes the same time to go all the way round.`,
+      ]),
+      helix: paragraphs([
+        `When you rotate the coils, the invisible magnet rotates with them. With the field across the beam, the ` +
+          `electron makes a circle. Tilt it a little and the circle starts sliding forwards, turning into a spring, ` +
+          `a helix! With the field pointing along the beam, the push disappears and the electron goes straight. ` +
+          `Turn everything the other way round and the circle spins in the opposite direction.`,
+        `It is the same effect that traps particles from the Sun in the Earth's magnetic field and makes them ` +
+          `spiral down towards the poles, creating the auroras!`,
+      ]),
+      scales: paragraphs([
+        `Almost everything here is life size: coils 30 cm in radius, a ball ${n(f.chamberRadius * 200, 0)} cm ` +
+          `across, real fields and voltages. Only three simplifications: the invisible magnet is taken as the ` +
+          `same everywhere inside the ball and zero outside it; the tube the beam comes out of is shielded from ` +
+          `the field; and the little dots move much slower than real electrons — otherwise you would not see them.`,
+        `In this cannon the electrons leave with slightly different speeds, so you can compare them side by side. ` +
+          `Electrons have no colour: here the colour shows the speed — red for the slowest, blue for the fastest.`,
+      ]),
     };
   }
 
   return {
-    experiment:
-      `Um canhão acelera elétrons com ${U}; os mais rápidos saem a ${v} (${beta} da velocidade da luz). O ` +
-      `feixe corre por um gargalo de vidro e entra numa esfera de vidro entre duas bobinas de Helmholtz. Com ${I} nas bobinas, o campo no centro é de ${B}.\n\n` +
-      `A esfera tem um pouco de gás a baixa pressão: por onde o elétron passa, o gás brilha. É assim que as ` +
-      `trajetórias aparecem, como num tubo de feixe fino ou nos rastros de uma câmara de bolhas.`,
-    force:
-      `Uma carga em movimento num campo magnético sente F = q·v × B: perpendicular à velocidade e ao campo. ` +
-      `Ela nunca acelera nem freia o elétron — só entorta o caminho. Com o campo perpendicular ao feixe, a ` +
-      `curva é igual em todo ponto: um círculo de raio r = m·v / (|q|·B), agora ${r}. Uma volta leva ${T}, ` +
-      `qualquer que seja o raio: os mais rápidos fazem círculos maiores no mesmo tempo.\n\n` +
-      `Campo mais forte, círculo mais fechado; tensão maior, círculo mais aberto.`,
-    helix:
-      `As bobinas giram em torno do eixo vertical, e o campo gira com elas. Só a parte da velocidade ` +
-      `perpendicular a B é entortada; a parte ao longo de B fica como está. A 0° o feixe é perpendicular ao ` +
-      `campo (círculo); inclinado, o círculo escorrega ao longo do campo (hélice); a 90° o feixe é paralelo ao ` +
-      `campo e segue reto; a 180° o campo se inverte e o círculo curva para o outro lado.`,
-    scales:
-      `Tudo está em tamanho real: bobinas de ${n(30, 0)} cm de raio, esfera de ${n(f.chamberRadius * 200, 0)} cm, ` +
-      `campos e tensões reais. Três simplificações: o campo é tomado como uniforme dentro da esfera e nulo ` +
-      `fora dela; o tubo de onde o feixe sai dentro da esfera é blindado; e os pontos que andam são muito mais ` +
-      `lentos que os elétrons reais.\n\n` +
-      `O canhão deste experimento solta elétrons com energias espalhadas de 60% a 100% de eU, para mostrar ` +
-      `lado a lado como o raio depende da velocidade (um canhão real espalha menos de 1 eV; escolha "energia ` +
-      `única" para ver). Elétron não tem cor: a cor mostra a velocidade — vermelho para os mais lentos, azul ` +
-      `para os mais rápidos.`,
+    experiment: paragraphs([
+      `Um canhão lança elétrons muito rápidos — os mais velozes chegam a ${beta} da velocidade da luz! Eles entram ` +
+        `numa bola de vidro colocada entre duas bobinas grandes, que são anéis de fio por onde passa corrente ` +
+        `elétrica. Essa corrente cria um campo magnético no meio da bola, como um ímã invisível.`,
+      `E como dá para ver o caminho dos elétrons? A bola tem um pouquinho de gás: por onde o elétron passa, o gás ` +
+        `brilha e deixa um rastro luminoso, como o rastro branco de um avião no céu.`,
+    ]),
+    force: paragraphs([
+      `O ímã invisível empurra o elétron de um jeito curioso: sempre de lado, nunca para a frente nem para trás. ` +
+        `Ele não acelera nem freia o elétron, só entorta o caminho. E um empurrão que é sempre de lado faz o quê? ` +
+        `Faz o elétron andar em círculo, como uma bolinha presa num barbante que você gira no ar!`,
+      straight
+        ? `Agora não há empurrão de lado (o campo está desligado ou apontando ao longo do feixe), então os ` +
+          `elétrons seguem retos. Aumente o campo e veja o caminho entortar.`
+        : `Agora o círculo tem ${r} do centro até a borda. Brinque com os controles: campo mais forte deixa o ` +
+          `círculo mais fechado; elétrons mais rápidos fazem círculos mais abertos. E uma curiosidade: grandes ou ` +
+          `pequenos, todos os círculos levam o mesmo tempo para dar uma volta completa.`,
+    ]),
+    helix: paragraphs([
+      `Quando você gira as bobinas, o ímã invisível gira junto. Com o campo atravessado em relação ao feixe, o ` +
+        `elétron faz um círculo. Inclinando um pouco, o círculo começa a escorregar para a frente e vira uma mola, ` +
+        `uma hélice! Com o campo apontando na mesma direção do feixe, o empurrão some e o elétron segue reto. E, ` +
+        `virando tudo ao contrário, o círculo passa a girar para o outro lado.`,
+      `É o mesmo efeito que prende as partículas que vêm do Sol no campo magnético da Terra e faz elas descerem ` +
+        `em espiral até os polos, criando as auroras!`,
+    ]),
+    scales: paragraphs([
+      `Aqui quase tudo está em tamanho real: bobinas de 30 cm de raio, bola de ${n(f.chamberRadius * 200, 0)} cm, ` +
+        `campos e voltagens de verdade. Só três simplificações: o ímã invisível é considerado igual em todo o ` +
+        `interior da bola e zero fora dela; o tubo de onde o feixe sai é protegido do campo; e os pontinhos andam ` +
+        `bem mais devagar que os elétrons reais — senão você nem veria.`,
+      `Neste canhão, os elétrons saem com velocidades um pouco diferentes, para você comparar lado a lado. ` +
+        `Elétron não tem cor: aqui a cor mostra a velocidade — vermelho para os mais lentos, azul para os mais ` +
+        `rápidos.`,
+    ]),
   };
 }

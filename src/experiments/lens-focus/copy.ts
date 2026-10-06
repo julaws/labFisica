@@ -1,20 +1,15 @@
 import type { ExperimentCopy, Locale } from '../../core/experiment';
 import type { LensId } from '../../optics/lenses';
 import { activeScaleDisclosures } from '../../scene/scale';
-import {
-  formatCentimeters,
-  formatDistance,
-  formatFNumber,
-  formatMillimeters,
-  formatNumber,
-} from '../../ui/i18n';
+import { formatCentimeters, formatDistance, formatMillimeters, formatNumber } from '../../ui/i18n';
 
 /**
  * Textos do experimento (SPEC §6.7), em pt-BR e inglês.
  *
- * As seções do modal são **funções dos fatos atuais**: todo número que
- * aparece aqui chega calculado pelo motor óptico no objeto `Facts`. Nenhuma
- * frase tem número digitado — se o foco mudar, o texto muda junto.
+ * O modal "?" fala com estudantes do 9º ano e do 1º ano do ensino médio: tom
+ * leve, conceitos no lugar de equações e variáveis. As seções continuam sendo
+ * **funções dos fatos atuais**: todo número que aparece aqui chega calculado
+ * pelo motor óptico no objeto `Facts`. Se o foco mudar, o texto muda junto.
  */
 
 export interface Facts {
@@ -67,215 +62,267 @@ export function buildCopy(facts: Facts): ExperimentCopy {
     shortcuts: SHORTCUTS,
     sections: [
       section('sharp', 'Onde a foto fica nítida', 'Where the photo is sharp'),
-      section('blur', 'Por que o resto desfoca', 'Why the rest blurs'),
+      section('blur', 'Por que o resto borra', 'Why the rest blurs'),
       section('ring', 'O anel de foco', 'The focus ring'),
-      section('aperture', 'A abertura', 'The aperture'),
-      section('upside-down', 'De cabeça para baixo?', 'Upside down?'),
-      section('scales', 'Sobre as escalas', 'About the scales'),
-      section('swap', 'Trocar a objetiva', 'Swapping the objective'),
-      section('lens', 'Que lente é esta', 'Which lens is this'),
+      section('aperture', 'A abertura: a pupila da câmera', "The aperture: the camera's pupil"),
+      section('upside-down', 'De ponta-cabeça?', 'Upside down?'),
+      section('swap', 'Três lentes, três personalidades', 'Three lenses, three personalities'),
+      section('lens', 'Que lente é esta?', 'Which lens is this?'),
+      section('scales', 'Sobre os tamanhos', 'About the sizes'),
     ],
   };
 }
 
-/** Descrição de cada objetiva, com os números do motor. */
+/** Descrição de cada objetiva, em linguagem simples, com os números do motor. */
 function lensText(facts: Facts, locale: Locale): string {
-  const n = (value: number, decimals: number): string => formatNumber(value, decimals, locale);
-  const f = n(Math.abs(facts.eflPrescription), 1);
+  const f = formatNumber(Math.abs(facts.eflPrescription), 0, locale);
   if (locale === 'en') {
     switch (facts.lens) {
       case 'biconvex':
         return (
-          `A single symmetric biconvex lens of N-BK7, +${f} mm, designed here: the radius is solved so the ` +
-          `thick lens has exactly that focal length. It corrects nothing — no second element to cancel the ` +
-          `aberrations — which is exactly what the comparison with the double Gauss shows.`
+          `A simple converging lens: a single piece of glass, thicker in the middle than at the edges. It is the ` +
+          `kind of lens in magnifying glasses and reading glasses. It gathers light just like the double Gauss, ` +
+          `but it has no "teammates" to fix its little flaws.`
         );
       case 'biconcave':
         return (
-          `A single symmetric biconcave lens of N-BK7, −${f} mm, designed the same way. Its focal length is ` +
-          `negative: it spreads light instead of gathering it, and on its own it never forms a real image.`
+          `A diverging lens: a piece of glass thinner in the middle than at the edges. It is the kind of lens in ` +
+          `glasses for short-sighted people. It spreads light out, so on its own it never projects an image.`
         );
       default:
         return (
-          `A six-element double Gauss of ${f} mm f/2, from US patent 2,532,751 ` +
-          `(James G. Baker, 1950), scaled to 50 mm. The patent's glasses were swapped for the closest ones in ` +
-          `today's SCHOTT catalogue. The patent gives neither the clear diameters nor the stop position: the ` +
-          `diameters are derived here from the f/2 marginal ray and the 10° chief ray, and the stop sits where the ` +
-          `patent drawing puts it, in the middle of the central air space.`
+          `A ${f} mm double Gauss, the classic design of the "normal" lenses on cameras. This one follows a 1950 ` +
+          `patent by James G. Baker. Its six glasses sit almost like a mirror image around the diaphragm, and that ` +
+          `symmetry makes the flaws on one side cancel the flaws on the other. That is why the recipe has been ` +
+          `used for more than a century!`
         );
     }
   }
   switch (facts.lens) {
     case 'biconvex':
       return (
-        `Uma lente biconvexa simples e simétrica de N-BK7, +${f} mm, projetada aqui: o raio é resolvido para ` +
-        `a lente espessa ter exatamente essa distância focal. Ela não corrige nada — não há um segundo ` +
-        `elemento para cancelar as aberrações —, e é isso que a comparação com o Gauss duplo mostra.`
+        `Uma lente convergente simples: um vidro só, mais grosso no meio que nas bordas. É o tipo de lente das ` +
+        `lupas e dos óculos de leitura. Ela junta a luz igualzinho ao Gauss duplo, mas não tem "colegas de ` +
+        `equipe" para corrigir os seus pequenos defeitos.`
       );
     case 'biconcave':
       return (
-        `Uma lente bicôncava simples e simétrica de N-BK7, −${f} mm, projetada do mesmo jeito. A distância ` +
-        `focal é negativa: ela espalha a luz em vez de juntar, e sozinha nunca forma imagem real.`
+        `Uma lente divergente: um vidro mais fino no meio que nas bordas. É o tipo de lente dos óculos de quem ` +
+        `tem miopia. Ela espalha a luz e, por isso, sozinha, nunca projeta uma imagem.`
       );
     default:
       return (
-        `Um Gauss duplo de seis elementos, ${f} mm f/2, da patente americana ` +
-        `2.532.751 (James G. Baker, 1950), escalado para 50 mm. Os vidros da patente foram trocados pelos mais ` +
-        `próximos do catálogo SCHOTT atual. A patente não dá os diâmetros nem a posição do diafragma: os ` +
-        `diâmetros são derivados aqui do raio marginal em f/2 e do raio principal a 10°, e o diafragma fica onde o ` +
-        `desenho da patente o põe, no meio do espaço de ar central.`
+        `Um Gauss duplo de ${f} mm, o desenho clássico das objetivas "normais" das câmeras. Este segue uma ` +
+        `patente de 1950, de James G. Baker. Os seis vidros ficam quase espelhados em volta do diafragma, e essa ` +
+        `simetria faz os defeitos de um lado se cancelarem com os do outro. Por isso essa receita é usada há ` +
+        `mais de um século!`
       );
   }
 }
 
-/** Seção "Trocar a objetiva": o que muda de uma lente para outra. */
-function swapText(facts: Facts, locale: Locale): string {
+/** Seção "Três lentes": o que muda de uma lente para outra. */
+function swapText(facts: Facts, locale: Locale): string[] {
   const spot = mm(facts.aberrationSpot, locale);
-  const coc = mm(facts.coc, locale);
-  const fN = formatFNumber(facts.fNumber, locale);
   const pine = mm(facts.plateBlurPine, locale);
+  const visible = facts.aberrationSpot > facts.coc;
   if (locale === 'en') {
     const now =
       facts.lens === 'biconcave'
-        ? `With the diverging lens mounted, the pine reaches the glass as a ${pine} disc — wider than the whole ` +
-          `36 mm sensor. The rays leave the lens spreading out, as if they came from a point in front of it: the ` +
-          `virtual image, drawn faint. The focus ring still moves the lens, by the same travel as a 50 mm, but no ` +
-          `position brings anything to a point.`
-        : `With this lens at ${fN}, spherical aberration alone spreads a perfectly focused point into a ${spot} ` +
-          `disc${facts.aberrationSpot > facts.coc ? `, more than the ${coc} acceptable circle: nothing is truly sharp until you stop down.` : `, below the ${coc} acceptable circle.`}`;
-    return (
-      `The double Gauss and the simple converging lens have the same +50 mm focal length, so focus, sharp zone ` +
-      `and circles of confusion are the same. What changes is aberration: a single lens bends the rays at the ` +
-      `edge of the pupil too much, they meet short of the rest, and a point becomes a small disc even in focus. ` +
-      `The six elements of the double Gauss cancel most of that.
-
-` +
-      `The diverging lens has a −50 mm focal length. It forms no real image anywhere: whatever you turn, the ` +
-      `ground glass only receives spread light.
-
-${now}`
-    );
+        ? `With the diverging lens mounted, the pine reaches the glass as a ${pine} smudge — bigger than the whole sensor!`
+        : visible
+          ? `With this lens and the current aperture, even a perfectly focused point becomes a ${spot} blob, big ` +
+            `enough for the eye to notice. Close the diaphragm and watch the sharpness improve.`
+          : `With this lens and the current aperture, a focused point becomes a blob of only ${spot}: too small for ` +
+            `the eye to notice. Sharp!`;
+    return [
+      `You can mount three different lenses on the bench (key L):`,
+      `Double Gauss: a real camera lens, with six glasses working as a team. Some of them fix the flaws of the ` +
+        `others, and the image comes out really sharp.`,
+      `Simple converging lens: a single glass, chubby in the middle. It gathers light in the same place as the ` +
+        `double Gauss, but on its own it cannot fix its flaws: the rays passing near its edge meet a little ` +
+        `before the others, and the image gets slightly soft.`,
+      `Diverging lens: thin in the middle and thick at the edges. It does the opposite — it spreads light ` +
+        `instead of gathering it. That is why it never forms an image on the ground glass, however much you ` +
+        `turn the ring!`,
+      now,
+    ];
   }
   const now =
     facts.lens === 'biconcave'
-      ? `Com a divergente montada, o pinheiro chega ao vidro como um disco de ${pine} — mais largo que o sensor ` +
-        `inteiro, de 36 mm. Os raios saem da lente abrindo, como se viessem de um ponto à frente dela: a imagem ` +
-        `virtual, desenhada apagada. O anel de foco continua movendo a lente, pelo mesmo curso de uma 50 mm, mas ` +
-        `nenhuma posição leva nada a um ponto.`
-      : `Com esta lente em ${fN}, só a aberração esférica já espalha um ponto perfeitamente focado num disco de ` +
-        `${spot}${facts.aberrationSpot > facts.coc ? `, maior que o círculo admissível de ${coc}: nada fica realmente nítido até fechar o diafragma.` : `, menor que o círculo admissível de ${coc}.`}`;
-  return (
-    `O Gauss duplo e a lente convergente simples têm a mesma distância focal, +50 mm: o foco, a zona nítida e ` +
-    `os círculos de confusão são os mesmos. O que muda é a aberração: uma lente simples desvia demais os raios ` +
-    `da borda da pupila, eles se encontram antes dos outros, e um ponto vira um pequeno disco mesmo focado. Os ` +
-    `seis elementos do Gauss duplo cancelam quase tudo isso.\n\n` +
-    `A lente divergente tem distância focal de −50 mm. Ela não forma imagem real em lugar nenhum: gire o que ` +
-    `girar, o vidro fosco só recebe luz espalhada.\n\n${now}`
-  );
+      ? `Com a divergente montada, o pinheiro chega ao vidro como uma mancha de ${pine} — maior que o sensor inteiro!`
+      : visible
+        ? `Com esta lente e a abertura de agora, até um ponto bem focado vira uma bolinha de ${spot}, grande o ` +
+          `bastante para o olho notar. Feche o diafragma e veja a nitidez melhorar.`
+        : `Com esta lente e a abertura de agora, um ponto focado vira uma bolinha de só ${spot}: pequena demais ` +
+          `para o olho perceber. Nítido!`;
+  return [
+    `Dá para montar três lentes diferentes na bancada (tecla L):`,
+    `Gauss duplo: uma objetiva de câmera de verdade, com seis vidros trabalhando em equipe. Uns corrigem os ` +
+      `defeitos dos outros, e a imagem sai bem nítida.`,
+    `Convergente simples: um vidro só, gordinho no meio. Ela junta a luz no mesmo lugar que o Gauss duplo, mas ` +
+      `sozinha não consegue corrigir seus defeitos: os raios que passam pela borda se encontram um pouquinho ` +
+      `antes dos outros, e a imagem fica levemente embaçada.`,
+    `Divergente: fininha no meio e grossa nas bordas. Ela faz o contrário — espalha a luz em vez de juntar. Por ` +
+      `isso nunca forma imagem no vidro fosco, por mais que você gire o anel!`,
+    now,
+  ];
+}
+
+/** Os exageros de escala (SPEC §6.2), contados de um jeito simples. */
+function scalesText(locale: Locale): string[] {
+  const en = locale === 'en';
+  const times = (factor: number): string => formatNumber(factor, 0, locale);
+  return activeScaleDisclosures(locale).map((d) => {
+    switch (d.id) {
+      case 'lens':
+        return en
+          ? `The lens is drawn ${times(d.factor)} times bigger than in real life, so you can see its glasses and ` +
+              `the diaphragm blades. Everything grew together, in the same proportion.`
+          : `A objetiva está desenhada ${times(d.factor)} vezes maior que na vida real, para você enxergar os ` +
+              `vidros e as lâminas do diafragma. Tudo cresceu junto, na mesma proporção.`;
+      case 'image-plane':
+        return en
+          ? `The ground glass and what appears on it are enlarged ${times(d.factor)} times more, so the blur ` +
+              `blobs are big enough to see. Which blob is bigger or smaller does not change.`
+          : `O vidro fosco e o que aparece nele estão ampliados mais ${times(d.factor)} vezes, para as bolinhas de ` +
+              `borrão ficarem visíveis. Qual bolinha é maior ou menor continua igual.`;
+      case 'diorama-depth':
+        return en
+          ? `The valley would never fit on the bench at its real size, so its distances were squeezed like an ` +
+              `accordion: faraway things are packed much tighter than nearby ones. The order of things, and who is ` +
+              `in focus, stay exactly right.`
+          : `O vale nunca caberia na bancada no tamanho real, então as distâncias dele foram apertadas como uma ` +
+              `sanfona: o que está longe fica bem mais espremido que o que está perto. A ordem das coisas, e quem ` +
+              `está em foco, continuam certinhas.`;
+      default:
+        return `${d.label}. ${d.explanation}`;
+    }
+  });
 }
 
 function sectionsFor(facts: Facts, locale: Locale): Record<string, string> {
-  const n = (value: number, decimals: number): string => formatNumber(value, decimals, locale);
   const focus = formatDistance(facts.focusDistance, locale);
-  const fN = formatFNumber(facts.fNumber, locale);
-  // Duas casas: é o número do ADR 0003, e arredondar para f/1,8 esconderia
-  // justamente a diferença que o texto explica.
-  // Arredondado ao centésimo: f/2, não f/2,00 nem f/1,9999999.
-  const widest = formatFNumber(Math.round(facts.widestFNumber * 100) / 100, locale);
+  const en = locale === 'en';
   // Um disco abaixo de um micrômetro é, para todos os efeitos, um ponto.
-  const disc = (value: number): string =>
-    value < 0.001 ? (locale === 'en' ? 'a point' : 'um ponto') : mm(value, locale);
-  const zone = Number.isFinite(facts.dofTotal) ? cm(facts.dofTotal, locale) : '∞';
+  const disc = (value: number): string => {
+    if (value < 0.001) return en ? 'a sharp point' : 'um ponto nítido';
+    return en ? `a ${mm(value, locale)} blob` : `uma bolinha de ${mm(value, locale)}`;
+  };
+  const zone = Number.isFinite(facts.dofTotal) ? cm(facts.dofTotal, locale) : en ? 'no end' : 'sem fim';
   const near = formatDistance(facts.dofNear, locale);
   const far = formatDistance(facts.dofFar, locale);
+  const pupil = mm(facts.pupilDiameter, locale);
+  const extension = mm(facts.extension, locale);
+  const paragraphs = (list: readonly string[]): string => list.join('\n\n');
 
-  const disclosures = activeScaleDisclosures(locale);
-
-  if (locale === 'en') {
+  if (en) {
     return {
-      sharp:
-        `A lens brings exactly one distance to a perfect point. Right now that distance is ${focus}; ` +
-        `every point at that distance forms a plane — the plane of focus, the cyan sheet in the valley.\n\n` +
-        `Around it there is a tolerable band, the sharp zone: ${zone}, from ${near} to ${far}. ` +
-        `Anything inside it lands on the sensor as a disc smaller than ${mm(facts.coc, locale)}, ` +
-        `which the eye cannot tell from a point.`,
-      blur:
-        `A point off the plane sends a cone of light that closes before or after the glass. ` +
-        `The sensor cuts the cone and records a disc: the circle of confusion.\n\n` +
-        `With the current focus the pine becomes ${disc(facts.blurPine) === 'a point' ? 'a point' : `a ${disc(facts.blurPine)} disc`}, ` +
-        `the cabin ${disc(facts.blurCabin)} and the peak ${disc(facts.blurPeak)}. ` +
-        `The rings drawn on the ground glass have exactly these diameters.`,
-      ring:
-        `Turning the ring moves the whole glass group away from the sensor. To focus at ${focus} the lens ` +
-        `travels ${mm(facts.extension, locale)} beyond its ${n(facts.focalLength, 0)} mm focal length.\n\n` +
-        `The ring turns along the same map the engine uses: the distance shown in the panel is the one the ring is set to.`,
-      aperture:
-        `The nine-blade diaphragm sets the pupil diameter, D = f/N. At ${fN}, D = ${mm(facts.pupilDiameter, locale)}. ` +
-        `Closing one full stop halves the area and shrinks every disc in the same proportion; the sharp zone grows.\n\n` +
-        `This lens opens up to ${widest}. f/1.4 would need larger glass.`,
-      'upside-down':
-        `Rays from the top of an object cross the axis at the lens and reach the bottom of the sensor. ` +
-        `Every image formed by a converging lens is inverted — your eye's included.\n\n` +
-        `A camera turns the picture right side up in software. The ground glass shows it the way light actually leaves it.`,
-      scales:
-        disclosures.map((d) => `${d.label}. ${d.explanation}`).join('\n\n') +
-        `\n\nThe rays on the object side live in the compressed space of the diorama; on the image side they live in ` +
-        `the enlarged scale of the lens. The chief-ray angle is the scene's, not the physical one. The point where ` +
-        `each cone closes, and the width of the cone at the glass, are not exaggerated at all.\n\n` +
-        `The thin line where the focus plane cuts the valley has a fixed width so it stays visible; the wide band ` +
-        `around it is the real sharp zone.\n\n` +
-        `The valley itself also blurs away from the focus plane. It is a conceptual view: the blur on screen is ` +
-        `proportional to the blur disc the engine computes for each point of the valley (the same one drawn on the ` +
-        `ground glass), with a cap so the far background does not dissolve.
-
-` +
+      sharp: paragraphs([
+        `Think of the lens as a "light catcher": it takes the light leaving each little point of an object and ` +
+          `gathers it back into a little point on the other side. The funny part is that it can only do this ` +
+          `perfectly for one distance at a time. Right now that distance is ${focus}. Everything at exactly that ` +
+          `distance forms an invisible wall — the plane of focus — shown here as the cyan sheet crossing the valley.`,
+        `Luckily our eyes are generous: a little in front of or behind that sheet still looks sharp. That band ` +
+          `is the sharp zone, and right now it is ${zone} deep (from ${near} to ${far}). Whatever is inside it ` +
+          `looks great in the photo!`,
+      ]),
+      blur: paragraphs([
+        `Picture the light from a point as a cone — like an ice-cream cone made of light — that the lens narrows ` +
+          `down to a tip. If the tip lands right on the glass, the point shows up as a point. If the tip lands ` +
+          `before or after the glass, the glass "slices" the cone halfway and what shows up is a blurry blob.`,
+        `Look at the rings drawn on the ground glass: each one shows the blob of one object in the valley. With ` +
+          `the current focus, the pine becomes ${disc(facts.blurPine)}, the cabin ${disc(facts.blurCabin)} and ` +
+          `the peak ${disc(facts.blurPeak)}. The bigger the blob, the blurrier the object.`,
+      ]),
+      ring: paragraphs([
+        `When you turn the focus ring there is no magic inside: the whole lens just slides a little forwards or ` +
+          `backwards, away from or towards the sensor. Faraway things need the lens closer to the sensor; nearby ` +
+          `things need it farther away.`,
+        `To focus at ${focus}, the lens is ${extension} farther out than it would be for things very far away. ` +
+          `It seems tiny, but it is enough to move the invisible wall of focus across the whole valley! Try ` +
+          `keys 1, 2 and 3.`,
+      ]),
+      aperture: paragraphs([
+        `The diaphragm is the camera's pupil: nine little blades that open and close a hole in the middle of ` +
+          `the lens. A big hole lets in lots of light, but the light cones get fat and everything out of focus ` +
+          `blurs a lot — that is the dreamy background of portrait photos. A small hole lets in less light, the ` +
+          `cones get thin and almost everything looks sharp.`,
+        `Right now the hole is ${pupil} across. Close the aperture with the round buttons on the console and ` +
+          `watch the sharp zone grow. Your eye does the same thing: on a sunny day your pupil shrinks and you see ` +
+          `sharply near and far at the same time.`,
+      ]),
+      'upside-down': paragraphs([
+        `Notice something? The image on the ground glass is upside down! It is not a bug. Light from the top of ` +
+          `the mountain goes down, passes through the middle of the lens and keeps going down to the bottom of ` +
+          `the glass. Light from the bottom does the opposite. They cross at the lens, and the image flips.`,
+        `And here is the fun part: the same thing happens inside your eye. The image on your retina is upside ` +
+          `down, and your brain flips it back without you noticing. A camera does the same, using software.`,
+      ]),
+      scales: paragraphs([
+        `An honest warning: some things here are not at their real size, so they fit on the screen and are easy to see.`,
+        ...scalesText(locale),
+        `The rays of light follow these drawings, but the point where each cone closes is calculated with the ` +
+          `real measurements. The blur you see in the valley is a picture of the blur that physics computes for ` +
+          `each point.`,
         `Credits: this lens experiment was inspired by “The Plane of Focus”, at sael.net/plane-of-focus ` +
-        `(@ryansael), whose design, lighting and console it follows.`,
-      swap: swapText(facts, locale),
+          `(@ryansael), whose design, lighting and console it follows.`,
+      ]),
+      swap: paragraphs(swapText(facts, locale)),
       lens: lensText(facts, locale),
     };
   }
 
   return {
-    sharp:
-      `Uma lente leva uma única distância a um ponto perfeito. Agora essa distância é ${focus}; ` +
-      `todos os pontos a essa distância formam um plano — o plano de foco, a lâmina ciano no vale.\n\n` +
-      `Em volta dele existe uma faixa tolerável, a zona nítida: ${zone}, de ${near} a ${far}. ` +
-      `O que estiver dentro dela chega ao sensor como um disco menor que ${mm(facts.coc, locale)}, ` +
-      `que o olho não distingue de um ponto.`,
-    blur:
-      `Um ponto fora do plano manda um cone de luz que se fecha antes ou depois do vidro. ` +
-      `O sensor corta o cone e registra um disco: o círculo de confusão.\n\n` +
-      `Com o foco atual, o pinheiro vira ${disc(facts.blurPine) === 'um ponto' ? 'um ponto' : `um disco de ${disc(facts.blurPine)}`}, ` +
-      `a cabana ${disc(facts.blurCabin)} e o pico ${disc(facts.blurPeak)}. ` +
-      `Os anéis desenhados no vidro fosco têm exatamente esses diâmetros.`,
-    ring:
-      `Girar o anel afasta o conjunto de vidros do sensor. Para focar em ${focus}, a lente anda ` +
-      `${mm(facts.extension, locale)} além da distância focal de ${n(facts.focalLength, 0)} mm.\n\n` +
-      `O anel gira pelo mesmo mapa que o motor usa: a distância que o painel mostra é a do anel.`,
-    aperture:
-      `O diafragma de nove lâminas define o diâmetro da pupila, D = f/N. Em ${fN}, D = ${mm(facts.pupilDiameter, locale)}. ` +
-      `Fechar um stop completo corta a área pela metade e encolhe todos os discos na mesma proporção; a zona nítida cresce.\n\n` +
-      `Esta objetiva abre até ${widest}. f/1,4 exigiria vidro maior.`,
-    'upside-down':
-      `Os raios do alto de um objeto cruzam o eixo na lente e chegam embaixo no sensor. ` +
-      `Toda imagem formada por uma lente convergente é invertida — a do seu olho também.\n\n` +
-      `A câmera desvira a imagem por software. O vidro fosco mostra como a luz de fato a deposita ali.`,
-    scales:
-      disclosures.map((d) => `${d.label}. ${d.explanation}`).join('\n\n') +
-      `\n\nDo lado do objeto os raios vivem no espaço comprimido do diorama; do lado da imagem, na escala ` +
-      `ampliada da lente. O ângulo do raio principal é o da cena, não o da física. Já o ponto onde cada cone se ` +
-      `fecha, e a largura do cone no vidro, não têm exagero nenhum.\n\n` +
-      `A linha fina onde o plano de foco corta o vale tem largura fixa, para continuar visível; a faixa larga em ` +
-      `volta dela é a zona nítida real.\n\n` +
-      `O próprio vale também borra longe do plano de foco. É uma visualização conceitual: o borrado na tela é ` +
-      `proporcional ao disco de desfoque que o motor calcula para cada ponto do vale (o mesmo desenhado no vidro ` +
-      `fosco), com um teto para o fundo não desmanchar.
-
-` +
+    sharp: paragraphs([
+      `Pense na lente como uma "pegadora de luz": ela pega a luz que sai de cada pontinho de um objeto e junta ` +
+        `tudo de novo num pontinho do outro lado. O curioso é que ela só consegue fazer isso perfeitamente para ` +
+        `uma distância de cada vez. Agora, essa distância é ${focus}. Tudo o que está exatamente a essa distância ` +
+        `forma uma parede invisível — o plano de foco —, que aqui aparece como a lâmina ciano atravessando o vale.`,
+      `Ainda bem que nossos olhos são generosos: um pouquinho antes ou depois da lâmina ainda parece nítido. Essa ` +
+        `faixa é a zona nítida, e agora ela tem ${zone} (de ${near} a ${far}). Quem estiver dentro dela sai ` +
+        `bonito na foto!`,
+    ]),
+    blur: paragraphs([
+      `Imagine a luz de um ponto como um cone — uma casquinha de sorvete feita de luz — que a lente vai afinando ` +
+        `até virar uma ponta. Se a ponta cai bem em cima do vidro, o ponto aparece como ponto. Se a ponta cai ` +
+        `antes ou depois, o vidro "corta" a casquinha no meio do caminho, e o que aparece é uma bolinha borrada.`,
+      `Olhe os anéis desenhados no vidro fosco: cada um mostra a bolinha de um objeto do vale. Com o foco de ` +
+        `agora, o pinheiro vira ${disc(facts.blurPine)}, a cabana, ${disc(facts.blurCabin)} e o pico, ` +
+        `${disc(facts.blurPeak)}. Quanto maior a bolinha, mais borrado fica o objeto.`,
+    ]),
+    ring: paragraphs([
+      `Quando você gira o anel de foco, não acontece mágica nenhuma lá dentro: a lente inteira só anda um ` +
+        `pouquinho para a frente ou para trás, se afastando ou se aproximando do sensor. Para coisas longe, ela ` +
+        `fica mais perto do sensor; para coisas pertinho, precisa se afastar.`,
+      `Para focar em ${focus}, a lente está ${extension} mais afastada do que ficaria para coisas muito longe. ` +
+        `Parece pouco, mas é o bastante para levar a parede invisível do foco pelo vale inteiro! Experimente as ` +
+        `teclas 1, 2 e 3.`,
+    ]),
+    aperture: paragraphs([
+      `O diafragma é a pupila da câmera: nove laminazinhas que abrem e fecham um buraco no meio da lente. Buraco ` +
+        `grande deixa entrar muita luz, mas as casquinhas de luz ficam gordas, e o que está fora de foco borra ` +
+        `bastante — é aquele fundo bem desfocado das fotos de retrato. Buraco pequeno deixa entrar menos luz, as ` +
+        `casquinhas ficam finas e quase tudo parece nítido.`,
+      `Agora o buraco tem ${pupil} de largura. Feche a abertura nos botões redondos do console e veja a zona ` +
+        `nítida crescer. Seu olho faz a mesma coisa: num dia de sol, a pupila fecha e você enxerga nítido de ` +
+        `perto e de longe ao mesmo tempo.`,
+    ]),
+    'upside-down': paragraphs([
+      `Reparou? A imagem no vidro fosco está de ponta-cabeça! Não é defeito. A luz que sai do topo da montanha ` +
+        `desce, passa pelo meio da lente e continua descendo até a parte de baixo do vidro. A luz de baixo faz o ` +
+        `caminho contrário. Elas se cruzam na lente, e a imagem vira.`,
+      `E o mais legal: isso também acontece dentro do seu olho. A imagem na sua retina é invertida, e o cérebro ` +
+        `desvira tudo sem você perceber. A câmera faz o mesmo, só que com um programa.`,
+    ]),
+    scales: paragraphs([
+      `Um aviso sincero: algumas coisas aqui não estão no tamanho real, para caberem na tela e ficarem fáceis de ver.`,
+      ...scalesText(locale),
+      `Os raios de luz seguem esses desenhos, mas o ponto onde cada cone se fecha é calculado com as medidas ` +
+        `reais. O borrado que você vê no vale é um retrato do borrão que a física calcula para cada ponto.`,
       `Créditos: este experimento com lentes foi inspirado em “The Plane of Focus”, em sael.net/plane-of-focus ` +
-      `(@ryansael), cujo desenho, iluminação e console ele segue.`,
-    swap: swapText(facts, locale),
+        `(@ryansael), cujo desenho, iluminação e console ele segue.`,
+    ]),
+    swap: paragraphs(swapText(facts, locale)),
     lens: lensText(facts, locale),
   };
 }
@@ -287,4 +334,5 @@ export const SHORTCUTS = [
   { keys: 'F', description: { 'pt-BR': 'próxima abertura', en: 'next aperture' } },
   { keys: 'X', description: { 'pt-BR': 'lente montada ou explodida', en: 'assembled or exploded lens' } },
   { keys: 'L', description: { 'pt-BR': 'trocar a objetiva', en: 'swap the objective' } },
+  { keys: 'V', description: { 'pt-BR': 'assistir ao vídeo explicativo', en: 'watch the explainer video' } },
 ] as const;

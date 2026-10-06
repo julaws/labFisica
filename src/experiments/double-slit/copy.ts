@@ -28,7 +28,6 @@ export interface DoubleSlitFacts {
 
 const um = (meters: number, locale: Locale, decimals = 2): string =>
   `${formatNumber(meters * 1e6, decimals, locale)} µm`;
-const pm = (meters: number, locale: Locale): string => `${formatNumber(meters * 1e12, 2, locale)} pm`;
 
 export function patternLabel(mode: PatternMode, locale: Locale): string {
   const en = locale === 'en';
@@ -130,91 +129,102 @@ export function buildDoubleSlitCopy(facts: DoubleSlitFacts): ExperimentCopy {
     shortcuts: DOUBLE_SLIT_SHORTCUTS,
     sections: [
       section('experiment', 'O experimento', 'The experiment'),
-      section('fringes', 'De onde vêm as franjas', 'Where the fringes come from'),
-      section('detector', 'O detector apaga as franjas', 'The detector erases the fringes'),
-      section('distance', 'Perto e longe do anteparo', 'Near and far from the screen'),
-      section('scales', 'Sobre as escalas e a cor', 'About the scales and the colour'),
+      section('fringes', 'De onde vêm as listras', 'Where the stripes come from'),
+      section('detector', 'Espiar apaga as listras', 'Peeking erases the stripes'),
+      section('distance', 'Perto e longe da tela', 'Near and far from the screen'),
+      section('scales', 'Sobre os tamanhos e a cor', 'About the sizes and the colour'),
     ],
   };
 }
 
 function sections(facts: DoubleSlitFacts, locale: Locale): Record<string, string> {
   const n = (value: number, decimals: number): string => formatNumber(value, decimals, locale);
-  const lambda = pm(facts.wavelength, locale);
   const kv = n(facts.voltage / 1000, 0);
-  const a = um(facts.slitWidth, locale, 1);
-  const d = um(facts.separation, locale, 1);
-  const L = `${n(facts.distance, 2)} m`;
   const spacing = um(facts.fringeSpacing, locale);
-  const fresnel = n(facts.fresnelNumber, 2);
+  const count = String(facts.fringeCount);
   const mag = n(facts.magnification, 0);
+  const paragraphs = (list: readonly string[]): string => list.join('\n\n');
 
   if (locale === 'en') {
     return {
-      experiment:
-        `An electron gun accelerates electrons through ${kv} kV, the voltage of Claus Jönsson's 1961 experiment, the ` +
-        `first double slit done with electrons. At that energy each electron behaves like a wave of length ` +
-        `λ = h/p = ${lambda}. The slits are ${a} wide and ${d} apart; the screen is ${L} away.\n\n` +
-        `The electrons arrive one at a time. Each one makes a single dot on the phosphor; the pattern only shows ` +
-        `when many dots pile up.`,
-      fringes:
-        `Without detectors the wave passes through both slits at once. At each point of the screen the two parts ` +
-        `arrive with a path difference: where it is a whole number of wavelengths they add, where it is half a ` +
-        `wavelength they cancel. That gives bright and dark fringes, about λL/d = ${spacing} apart.\n\n` +
-        `The pattern on the screen is computed with the Fresnel diffraction integral of the two slits, not drawn.`,
-      detector:
-        `A detector at each slit records which way every electron went. With that information there is nothing ` +
-        `left to interfere: the screen shows the sum of the two single-slit patterns, |ψ₁|² + |ψ₂|², and the ` +
-        `cross term that made the fringes disappears. Turn the detectors off and the fringes come back.\n\n` +
-        `Covering a slit has the same effect on interference: with one path only, there is one band.`,
-      distance:
-        `The Fresnel number a²/(λL) is now ${fresnel}. Close to the slits (large number) each slit casts its own ` +
-        `band, and with the detectors on the two bands are clearly apart. Far away (small number) the bands ` +
-        `spread and merge, and without detectors the classic pattern appears, brightest in the middle. Move the ` +
-        `screen and watch the transition.`,
-      scales:
-        `The real pattern is a few micrometres wide. Everything across the beam — slits, pattern, screen — is ` +
-        `drawn ${mag}× larger; along the beam, distances are real. The wave drawn after the slits uses the ` +
-        `wavelength that keeps its dark lines landing on the dark fringes of the drawn screen; the moving pulses ` +
-        `on it, and the electrons' speed, are only visual. The screen image uses a high-contrast exposure ` +
-        `curve (brightness ∝ intensity², like a photographic film); the positions of fringes and bands are the ` +
-        `computed ones.\n\n` +
-        `Electrons have no colour. The colour you choose is that of the phosphor on the screen — real screens are ` +
-        `usually green — and of the drawn beam.`,
+      experiment: paragraphs([
+        `Imagine a cannon that fires electrons — tiny particles that live inside atoms — one at a time, at a ` +
+          `plate with two very narrow slits. Behind it there is a screen that lights up a little dot wherever an ` +
+          `electron lands. Here the electrons are pushed by ${kv} thousand volts.`,
+        `This was first done with electrons in 1961, by Claus Jönsson, and the result left everyone amazed: at ` +
+          `first the dots seem to land at random… but as they pile up, a pattern of bright and dark stripes appears!`,
+      ]),
+      fringes: paragraphs([
+        `Stripes are the signature of a wave. Think of throwing two stones into a lake at the same time: the ` +
+          `ripples meet, and in some places a crest meets a crest and the wave gets taller; in others a crest ` +
+          `meets a trough and they cancel out.`,
+        `Something similar happens with electrons: each one behaves like a wave that goes through both slits at ` +
+          `once and meets itself on the other side. Where the waves add up, many electrons arrive (bright stripe); ` +
+          `where they cancel, almost none (dark stripe). Right now there are ${count} stripes, ${spacing} apart — ` +
+          `far thinner than a strand of hair!`,
+      ]),
+      detector: paragraphs([
+        `Now comes the strangest part of quantum physics. Turn the detectors on: they "peek" at which slit each ` +
+          `electron went through. The result? The stripes vanish! Only two bands are left, one behind each slit, ` +
+          `as if the electrons were ordinary little balls.`,
+        `It is as if the electron "knew" it was being watched: once someone finds out its path, it stops ` +
+          `behaving like a wave. Turn the detectors off and the stripes come back. Covering one slit has a similar ` +
+          `effect: with only one path, there is nothing to interfere with.`,
+      ]),
+      distance: paragraphs([
+        `Drag the screen closer to the slits and farther away. Very close, each slit casts its own band, like the ` +
+          `shadow of a window. As the screen moves away, the waves have room to spread out and mix, and the ` +
+          `striped pattern appears, brightest in the middle. It is a lovely transition to watch!`,
+      ]),
+      scales: paragraphs([
+        `The real pattern is tiny, just a few thousandths of a millimetre wide. So you can see it, everything ` +
+          `across the beam (the slits, the stripes, the screen) is drawn ${mag} times bigger. Distances along the ` +
+          `beam are real. The drawn wave and the speed of the electrons are just an illustration; the positions of ` +
+          `the stripes are calculated by physics.`,
+        `One more thing: electrons have no colour! The colour you pick is that of the screen material that glows ` +
+          `when an electron hits it — on real screens it is usually green.`,
+      ]),
     };
   }
 
   return {
-    experiment:
-      `Um canhão acelera elétrons com ${kv} kV, a tensão do experimento de Claus Jönsson, de 1961, a primeira ` +
-      `dupla fenda feita com elétrons. Nessa energia cada elétron se comporta como uma onda de comprimento ` +
-      `λ = h/p = ${lambda}. As fendas têm ${a} de largura e ficam a ${d} uma da outra; o anteparo está a ${L}.\n\n` +
-      `Os elétrons chegam um de cada vez. Cada um acende um único ponto no fósforo; o padrão só aparece quando ` +
-      `muitos pontos se acumulam.`,
-    fringes:
-      `Sem detectores, a onda passa pelas duas fendas ao mesmo tempo. Em cada ponto do anteparo as duas partes ` +
-      `chegam com uma diferença de caminho: onde ela é um número inteiro de comprimentos de onda, elas se somam; ` +
-      `onde é meio comprimento, se cancelam. Daí as franjas claras e escuras, a cerca de λL/d = ${spacing} uma da ` +
-      `outra.\n\n` +
-      `O padrão no anteparo é calculado com a integral de difração de Fresnel das duas fendas, não desenhado.`,
-    detector:
-      `Um detector em cada fenda registra por onde cada elétron passou. Com essa informação não sobra o que ` +
-      `interferir: o anteparo mostra a soma dos padrões de cada fenda sozinha, |ψ₁|² + |ψ₂|², e o termo cruzado ` +
-      `que fazia as franjas some. Desligue os detectores e as franjas voltam.\n\n` +
-      `Tampar uma fenda tem o mesmo efeito sobre a interferência: com um caminho só, fica uma faixa só.`,
-    distance:
-      `O número de Fresnel a²/(λL) agora é ${fresnel}. Perto das fendas (número grande), cada fenda projeta a ` +
-      `própria faixa, e com os detectores ligados as duas faixas ficam bem separadas. Longe (número pequeno), as ` +
-      `faixas se espalham e se juntam, e sem detectores aparece o padrão clássico, mais claro no meio. Mova o ` +
-      `anteparo e veja a transição.`,
-    scales:
-      `O padrão real tem poucos micrômetros. Tudo o que é transversal ao feixe — fendas, padrão, anteparo — está ` +
-      `desenhado ${mag}× maior; ao longo do feixe, as distâncias são reais. A onda desenhada depois das fendas usa ` +
-      `o comprimento de onda que faz as linhas escuras dela caírem nas franjas escuras do anteparo desenhado; os ` +
-      `pulsos que andam nela, e a velocidade dos elétrons, são só visuais. A imagem do anteparo usa uma curva ` +
-      `de exposição de alto contraste (brilho ∝ intensidade², como num filme fotográfico); a posição das ` +
-      `franjas e das faixas é a calculada.\n\n` +
-      `Elétron não tem cor. A cor escolhida é a do fósforo do anteparo — os reais costumam ser verdes — e a do ` +
-      `feixe desenhado.`,
+    experiment: paragraphs([
+      `Imagine um canhão que atira elétrons — partículas minúsculas que vivem dentro dos átomos —, um de cada vez, ` +
+        `contra uma placa com duas fendas bem estreitinhas. Atrás dela há uma tela que acende um pontinho onde ` +
+        `cada elétron bate. Aqui, os elétrons são empurrados por ${kv} mil volts.`,
+      `Isso foi feito com elétrons pela primeira vez em 1961, por Claus Jönsson, e o resultado deixou todo mundo ` +
+        `de queixo caído: no começo, os pontinhos parecem cair ao acaso… mas, conforme vão se acumulando, aparece ` +
+        `um desenho de listras claras e escuras!`,
+    ]),
+    fringes: paragraphs([
+      `Listras são a assinatura de uma onda. Pense em jogar duas pedras num lago ao mesmo tempo: as ondinhas se ` +
+        `encontram, e em alguns lugares uma crista encontra outra crista e a onda fica mais alta; em outros, uma ` +
+        `crista encontra um vale e as duas se apagam.`,
+      `Com os elétrons acontece algo parecido: cada um se comporta como uma onda que passa pelas duas fendas ao ` +
+        `mesmo tempo e se encontra consigo mesma do outro lado. Onde as ondas se reforçam, chegam muitos elétrons ` +
+        `(listra clara); onde se apagam, quase nenhum (listra escura). Agora há ${count} listras, a ${spacing} ` +
+        `uma da outra — muito mais fino que um fio de cabelo!`,
+    ]),
+    detector: paragraphs([
+      `Agora vem a parte mais estranha da física quântica. Ligue os detectores: eles "espiam" por qual fenda cada ` +
+        `elétron passou. Resultado? As listras somem! Ficam só duas faixas, uma atrás de cada fenda, como se os ` +
+        `elétrons fossem bolinhas comuns.`,
+      `É como se o elétron "soubesse" que está sendo observado: quando alguém descobre o caminho dele, ele deixa ` +
+        `de se comportar como onda. Desligue os detectores e as listras voltam. Tampar uma das fendas tem um ` +
+        `efeito parecido: com um caminho só, não há com quem interferir.`,
+    ]),
+    distance: paragraphs([
+      `Arraste a tela para perto e para longe das fendas. Bem pertinho, cada fenda projeta a sua própria faixa, ` +
+        `como a sombra de uma janela. Conforme a tela se afasta, as ondas ganham espaço para se espalhar e se ` +
+        `misturar, e o desenho de listras vai aparecendo, mais forte no meio. É uma transformação bonita de ver!`,
+    ]),
+    scales: paragraphs([
+      `O padrão de verdade é minúsculo, de poucos milésimos de milímetro. Para você conseguir ver, tudo o que fica ` +
+        `de um lado a outro do feixe (as fendas, as listras, a tela) está desenhado ${mag} vezes maior. Já as ` +
+        `distâncias ao longo do feixe são reais. A onda desenhada e a velocidade dos elétrons são só ilustração; ` +
+        `a posição das listras é calculada pela física.`,
+      `E um detalhe: elétron não tem cor! A cor que você escolhe é a do material da tela, que brilha quando o ` +
+        `elétron bate — nas telas de verdade, costuma ser verde.`,
+    ]),
   };
 }

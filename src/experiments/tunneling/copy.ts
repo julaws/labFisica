@@ -103,89 +103,109 @@ export function buildTunnelingCopy(f: TunnelingFacts): ExperimentCopy {
     sections: [
       section('experiment', 'O experimento', 'The experiment'),
       section('wave', 'A onda dentro do muro', 'The wave inside the wall'),
-      section('exponential', 'Largura e altura', 'Width and height'),
+      section('exponential', 'Um muro exigente', 'A picky wall'),
       section('stm', 'Onde isso aparece', 'Where this shows up'),
-      section('scales', 'Sobre as escalas', 'About the scales'),
+      section('scales', 'Sobre os tamanhos', 'About the sizes'),
     ],
   };
 }
 
 function sections(f: TunnelingFacts, locale: Locale): Record<string, string> {
-  const n = (value: number, decimals: number): string => formatNumber(value, decimals, locale);
-  const E = formatEv(f.energy, locale);
-  const V = formatEv(f.height, locale);
-  const a = formatNm(f.width, locale);
   const T = percent(f.transmission, locale);
   const Tw = percent(f.transmissionWider, locale);
-  const kappa = `${n(f.kappa * 1e-9, 2)} nm⁻¹`;
-  const decay = `${n(f.decayLength * 1e9, 3)} nm`;
-  const lambda = `${n(f.wavelength * 1e9, 2)} nm`;
   const below = f.energy < f.height;
+  const paragraphs = (list: readonly string[]): string => list.join('\n\n');
 
   if (locale === 'en') {
     return {
-      experiment:
-        `A gun fires electrons of ${E} at a wall ${V} high and ${a} wide. Here height is energy, as in the ` +
-        `textbook energy diagram: the beam runs at the electron's energy, and the wall is as high as the barrier. ` +
-        `A ball rolling lower than the wall would always bounce back.\n\n` +
-        `Each electron draws its fate with the exact probability: most bounce back; a few cross the wall as a fading ` +
-        `ghost and reappear on the other side with a golden flash, reaching the collector. The counter shows the ` +
-        `measured fraction approaching the computed one, ${T}.`,
-      wave:
-        `Above the beam you see the electron's wave, the exact solution of the Schrödinger equation for this ` +
-        `wall. Before the wall it oscillates (wavelength ${lambda}) and mixes with the reflected part. Inside, ` +
-        (below
-          ? `it does not oscillate: it decays as e^(−κx), with κ = ${kappa} — it falls by a factor e every ${decay}. `
-          : `the electron is above the wall, so the wave keeps oscillating, only with a longer wavelength. `) +
-        `Whatever is left at the far side goes on as a smaller wave: the part that tunnelled.`,
-      exponential:
-        `For a wide wall, T ≈ 16E(V₀ − E)/V₀² · e^(−2κa). The width sits in the exponent: making the wall 0.1 nm ` +
-        `wider takes T from ${T} to ${Tw}. A higher wall raises κ and makes the drop steeper. That is why tunnelling ` +
-        `only matters at the scale of atoms: at 1 mm, T would be zero for every practical purpose.`,
-      stm:
-        `The scanning tunnelling microscope (Binnig and Rohrer, Nobel Prize 1986) uses exactly this: a metal tip ` +
-        `a few tenths of a nanometre from a surface, a small voltage, and the current that tunnels through the ` +
-        `gap. Because it falls exponentially with the distance, moving the tip by 0.1 nm (about the size of an atom) ` +
-        `changes the current about ten times — enough to see individual atoms. Tunnelling also explains alpha decay, flash memory and ` +
-        `the tunnel diode.`,
-      scales:
-        `Height is energy: ${n(0.12 * 100, 0)} cm per eV. Width is magnified 400 million times: 1 nm is drawn as ` +
-        `40 cm. The wave is drawn as amplitude |ψ| (not |ψ|², which would hide the tunnelled part) and oscillates ` +
-        `far slower than the real one. The ghost inside the wall is a picture of the decaying wave, not of a ` +
-        `particle losing energy. Each dot stands for many electrons: the current shown is I₀·T, computed by the engine.`,
+      experiment: paragraphs([
+        `Imagine throwing a ball at a wall taller than it can jump. It bounces back, every single time. In the ` +
+          `world of atoms, though, things are different! Here a cannon fires electrons at an "energy wall" — a ` +
+          `barrier that, ` +
+          (below
+            ? `by everyday rules, none of them could ever get past.`
+            : `right now, is lower than the electrons' energy, so by everyday rules all of them would get past.`),
+        `Each electron "draws its luck": most bounce back, but every now and then one crosses the wall like a ` +
+          `little ghost and reappears on the other side with a golden flash. The counter shows the fraction that ` +
+          `made it, getting closer and closer to ${T}.`,
+      ]),
+      wave: paragraphs([
+        `In quantum physics every electron is also a wave — that is what you see drawn above the beam. Before the ` +
+          `wall, the wave wiggles up and down. ` +
+          (below
+            ? `When it enters the wall it does not stop all at once: it fades little by little, like a sound that ` +
+              `goes through a wall and arrives muffled on the other side.`
+            : `Right now the wall is lower than the electron's energy, so the wave does not even fade inside it: ` +
+              `it wiggles right through. Even so, part of it bounces off the edges and goes back!`),
+        `If the wall is thin enough, a little bit of wave is still left when it reaches the other side. That ` +
+          `little bit is the chance of the electron showing up there: that is tunnelling!`,
+      ]),
+      exponential: paragraphs([
+        `The wall is very picky about its width. Every extra bit makes the chance of getting through plummet: right ` +
+          `now it is ${T}, but making the wall just a tenth of a nanometre wider (smaller than an atom!) drops it to ` +
+          `${Tw}. A taller wall also gets in the way.`,
+        `That is why you will never walk through a real wall: for something our size the chance is so small that, ` +
+          `in practice, it is zero. Tunnelling only shows up in the tiny world of atoms.`,
+      ]),
+      stm: paragraphs([
+        `Tunnelling is not just a curiosity — it is in your pocket! The memory in phones and USB sticks stores data ` +
+          `by pushing electrons through ultra-thin barriers, by tunnelling.`,
+        `It also made the scanning tunnelling microscope possible, which earned Binnig and Rohrer the 1986 Nobel ` +
+          `Prize: a tiny metal tip glides over a surface and measures the electrons that tunnel to it. It is so ` +
+          `sensitive that it can "see" atoms one by one! And inside the Sun, tunnelling helps atomic nuclei join ` +
+          `together, which is what makes the star shine.`,
+      ]),
+      scales: paragraphs([
+        `Here the height of the drawing stands for energy, not real height. The width of the wall is magnified 400 ` +
+          `million times: one nanometre is drawn as 40 cm. The wave wiggles much slower than the real one, and the ` +
+          `little ghost inside the wall is just a way of showing the wave fading. Each dot stands for many electrons.`,
+      ]),
     };
   }
 
   return {
-    experiment:
-      `Um canhão dispara elétrons de ${E} contra um muro de ${V} de altura e ${a} de largura. Aqui altura é ` +
-      `energia, como no diagrama de energia dos livros: o feixe corre na energia do elétron, e o muro tem a altura ` +
-      `da barreira. Uma bolinha rolando mais baixo que o muro sempre voltaria.\n\n` +
-      `Cada elétron sorteia o destino com a probabilidade exata: a maioria volta; alguns atravessam o muro como um ` +
-      `fantasma que se apaga e reaparecem do outro lado num clarão dourado, até o coletor. O contador mostra a ` +
-      `fração medida se aproximando da calculada, ${T}.`,
-    wave:
-      `Acima do feixe está a onda do elétron, a solução exata da equação de Schrödinger para este muro. Antes ` +
-      `dele, ela oscila (comprimento de onda ${lambda}) e se mistura com a parte refletida. Dentro, ` +
-      (below
-        ? `ela não oscila: decai como e^(−κx), com κ = ${kappa} — cai por um fator e a cada ${decay}. `
-        : `o elétron está acima do muro, então a onda continua oscilando, só que com comprimento maior. `) +
-      `O que sobra do outro lado segue como uma onda menor: a parte que tunelou.`,
-    exponential:
-      `Para muro largo, T ≈ 16E(V₀ − E)/V₀² · e^(−2κa). A largura está no expoente: deixar o muro 0,1 nm mais ` +
-      `largo leva T de ${T} para ${Tw}. Um muro mais alto aumenta κ e deixa a queda mais íngreme. Por isso o ` +
-      `tunelamento só importa na escala dos átomos: a 1 mm, T seria zero para qualquer efeito prático.`,
-    stm:
-      `O microscópio de varredura por tunelamento (Binnig e Rohrer, Nobel de 1986) usa exatamente isso: uma ponta ` +
-      `de metal a poucos décimos de nanômetro de uma superfície, uma tensão pequena e a corrente que tunela pela ` +
-      `fresta. Como ela cai exponencialmente com a distância, mover a ponta 0,1 nm (o tamanho de um átomo) muda ` +
-      `a corrente cerca de dez vezes — o bastante para ver átomos um a um. O tunelamento também explica o decaimento alfa, a ` +
-      `memória flash e o diodo túnel.`,
-    scales:
-      `Altura é energia: ${n(0.12 * 100, 0)} cm por eV. A largura está ampliada 400 milhões de vezes: 1 nm é ` +
-      `desenhado como 40 cm. A onda é desenhada como amplitude |ψ| (não |ψ|², que esconderia a parte que tunela) e ` +
-      `oscila muito mais devagar que a real. O fantasma dentro do muro é uma imagem da onda decaindo, não de uma ` +
-      `partícula perdendo energia. Cada ponto representa muitos elétrons: a corrente mostrada é I₀·T, calculada ` +
-      `pelo motor.`,
+    experiment: paragraphs([
+      `Imagine jogar uma bolinha contra um muro mais alto do que ela consegue pular. Ela volta, sempre. No mundo ` +
+        `dos átomos, porém, as coisas são diferentes! Aqui, um canhão dispara elétrons contra um "muro de energia" — ` +
+        `uma barreira que, ` +
+        (below
+          ? `pelas regras do dia a dia, nenhum deles conseguiria atravessar.`
+          : `agora, está mais baixa que a energia dos elétrons, então pelas regras do dia a dia todos passariam.`),
+      `Cada elétron "tira a sorte": a maioria volta, mas de vez em quando um deles atravessa o muro como um ` +
+        `fantasminha e reaparece do outro lado num clarão dourado. O contador mostra a fração que passou, que vai ` +
+        `chegando cada vez mais perto de ${T}.`,
+    ]),
+    wave: paragraphs([
+      `Na física quântica, cada elétron também é uma onda — é ela que aparece desenhada acima do feixe. Antes do ` +
+        `muro, a onda balança para cima e para baixo. ` +
+        (below
+          ? `Quando entra no muro, ela não para de uma vez: vai murchando aos poucos, como um som que atravessa uma ` +
+            `parede e chega abafado do outro lado.`
+          : `Agora o muro está mais baixo que a energia do elétron, então a onda nem murcha lá dentro: atravessa ` +
+            `balançando. Mesmo assim, uma parte dela bate nas bordas e volta!`),
+      `Se o muro for fino o bastante, ainda sobra um restinho de onda quando ela chega do outro lado. Esse ` +
+        `restinho é a chance de o elétron aparecer lá: é o tunelamento!`,
+    ]),
+    exponential: paragraphs([
+      `O muro é muito exigente com a largura. Cada pedacinho a mais faz a chance de atravessar despencar: agora ela ` +
+        `é de ${T}, mas basta deixar o muro um décimo de nanômetro mais largo (menos que o tamanho de um átomo!) ` +
+        `para ela cair para ${Tw}. Um muro mais alto também atrapalha.`,
+      `É por isso que você nunca vai atravessar uma parede de verdade: para algo do nosso tamanho, a chance é tão ` +
+        `pequena que, na prática, é zero. O tunelamento só aparece no mundo minúsculo dos átomos.`,
+    ]),
+    stm: paragraphs([
+      `O tunelamento não é só curiosidade: ele está no seu bolso! A memória dos celulares e dos pendrives guarda ` +
+        `dados empurrando elétrons através de barreiras finíssimas, por tunelamento.`,
+      `Ele também permitiu criar o microscópio de tunelamento, que deu o Nobel de 1986 a Binnig e Rohrer: uma ` +
+        `pontinha de metal passeia sobre uma superfície e mede os elétrons que tunelam até ela. É tão sensível que ` +
+        `consegue "enxergar" átomos um por um! E, dentro do Sol, o tunelamento ajuda os núcleos dos átomos a se ` +
+        `juntarem, e é isso que faz a estrela brilhar.`,
+    ]),
+    scales: paragraphs([
+      `Aqui a altura do desenho representa energia, não altura de verdade. Já a largura do muro está ampliada 400 ` +
+        `milhões de vezes: um nanômetro aparece como 40 cm. A onda balança bem mais devagar que a real, e o ` +
+        `fantasminha dentro do muro é só um jeito de mostrar a onda murchando. Cada pontinho representa muitos ` +
+        `elétrons.`,
+    ]),
   };
 }
