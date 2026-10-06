@@ -22,6 +22,8 @@ import {
 } from '../../optics/waves/double-slit';
 import { RAIL_SCENE_PER_MILLIMETER } from '../../scene/bench';
 import { createEquationPlate } from '../../scene/equation-plate';
+import { type ExplainerVideo, mountExplainerVideo } from '../../scene/explainer-video';
+import videoPosterUrl from '../../assets/videos/planka-fenda.jpg?url';
 import { formatDistance, formatNumber } from '../../ui/i18n';
 import { createElectronBeam, type ElectronBeam } from './beam';
 import {
@@ -89,6 +91,7 @@ export function createDoubleSlitExperiment(): Experiment {
   const store = createDoubleSlitStore();
   let locale: Locale = 'pt-BR';
   let context: LabContext | null = null;
+  let explainer: ExplainerVideo | null = null;
 
   const disposers: (() => void)[] = [];
   const geometries: THREE.BufferGeometry[] = [];
@@ -392,6 +395,33 @@ export function createDoubleSlitExperiment(): Experiment {
         equation.dispose();
       });
 
+      // --- TV do vídeo explicativo ------------------------------------------
+      // No canto direito da frente do tampo, depois do anteparo: livre em
+      // qualquer posição do anteparo. Clicar nela (ou a tecla B) abre o vídeo.
+      explainer = mountExplainerVideo(
+        ctx,
+        {
+          file: 'planka-fenda.mp4',
+          poster: videoPosterUrl,
+          title: { 'pt-BR': 'Planka e a Dupla Fenda', en: 'Planka and the Double Slit' },
+          description: {
+            'pt-BR': 'Bolinhas, ondas e elétrons: o experimento mais famoso da física quântica, explicado pela Planka.',
+            en: 'Balls, waves and electrons: the most famous experiment in quantum physics, explained by Planka (in Portuguese).',
+          },
+          position: { x: ctx.bench.width / 2 - 0.3, y: ctx.bench.topY, z: ctx.bench.frontZ - 0.17 },
+          rotationY: -0.35,
+          key: 'b',
+        },
+        locale,
+      );
+      if (explainer) {
+        const mounted = explainer;
+        disposers.push(() => {
+          mounted.dispose();
+          explainer = null;
+        });
+      }
+
       // --- Onda e feixe -----------------------------------------------------
       wave = createWaveField();
       slitRoot.add(wave.mesh);
@@ -625,6 +655,7 @@ export function createDoubleSlitExperiment(): Experiment {
     setLocale(next: Locale): void {
       locale = next;
       updateLabels();
+      explainer?.setLocale(next);
     },
 
     ui(): PanelSchema {

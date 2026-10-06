@@ -107,6 +107,7 @@ export const DOUBLE_SLIT_SHORTCUTS = [
   { keys: 'V', description: { 'pt-BR': 'mostrar ou esconder o feixe', en: 'show or hide the beam' } },
   { keys: 'K', description: { 'pt-BR': 'próxima cor do fósforo', en: 'next phosphor colour' } },
   { keys: '[ ]', description: { 'pt-BR': 'aproximar ou afastar o anteparo', en: 'move the screen closer or farther' } },
+  { keys: 'B', description: { 'pt-BR': 'assistir ao vídeo explicativo', en: 'watch the explainer video' } },
 ] as const;
 
 export function buildDoubleSlitCopy(facts: DoubleSlitFacts): ExperimentCopy {

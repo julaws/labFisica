@@ -480,3 +480,18 @@ test('vídeo explicativo: TV na bancada', async ({ page }, testInfo) => {
   await openLab(page, '?shot=overview');
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-45-video-tv.png` });
 });
+
+test('vídeo explicativo da dupla fenda: tecla B', async ({ page }, testInfo) => {
+  await openLab(page, '#/double-slit');
+  await page.mouse.click(5, 450);
+  await page.keyboard.press('b');
+  const viewer = page.getByRole('dialog', { name: 'Planka e a Dupla Fenda' });
+  await expect(viewer).toBeVisible();
+  await expect(page.locator('.music')).toHaveClass(/music--suspended/);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-46-video-fenda.png` });
+  await page.keyboard.press('Escape');
+  await expect(viewer).toBeHidden();
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-47-tv-fenda.png` });
+});
