@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import type { MaterialLibrary } from '../../scene/materials';
+import type { MaterialLibrary } from './materials';
 
 /**
  * TV retrô sobre a bancada: clicar nela abre o vídeo explicativo "Planka e as
