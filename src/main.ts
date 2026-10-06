@@ -34,6 +34,7 @@ import { createSiteBadge } from './ui/site-badge';
 import { createMusicPlayer } from './ui/music-player';
 import { createQualityToggle } from './ui/quality-toggle';
 import { type ScreenRect, createPortraitViewer } from './ui/portrait-viewer';
+import { createVideoViewer } from './ui/video-viewer';
 import { PORTRAITS, PORTRAIT_ATLAS, PORTRAIT_FRAME } from './scene/portrait-wall';
 import { createModal } from './ui/modal';
 import { type Locale, preferredLocale, rememberLocale } from './ui/i18n';
@@ -391,6 +392,39 @@ async function boot(): Promise<void> {
     occluders: () => scene,
     onClick: (hit) => portraitViewer.open(room.portraits.indexAt(hit.point)),
   });
+  // --- Vídeo explicativo -------------------------------------------------------
+  // Um experimento pode abrir um vídeo saindo de um objeto da cena (a TV da
+  // bancada). Enquanto ele está aberto, a música de fundo se cala.
+  const videoViewer = createVideoViewer({
+    parent: document.body,
+    locale,
+    onOpen: () => music.setSuspended(true),
+    onClosed: () => music.setSuspended(false),
+  });
+  /** Retângulo na tela da caixa de um objeto, projetado pela câmera; null se atrás dela. */
+  const objectRect = (object: THREE.Object3D): ScreenRect | null => {
+    const box = new THREE.Box3().setFromObject(object);
+    if (box.isEmpty()) return null;
+    const rect = canvas.getBoundingClientRect();
+    let left = Infinity;
+    let top = Infinity;
+    let right = -Infinity;
+    let bottom = -Infinity;
+    const corner = new THREE.Vector3();
+    for (let i = 0; i < 8; i++) {
+      corner.set(i & 1 ? box.max.x : box.min.x, i & 2 ? box.max.y : box.min.y, i & 4 ? box.max.z : box.min.z);
+      corner.project(camera);
+      if (corner.z > 1) return null;
+      const x = rect.left + ((corner.x + 1) / 2) * rect.width;
+      const y = rect.top + ((1 - corner.y) / 2) * rect.height;
+      left = Math.min(left, x);
+      right = Math.max(right, x);
+      top = Math.min(top, y);
+      bottom = Math.max(bottom, y);
+    }
+    return { left, top, width: right - left, height: bottom - top };
+  };
+
   window.__labPortraits = () =>
     PORTRAITS.map((_, index) => {
       const rect = portraitRect(index);
@@ -444,6 +478,7 @@ async function boot(): Promise<void> {
     music.setLocale(next);
     qualityToggle.setLocale(next);
     portraitViewer.setLocale(next);
+    videoViewer.setLocale(next);
     switcher.setLocale(next);
     refresh();
   };
@@ -476,6 +511,11 @@ async function boot(): Promise<void> {
       invalidate: () => loop.invalidate(),
       labels,
       addScreenPass: (pass) => post.insertPass(pass),
+      registerClickable: (handle) => input.registerClickable(handle),
+      openVideo: (video) => {
+        if (portraitViewer.isOpen) return;
+        videoViewer.open({ ...video, sourceRect: () => objectRect(video.anchor) });
+      },
     });
     experiment.setLocale(locale);
     const roots: THREE.Object3D[] = [];

@@ -16,6 +16,9 @@ import { type Locale, t } from './i18n';
  * - Volume, mudo e faixa ficam guardados no navegador de quem visita, quando
  *   ele deixa.
  * - Só a faixa atual é baixada, aos poucos (`preload = none` até tocar).
+ * - `setSuspended(true)` cala a música enquanto outro som toca (o vídeo
+ *   explicativo) e `setSuspended(false)` a retoma de onde parou, sem mexer no
+ *   volume nem no mudo escolhidos pela pessoa.
  */
 
 export interface Track {
@@ -55,6 +58,8 @@ export const TRACKS: readonly Track[] = [
 
 export interface MusicPlayer {
   readonly element: HTMLElement;
+  /** Cala a música (fade curto e pausa) até ser liberada de novo. */
+  setSuspended(suspended: boolean): void;
   setLocale(locale: Locale): void;
   dispose(): void;
 }
@@ -113,6 +118,7 @@ export function createMusicPlayer({ parent, locale: initialLocale, baseUrl }: Mu
   let locale = initialLocale;
   const state = loadSaved();
   let started = false;
+  let suspended = false;
 
   const audio = new Audio();
   audio.preload = 'none';
@@ -125,7 +131,7 @@ export function createMusicPlayer({ parent, locale: initialLocale, baseUrl }: Mu
   const trackGain = (): number => 10 ** ((TRACKS[state.track]?.gainDb ?? 0) / 20);
 
   const applyVolume = (): void => {
-    const level = state.muted ? 0 : state.volume * trackGain();
+    const level = state.muted || suspended ? 0 : state.volume * trackGain();
     if (gain && context) gain.gain.setTargetAtTime(level, context.currentTime, 0.05);
     else audio.volume = Math.min(1, level);
   };
@@ -167,7 +173,8 @@ export function createMusicPlayer({ parent, locale: initialLocale, baseUrl }: Mu
 
   const render = (): void => {
     const track = TRACKS[state.track];
-    titleText.textContent = track ? track.title[locale] : '';
+    titleText.textContent = suspended ? t('musicPausedForVideo', locale) : track ? track.title[locale] : '';
+    element.classList.toggle('music--suspended', suspended);
     element.title = track ? `${t('music', locale)}: ${track.title[locale]}` : t('music', locale);
     element.setAttribute('aria-label', t('music', locale));
     prev.title = t('previousTrack', locale);
@@ -186,7 +193,7 @@ export function createMusicPlayer({ parent, locale: initialLocale, baseUrl }: Mu
   };
 
   const play = (): void => {
-    if (!started || state.muted) return;
+    if (!started || state.muted || suspended) return;
     void context?.resume();
     audio.play().catch(() => {
       // Bloqueado (sem gesto) ou sem rede: tenta de novo no próximo gesto.
@@ -268,14 +275,28 @@ export function createMusicPlayer({ parent, locale: initialLocale, baseUrl }: Mu
 
   loadTrack(state.track);
 
+  let pauseTimer = 0;
+  const setSuspended = (next: boolean): void => {
+    if (suspended === next) return;
+    suspended = next;
+    window.clearTimeout(pauseTimer);
+    applyVolume();
+    // Pausa depois do fade: o áudio fica parado no lugar, sem gastar rede.
+    if (suspended) pauseTimer = window.setTimeout(() => audio.pause(), 250);
+    else play();
+    render();
+  };
+
   return {
     element,
+    setSuspended,
     setLocale(next: Locale): void {
       locale = next;
       render();
     },
     dispose(): void {
       for (const name of gestures) window.removeEventListener(name, start, { capture: true });
+      window.clearTimeout(pauseTimer);
       audio.pause();
       audio.removeAttribute('src');
       void context?.close();

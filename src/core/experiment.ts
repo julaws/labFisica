@@ -5,6 +5,7 @@ import type { LabRoom } from '../scene/lab-room';
 import type { QualityManager } from './quality';
 import type { LabelLayer } from '../scene/labels';
 import type { Pass } from 'postprocessing';
+import type { ClickHandle } from './input';
 
 /**
  * Interface de experimento e registro (SPEC §7).
@@ -44,6 +45,26 @@ export interface LabContext {
    * que a remove, e o experimento a chama ao sair.
    */
   readonly addScreenPass?: (pass: Pass) => () => void;
+  /**
+   * Registra um objeto clicável (toque curto, sem arrastar), como os quadros
+   * da parede. Devolve a função de remoção.
+   */
+  readonly registerClickable?: (handle: ClickHandle) => () => void;
+  /**
+   * Abre um vídeo na frente da tela, saindo de `anchor` (a tela 3D de onde ele
+   * "voa"). A música de fundo se cala enquanto o vídeo está aberto.
+   */
+  readonly openVideo?: (video: LabVideo) => void;
+}
+
+/** Vídeo que um experimento pode abrir na frente da tela. */
+export interface LabVideo {
+  readonly src: string;
+  readonly poster?: string;
+  readonly title: Record<Locale, string>;
+  readonly description?: Record<Locale, string>;
+  /** Objeto 3D cujo retângulo na tela é o ponto de partida da animação. */
+  readonly anchor: THREE.Object3D;
 }
 
 /** Objeto 3D que responde a arraste (anel de foco, carrinhos). */

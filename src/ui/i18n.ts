@@ -128,6 +128,8 @@ const STRINGS = {
     mute: 'Silenciar a música',
     unmute: 'Ligar o som da música',
     volume: 'Volume da música',
+    musicPausedForVideo: 'Pausada durante o vídeo',
+    closeVideo: 'Fechar o vídeo',
   },
   en: {
     loading: 'Polishing the glass…',
@@ -166,6 +168,8 @@ const STRINGS = {
     mute: 'Mute the music',
     unmute: 'Unmute the music',
     volume: 'Music volume',
+    musicPausedForVideo: 'Paused during the video',
+    closeVideo: 'Close the video',
   },
 } as const;
 
