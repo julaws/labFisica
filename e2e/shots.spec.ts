@@ -564,3 +564,44 @@ test('orçamento do buraco negro', async ({ page }) => {
   expect(frame!.drawCalls).toBeLessThan(250);
   expect(frame!.triangles).toBeLessThan(1_500_000);
 });
+
+// --- Figuras de Chladni, na sexta bancada (ADR 0018) --------------------------
+test('chladni: ressonância, entre modos e placa redonda', async ({ page }, testInfo) => {
+  await openLab(page, '#/chladni');
+  // Placa de aço de 24 cm e 0,8 mm: o modo (1, 4) ressoa em 17 × 33,2 Hz.
+  await expect(page.locator('.chip[data-id="frequency"] .chip__value')).toHaveText('564,7 Hz');
+  await expect(page.locator('.chip[data-id="mode"] .chip__value')).toHaveText('(1, 4)');
+  await expect(page.locator('.chip[data-id="resonance"] .chip__value')).toHaveText('100%');
+  await expect(page.locator('.hud__sentence')).toContainText('Ressonância');
+  await page.waitForTimeout(6000);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-55-chladni.png` });
+
+  // 2% acima: fora da ressonância, nenhum modo domina.
+  await page.keyboard.press('Equal');
+  await expect(page.locator('.chip[data-id="mode"] .chip__value')).toHaveText('—');
+  await expect(page.locator('.hud__sentence')).toContainText('Entre ressonâncias');
+
+  // Placa redonda, próximo modo pelo atalho.
+  await page.keyboard.press('f');
+  await page.keyboard.press('BracketRight');
+  await expect(page.locator('.hud__sentence')).toContainText('Ressonância');
+  await page.waitForTimeout(6000);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-56-chladni-round.png` });
+
+  // Som: começa mudo; ligado, cala a música de fundo; desligado, ela volta.
+  await expect(page.locator('.music--suspended')).toHaveCount(0);
+  await page.keyboard.press('m');
+  await expect(page.locator('.music--suspended')).toHaveCount(1);
+  await page.keyboard.press('m');
+  await expect(page.locator('.music--suspended')).toHaveCount(0);
+});
+
+test('orçamento da bancada de Chladni', async ({ page }) => {
+  await openLab(page, '#/chladni');
+  await page.waitForTimeout(500);
+  const frame = await page.evaluate(() => window.__lab ?? null);
+  expect(frame).not.toBeNull();
+  console.info(`orçamento (Chladni): ${frame!.drawCalls} draw calls, ${frame!.triangles} triângulos`);
+  expect(frame!.drawCalls).toBeLessThan(250);
+  expect(frame!.triangles).toBeLessThan(1_500_000);
+});

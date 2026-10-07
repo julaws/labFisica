@@ -280,6 +280,12 @@ async function boot(): Promise<void> {
     station: 4,
     load: async () => (await import('./experiments/black-hole')).createBlackHoleExperiment(),
   });
+  registry.register({
+    id: 'chladni',
+    title: { 'pt-BR': 'Chladni', en: 'Chladni' },
+    station: 5,
+    load: async () => (await import('./experiments/chladni')).createChladniExperiment(),
+  });
 
   const params = new URLSearchParams(window.location.search);
 

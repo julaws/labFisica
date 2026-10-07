@@ -406,6 +406,26 @@ um emissor em órbita circular kepleriana, g = √(1 − 3M/r)/(1 − Ωλ), Ω 
 Valores no padrão (10 M☉, telescópio a 500 km = 33,86 M): r_s = 29,53 km, sombra de 8,56°,
 anel de Einstein exato de 22,2° (campo fraco: 19,7°).
 
+## 13. Placas vibrantes e figuras de Chladni (ADR 0018)
+
+Código em `src/optics/acoustics/chladni.ts`, testes em `tests/optics/chladni.test.ts`.
+
+**Placa fina de Kirchhoff**: D∇⁴w + ρh·∂²w/∂t² = 0, com a rigidez D = Eh³/(12(1 − ν²))
+(Timoshenko e Woinowsky-Krieger, *Theory of Plates and Shells*, 1959). Um modo com
+∇²u = −k²u vibra em ω = k²√(D/ρh).
+
+**Placa quadrada**: u = cos(nπX/L)cos(mπY/L) − cos(mπX/L)cos(nπY/L), a aproximação de
+Rayleigh (*The Theory of Sound*, 1877, §225) para as figuras de Chladni (*Entdeckungen über
+die Theorie des Klanges*, 1787). Placa circular: J_n(kr)·cos(nθ), k = j_{n,s}/a, com os zeros
+de Bessel (Abramowitz e Stegun, *Handbook of Mathematical Functions*, tab. 9.5) e a integral
+de Bessel J_n(x) = (1/π)∫₀^π cos(nτ − x sen τ)dτ (DLMF 10.9.2).
+
+**Aço**: E = 200 GPa, ρ = 7850 kg/m³, ν = 0,29 (valores típicos de aço carbono). Com
+L = 24 cm e h = 0,8 mm: √(D/ρh) = 1,218 m²/s e f_nm = 33,2·(n² + m²) Hz.
+
+**Oscilador forçado amortecido**: amplitude ∝ 1/√((1 − r²)² + (r/Q)²), r = f/f₀; meia
+largura f₀/(2Q).
+
 ---
 
 ## Situação por tema
@@ -427,3 +447,4 @@ anel de Einstein exato de 22,2° (campo fraco: 19,7°).
 | Força magnética (Lorentz, Helmholtz, Boris relativístico, filtro de Wien) | documentado (§10) e testado, ADR 0010 | 02/10/2026 ✔ |
 | Tunelamento por barreira retangular (solução exata de Schrödinger, T, corrente I₀·T) | documentado (§11) e testado, ADR 0011 | 03/10/2026 ✔ |
 | Buraco negro de Schwarzschild (geodésicas nulas, sombra, anel de Einstein, disco) | documentado (§12) e testado, ADR 0017 | 07/10/2026 ✔ |
+| Figuras de Chladni (placa de Kirchhoff, modos quadrados e de Bessel, resposta forçada, areia) | documentado (§13) e testado, ADR 0018 | 07/10/2026 ✔ |
