@@ -646,3 +646,40 @@ test('orçamento da bancada dos batimentos', async ({ page }) => {
   expect(frame!.drawCalls).toBeLessThan(250);
   expect(frame!.triangles).toBeLessThan(1_500_000);
 });
+
+// --- Foguete, na oitava bancada (ADR 0020) -----------------------------------
+test('foguete: Tsiolkovsky, perdas e lançamento', async ({ page }, testInfo) => {
+  await openLab(page, '#/rocket');
+  // 131 t, dois estágios, Isp 320 s: Δv ideal 10,73 km/s; com gravidade e ar,
+  // 7,90 km/s no fim das queimas (perdas de 2,79 e 0,04 km/s).
+  await expect(page.locator('.chip[data-id="ideal"] .chip__value')).toHaveText('10,73 km/s');
+  await expect(page.locator('.chip[data-id="reached"] .chip__value')).toHaveText('7,90 km/s');
+  await expect(page.locator('.chip[data-id="ratio"] .chip__value')).toHaveText('37,4');
+  await expect(page.locator('.hud__sentence')).toContainText('2,79 km/s');
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-59-rocket.png` });
+
+  // Sem gravidade nem ar, o voo integrado é exatamente Tsiolkovsky.
+  await page.keyboard.press('g');
+  await page.keyboard.press('h');
+  await expect(page.locator('.chip[data-id="reached"] .chip__value')).toHaveText('10,73 km/s');
+  await expect(page.locator('.hud__sentence')).toContainText('exatamente o que Tsiolkovsky prevê');
+
+  // Lançamento: a altitude sobe.
+  await page.keyboard.press('g');
+  await page.keyboard.press('h');
+  await page.keyboard.press('l');
+  await expect(page.locator('.chip[data-id="altitude"] .chip__value')).not.toHaveText('0 m', { timeout: 30_000 });
+  await page.waitForTimeout(8000);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-60-rocket-flight.png` });
+});
+
+test('orçamento da bancada do foguete', async ({ page }) => {
+  await openLab(page, '#/rocket');
+  await page.waitForTimeout(500);
+  const frame = await page.evaluate(() => window.__lab ?? null);
+  expect(frame).not.toBeNull();
+  console.info(`orçamento (foguete): ${frame!.drawCalls} draw calls, ${frame!.triangles} triângulos`);
+  expect(frame!.drawCalls).toBeLessThan(250);
+  expect(frame!.triangles).toBeLessThan(1_500_000);
+});

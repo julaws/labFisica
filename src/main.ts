@@ -292,6 +292,12 @@ async function boot(): Promise<void> {
     station: 6,
     load: async () => (await import('./experiments/beats')).createBeatsExperiment(),
   });
+  registry.register({
+    id: 'rocket',
+    title: { 'pt-BR': 'Foguete', en: 'Rocket' },
+    station: 7,
+    load: async () => (await import('./experiments/rocket')).createRocketExperiment(),
+  });
 
   const params = new URLSearchParams(window.location.search);
 

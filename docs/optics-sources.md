@@ -437,6 +437,16 @@ a envoltória é √(A₁² + A₂² + 2A₁A₂cos(2πΔf t)). Séries de Fouri
 ímpar), dente de serra 2/(πn), triangular 8/(π²n²) (n ímpar). Temperamento igual:
 f = 440·2^(n/12); numa quinta temperada sobre 220 Hz, 3f₁ − 2f₂ = 0,745 Hz.
 
+## 15. Foguete: Tsiolkovsky e momento (ADR 0020)
+
+Código em `src/optics/mechanics/rocket.ts`, testes em `tests/optics/rocket.test.ts`.
+
+**Equação do foguete** (Tsiolkovsky, 1903): Δv = v_e·ln(m₀/m_f), v_e = I_sp·g₀,
+g₀ = 9,806 65 m/s² (exata). Massa variável: m·dv/dt = v_e·ṁ − m·g(h) − D; empuxo F = v_e·ṁ;
+momento do gás ejetado dp/dt = ṁ(v − v_e). Gravidade g = g₀(R/(R + h))², R = 6371 km;
+arrasto ½ρC_dAv² com ρ = 1,225·e^(−h/8,5 km) kg/m³ (atmosfera exponencial). Velocidade
+orbital circular baixa ≈ 7,8 km/s (Sutton e Biblarz, *Rocket Propulsion Elements*, cap. 4).
+
 ---
 
 ## Situação por tema
@@ -460,3 +470,4 @@ f = 440·2^(n/12); numa quinta temperada sobre 220 Hz, 3f₁ − 2f₂ = 0,745 H
 | Buraco negro de Schwarzschild (geodésicas nulas, sombra, anel de Einstein, disco) | documentado (§12) e testado, ADR 0017 | 07/10/2026 ✔ |
 | Figuras de Chladni (placa de Kirchhoff, modos quadrados e de Bessel, resposta forçada, areia) | documentado (§13) e testado, ADR 0018 | 07/10/2026 ✔ |
 | Batimentos (soma-produto, envoltória, harmônicos de Fourier, temperamento igual) | documentado (§14) e testado, ADR 0019 | 07/10/2026 ✔ |
+| Foguete (Tsiolkovsky, massa variável com gravidade e arrasto, momento do gás e dos estágios) | documentado (§15) e testado, ADR 0020 | 07/10/2026 ✔ |
