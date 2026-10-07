@@ -605,3 +605,44 @@ test('orçamento da bancada de Chladni', async ({ page }) => {
   expect(frame!.drawCalls).toBeLessThan(250);
   expect(frame!.triangles).toBeLessThan(1_500_000);
 });
+
+// --- Batimentos, na sétima bancada (ADR 0019) --------------------------------
+test('batimentos: |f₁ − f₂|, quinta do piano e som', async ({ page }, testInfo) => {
+  await openLab(page, '#/beats');
+  // 440 Hz e 442 Hz: duas batidas por segundo.
+  await expect(page.locator('.chip[data-id="f1"] .chip__value')).toHaveText('440,00 Hz');
+  await expect(page.locator('.chip[data-id="f2"] .chip__value')).toHaveText('442,00 Hz');
+  await expect(page.locator('.chip[data-id="beat"] .chip__value')).toHaveText('2,00 Hz');
+  await expect(page.locator('.chip[data-id="period"] .chip__value')).toHaveText('0,50 s');
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-57-beats.png` });
+
+  // Desafinação zerada: uníssono, sem batimento.
+  await page.keyboard.press('0');
+  await expect(page.locator('.chip[data-id="beat"] .chip__value')).toHaveText('0,00 Hz');
+  await expect(page.locator('.hud__sentence')).toContainText('Uníssono');
+
+  // A quinta temperada bate entre harmônicos: 3·220 − 2·329,628 = 0,745 Hz.
+  await openControls(page);
+  await page.getByRole('button', { name: 'Quinta do piano' }).click();
+  await expect(page.locator('.chip[data-id="beat"] .chip__value')).toHaveText('0,74 Hz');
+  await expect(page.locator('.hud__sentence')).toContainText('harmônico 3');
+
+  // Som: ligado, cala a música de fundo.
+  await page.keyboard.press('m');
+  await expect(page.locator('.music--suspended')).toHaveCount(1);
+  await page.keyboard.press('m');
+  await expect(page.locator('.music--suspended')).toHaveCount(0);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-58-beats-fifth.png` });
+});
+
+test('orçamento da bancada dos batimentos', async ({ page }) => {
+  await openLab(page, '#/beats');
+  await page.waitForTimeout(500);
+  const frame = await page.evaluate(() => window.__lab ?? null);
+  expect(frame).not.toBeNull();
+  console.info(`orçamento (batimentos): ${frame!.drawCalls} draw calls, ${frame!.triangles} triângulos`);
+  expect(frame!.drawCalls).toBeLessThan(250);
+  expect(frame!.triangles).toBeLessThan(1_500_000);
+});

@@ -426,6 +426,17 @@ L = 24 cm e h = 0,8 mm: √(D/ρh) = 1,218 m²/s e f_nm = 33,2·(n² + m²) Hz.
 **Oscilador forçado amortecido**: amplitude ∝ 1/√((1 − r²)² + (r/Q)²), r = f/f₀; meia
 largura f₀/(2Q).
 
+## 14. Batimentos (ADR 0019)
+
+Código em `src/optics/acoustics/beats.ts`, testes em `tests/optics/beats.test.ts`.
+
+sen a + sen b = 2·cos((a − b)/2)·sen((a + b)/2): a soma de f₁ e f₂ é uma portadora em
+(f₁ + f₂)/2 com envoltória |2cos(π(f₁ − f₂)t)|, e o volume pulsa |f₁ − f₂| vezes por
+segundo (Helmholtz, *Die Lehre von den Tonempfindungen*, 1863). Com amplitudes diferentes,
+a envoltória é √(A₁² + A₂² + 2A₁A₂cos(2πΔf t)). Séries de Fourier: quadrada 4/(πn) (n
+ímpar), dente de serra 2/(πn), triangular 8/(π²n²) (n ímpar). Temperamento igual:
+f = 440·2^(n/12); numa quinta temperada sobre 220 Hz, 3f₁ − 2f₂ = 0,745 Hz.
+
 ---
 
 ## Situação por tema
@@ -448,3 +459,4 @@ largura f₀/(2Q).
 | Tunelamento por barreira retangular (solução exata de Schrödinger, T, corrente I₀·T) | documentado (§11) e testado, ADR 0011 | 03/10/2026 ✔ |
 | Buraco negro de Schwarzschild (geodésicas nulas, sombra, anel de Einstein, disco) | documentado (§12) e testado, ADR 0017 | 07/10/2026 ✔ |
 | Figuras de Chladni (placa de Kirchhoff, modos quadrados e de Bessel, resposta forçada, areia) | documentado (§13) e testado, ADR 0018 | 07/10/2026 ✔ |
+| Batimentos (soma-produto, envoltória, harmônicos de Fourier, temperamento igual) | documentado (§14) e testado, ADR 0019 | 07/10/2026 ✔ |
