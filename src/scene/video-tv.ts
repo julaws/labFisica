@@ -37,9 +37,13 @@ export interface VideoTvOptions {
 
 const BODY = { width: 0.36, height: 0.25, depth: 0.17, radius: 0.028 };
 const FEET = 0.026;
-const SCREEN = { width: 0.24, height: 0.135 };
-/** A tela fica à esquerda; à direita, a coluna dos botões. */
-const SCREEN_X = -0.04;
+const SCREEN = { width: 0.19, height: 0.107 };
+/**
+ * A tela fica à esquerda; à direita, a coluna dos botões. Com o filete neon,
+ * ela ocupa de −0,135 a 0,097 na face plana do gabinete (−0,152 a 0,152):
+ * a mesma folga dos dois lados até a borda e até os botões.
+ */
+const SCREEN_X = -0.019;
 const NEON = '#7fe3ff';
 
 export function createVideoTv({ materials, posterUrl, title, caption: initialCaption, invalidate }: VideoTvOptions): VideoTv {
@@ -66,7 +70,7 @@ export function createVideoTv({ materials, posterUrl, title, caption: initialCap
   const bezelGeometry = new RoundedBoxGeometry(SCREEN.width + 0.03, SCREEN.height + 0.03, 0.012, 3, 0.012);
   geometries.push(bezelGeometry);
   const bezel = new THREE.Mesh(bezelGeometry, materials.darkSteel);
-  bezel.position.set(SCREEN_X, bodyY + 0.01, front);
+  bezel.position.set(SCREEN_X, bodyY, front);
   group.add(bezel);
 
   // --- Tela ---------------------------------------------------------------------
@@ -93,7 +97,7 @@ export function createVideoTv({ materials, posterUrl, title, caption: initialCap
   owned.push(screenMaterial);
   const screen = new THREE.Mesh(screenGeometry, screenMaterial);
   screen.name = 'video-tv-screen';
-  screen.position.set(SCREEN_X, bodyY + 0.01, front + 0.0065);
+  screen.position.set(SCREEN_X, bodyY, front + 0.0065);
   group.add(screen);
 
   // Filete neon em volta da tela: um anel de retângulo arredondado.
@@ -102,12 +106,12 @@ export function createVideoTv({ materials, posterUrl, title, caption: initialCap
   const neonMaterial = new THREE.MeshBasicMaterial({ color: new THREE.Color(NEON).multiplyScalar(1.6) });
   owned.push(neonMaterial);
   const ring = new THREE.Mesh(ringGeometry, neonMaterial);
-  ring.position.set(SCREEN_X, bodyY + 0.01, front + 0.002);
+  ring.position.set(SCREEN_X, bodyY, front + 0.002);
   group.add(ring);
   glowing.push(ring);
 
   // --- Botões de latão e grade do alto-falante -----------------------------------------
-  const knobX = SCREEN_X + SCREEN.width / 2 + 0.058;
+  const knobX = SCREEN_X + SCREEN.width / 2 + 0.052;
   const knobGeometry = new THREE.CylinderGeometry(0.017, 0.019, 0.016, 32).rotateX(Math.PI / 2);
   geometries.push(knobGeometry);
   for (const y of [0.055, 0.005]) {
@@ -116,7 +120,7 @@ export function createVideoTv({ materials, posterUrl, title, caption: initialCap
     knob.castShadow = true;
     group.add(knob);
   }
-  const slotGeometry = new THREE.BoxGeometry(0.05, 0.004, 0.004);
+  const slotGeometry = new THREE.BoxGeometry(0.034, 0.004, 0.004);
   geometries.push(slotGeometry);
   for (let i = 0; i < 4; i++) {
     const slot = new THREE.Mesh(slotGeometry, materials.darkSteel);
