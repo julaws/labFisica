@@ -20,6 +20,8 @@ import {
   harmonicBeats,
 } from '../../optics/acoustics/beats';
 import { createEquationPlate } from '../../scene/equation-plate';
+import { type ExplainerVideo, mountExplainerVideo } from '../../scene/explainer-video';
+import videoPosterUrl from '../../assets/videos/planka-batimentos.jpg?url';
 import { formatNumber } from '../../ui/i18n';
 import { type BeatsFacts, buildBeatsCopy, describeBeats, formatHz, formatPeriod } from './copy';
 import { drawPhasors, drawScope, drawSpectrum } from './displays';
@@ -62,6 +64,7 @@ export function createBeatsExperiment(): Experiment {
   const store = createBeatsStore();
   let locale: Locale = 'pt-BR';
   let context: LabContext | null = null;
+  let explainer: ExplainerVideo | null = null;
   const disposers: (() => void)[] = [];
   const root = new THREE.Group();
   root.name = 'beats';
@@ -220,6 +223,31 @@ export function createBeatsExperiment(): Experiment {
         equation.mesh.removeFromParent();
         equation.dispose();
       });
+
+      // --- TV do vídeo explicativo da Planka (tecla V) -------------------------
+      explainer = mountExplainerVideo(
+        ctx,
+        {
+          file: 'planka-batimentos.mp4',
+          poster: videoPosterUrl,
+          title: { 'pt-BR': 'Planka e os Batimentos', en: 'Planka and the Beats' },
+          description: {
+            'pt-BR': 'A Planka mostra por que duas notas quase iguais fazem o som pulsar, com ondas, setinhas que giram e a afinação de um violão.',
+            en: 'Planka shows why two nearly equal notes make the sound throb, with waves, spinning arrows and tuning a guitar.',
+          },
+          position: { x: 0.62, y: ctx.bench.topY, z: ctx.bench.frontZ - 0.12 },
+          rotationY: -0.35,
+          scale: 0.7,
+        },
+        locale,
+      );
+      if (explainer) {
+        const mounted = explainer;
+        disposers.push(() => {
+          mounted.dispose();
+          explainer = null;
+        });
+      }
 
       const rigRef = rig;
       ctx.labels.add({ id: 'bt-synth', anchor: rigRef.anchors.synth, text: '' });
@@ -461,6 +489,7 @@ export function createBeatsExperiment(): Experiment {
 
     setLocale(next: Locale): void {
       locale = next;
+      explainer?.setLocale(next);
       applyState();
     },
 

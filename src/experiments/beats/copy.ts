@@ -75,6 +75,7 @@ export const BEATS_SHORTCUTS = [
   { keys: 'T', description: { 'pt-BR': 'trocar a forma de onda', en: 'change the waveform' } },
   { keys: 'M', description: { 'pt-BR': 'ligar ou desligar o som', en: 'sound on or off' } },
   { keys: 'Z', description: { 'pt-BR': 'osciloscópio: batimento ou ondas', en: 'oscilloscope: beats or waves' } },
+  { keys: 'V', description: { 'pt-BR': 'assistir ao vídeo explicativo', en: 'watch the explainer video' } },
 ] as const;
 
 export function buildBeatsCopy(f: BeatsFacts): ExperimentCopy {

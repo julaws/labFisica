@@ -713,3 +713,18 @@ test('vídeo explicativo de Chladni: tecla V', async ({ page }, testInfo) => {
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-64-tv-chladni.png` });
 });
+
+test('vídeo explicativo dos batimentos: tecla V', async ({ page }, testInfo) => {
+  await openLab(page, '#/beats');
+  await page.mouse.click(5, 450);
+  await page.keyboard.press('v');
+  const viewer = page.getByRole('dialog', { name: 'Planka e os Batimentos' });
+  await expect(viewer).toBeVisible();
+  await expect(page.locator('.music')).toHaveClass(/music--suspended/);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-65-video-batimentos.png` });
+  await page.keyboard.press('Escape');
+  await expect(viewer).toBeHidden();
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-66-tv-batimentos.png` });
+});
