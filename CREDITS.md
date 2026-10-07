@@ -71,11 +71,20 @@ versões MP3 que o próprio Wikimedia Commons gera dos arquivos originais, obtid
 No lugar de um concerto para piano de Mozart, entrou um movimento de sonata para
 piano solo: os concertos têm trompas na orquestra, e o pedido era evitar metais.
 
-## Vídeo explicativo "Planka e as Lentes"
+## Vídeos explicativos da série "Planka e…"
+
+Um vídeo por bancada, aberto pela TV retrô de cada uma (`src/scene/explainer-video.ts`):
+"Planka e as Lentes" (`public/video/planka-lentes.mp4`), "Planka e a Dupla Fenda"
+(`planka-fenda.mp4`), "Planka e a Força Magnética" (`planka-magnetismo.mp4`) e
+"Planka e o Tunelamento" (`planka-tunelamento.mp4`), com as capas em
+`src/assets/videos/`. Os projetos estão em `planka_lentes/`, `planka_fenda/`,
+`planka_magnetismo/` e `planka_tunelamento/`. Todos seguem o que vale para o primeiro:
+
+### "Planka e as Lentes"
 
 `public/video/planka-lentes.mp4` (1080p, 30 fps, 8 min 06 s) e a capa
-`src/assets/video-poster.jpg`, abertos pela TV da bancada da lente
-(`src/experiments/lens-focus/video-tv.ts`). São **obra própria do projeto**:
+`src/assets/videos/planka-lentes.jpg`, abertos pela TV da bancada da lente
+(`src/scene/video-tv.ts`). São **obra própria do projeto**:
 
 - **Animação:** feita em Manim Community Edition (licença MIT) a partir do código em
   `planka_lentes/` (cenas, física em `optics.py`, mascote Planka desenhada em código).

@@ -495,3 +495,18 @@ test('vídeo explicativo da dupla fenda: tecla B', async ({ page }, testInfo) =>
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-47-tv-fenda.png` });
 });
+
+test('vídeo explicativo da força magnética: tecla V', async ({ page }, testInfo) => {
+  await openLab(page, '#/magnetic-force');
+  await page.mouse.click(5, 450);
+  await page.keyboard.press('v');
+  const viewer = page.getByRole('dialog', { name: 'Planka e a Força Magnética' });
+  await expect(viewer).toBeVisible();
+  await expect(page.locator('.music')).toHaveClass(/music--suspended/);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-48-video-magnetismo.png` });
+  await page.keyboard.press('Escape');
+  await expect(viewer).toBeHidden();
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-49-tv-magnetismo.png` });
+});

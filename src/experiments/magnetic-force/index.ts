@@ -22,6 +22,8 @@ import { SPEED_OF_LIGHT } from '../../optics/waves/double-slit';
 import { RAIL_SCENE_PER_MILLIMETER } from '../../scene/bench';
 import { createElectronGun, type ElectronGun } from '../../scene/electron-gun';
 import { createEquationPlate } from '../../scene/equation-plate';
+import { type ExplainerVideo, mountExplainerVideo } from '../../scene/explainer-video';
+import videoPosterUrl from '../../assets/videos/planka-magnetismo.jpg?url';
 import { formatNumber } from '../../ui/i18n';
 import {
   BEAM_Y,
@@ -83,6 +85,7 @@ export function createMagneticForceExperiment(): Experiment {
   const store = createMagneticStore();
   let locale: Locale = 'pt-BR';
   let context: LabContext | null = null;
+  let explainer: ExplainerVideo | null = null;
   const disposers: (() => void)[] = [];
   const geometries: THREE.BufferGeometry[] = [];
 
@@ -219,6 +222,31 @@ export function createMagneticForceExperiment(): Experiment {
         equation.mesh.removeFromParent();
         equation.dispose();
       });
+
+      // --- TV do vídeo explicativo ------------------------------------------
+      // No canto direito da frente do tampo, longe das bobinas. Clicar nela (ou a tecla V) abre o vídeo.
+      explainer = mountExplainerVideo(
+        ctx,
+        {
+          file: 'planka-magnetismo.mp4',
+          poster: videoPosterUrl,
+          title: { 'pt-BR': 'Planka e a Força Magnética', en: 'Planka and the Magnetic Force' },
+          description: {
+            'pt-BR': 'Campos, círculos, hélices e auroras: como um ímã invisível entorta o caminho do elétron, com a Planka.',
+            en: 'Fields, circles, helices and auroras: how an invisible magnet bends the path of an electron, with Planka (in Portuguese).',
+          },
+          position: { x: ctx.bench.width / 2 - 0.3, y: ctx.bench.topY, z: ctx.bench.frontZ - 0.17 },
+          rotationY: -0.35,
+        },
+        locale,
+      );
+      if (explainer) {
+        const mounted = explainer;
+        disposers.push(() => {
+          mounted.dispose();
+          explainer = null;
+        });
+      }
 
       // --- Etiquetas -------------------------------------------------------------
       ctx.labels.add({ id: 'mf-gun', anchor: gun.group, offset: { x: -0.2, y: 0.13, z: 0 }, text: '' });
@@ -384,6 +412,7 @@ export function createMagneticForceExperiment(): Experiment {
     setLocale(next: Locale): void {
       locale = next;
       updateLabels();
+      explainer?.setLocale(next);
     },
 
     ui(): PanelSchema {

@@ -109,6 +109,7 @@ export const MAGNETIC_SHORTCUTS = [
   { keys: ', .', description: { 'pt-BR': 'girar as bobinas', en: 'rotate the coils' } },
   { keys: '1 2 3 4', description: { 'pt-BR': 'bobinas a 0°, 20°, 90° e 180°', en: 'coils at 0°, 20°, 90° and 180°' } },
   { keys: 'M', description: { 'pt-BR': 'energia espalhada ou única', en: 'spread or single energy' } },
+  { keys: 'V', description: { 'pt-BR': 'assistir ao vídeo explicativo', en: 'watch the explainer video' } },
 ] as const;
 
 export function buildMagneticCopy(facts: MagneticFacts): ExperimentCopy {
