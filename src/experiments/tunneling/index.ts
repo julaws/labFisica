@@ -21,6 +21,8 @@ import {
 import { RAIL_SCENE_PER_MILLIMETER } from '../../scene/bench';
 import { createElectronGun, type ElectronGun } from '../../scene/electron-gun';
 import { createEquationPlate } from '../../scene/equation-plate';
+import { type ExplainerVideo, mountExplainerVideo } from '../../scene/explainer-video';
+import videoPosterUrl from '../../assets/videos/planka-tunelamento.jpg?url';
 import { formatNumber } from '../../ui/i18n';
 import { type Barrier, createBarrier } from './barrier';
 import { type Collector, createCollector } from './collector';
@@ -61,6 +63,7 @@ export function createTunnelingExperiment(): Experiment {
   const store = createTunnelingStore();
   let locale: Locale = 'pt-BR';
   let context: LabContext | null = null;
+  let explainer: ExplainerVideo | null = null;
   const disposers: (() => void)[] = [];
 
   let gun: ElectronGun | null = null;
@@ -216,6 +219,32 @@ export function createTunnelingExperiment(): Experiment {
         equation.mesh.removeFromParent();
         equation.dispose();
       });
+
+      // --- TV do vídeo explicativo ------------------------------------------
+      // Na frente do tampo, à direita, diante do coletor: a ponta da bancada
+      // fica fora da vista padrão. Clicar nela (ou a tecla V) abre o vídeo.
+      explainer = mountExplainerVideo(
+        ctx,
+        {
+          file: 'planka-tunelamento.mp4',
+          poster: videoPosterUrl,
+          title: { 'pt-BR': 'Planka e o Tunelamento', en: 'Planka and Quantum Tunnelling' },
+          description: {
+            'pt-BR': 'A bolinha que não passa, a onda que atravessa e onde o tunelamento aparece no dia a dia, com a Planka.',
+            en: 'The ball that bounces back, the wave that gets through and where tunnelling shows up in everyday life, with Planka (in Portuguese).',
+          },
+          position: { x: ctx.bench.width / 2 - 0.62, y: ctx.bench.topY, z: ctx.bench.frontZ - 0.12 },
+          rotationY: -0.35,
+        },
+        locale,
+      );
+      if (explainer) {
+        const mounted = explainer;
+        disposers.push(() => {
+          mounted.dispose();
+          explainer = null;
+        });
+      }
 
       // --- Etiquetas ---------------------------------------------------------------
       ctx.labels.add({ id: 'tn-gun', anchor: gun.group, offset: { x: -0.2, y: 0.13, z: 0 }, text: '' });
@@ -380,6 +409,7 @@ export function createTunnelingExperiment(): Experiment {
     setLocale(next: Locale): void {
       locale = next;
       updateLabels();
+      explainer?.setLocale(next);
       counterDirty = true;
     },
 

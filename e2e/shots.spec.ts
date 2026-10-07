@@ -510,3 +510,18 @@ test('vídeo explicativo da força magnética: tecla V', async ({ page }, testIn
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-49-tv-magnetismo.png` });
 });
+
+test('vídeo explicativo do tunelamento: tecla V', async ({ page }, testInfo) => {
+  await openLab(page, '#/tunneling');
+  await page.mouse.click(5, 450);
+  await page.keyboard.press('v');
+  const viewer = page.getByRole('dialog', { name: 'Planka e o Tunelamento' });
+  await expect(viewer).toBeVisible();
+  await expect(page.locator('.music')).toHaveClass(/music--suspended/);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-50-video-tunelamento.png` });
+  await page.keyboard.press('Escape');
+  await expect(viewer).toBeHidden();
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-51-tv-tunelamento.png` });
+});

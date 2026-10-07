@@ -82,6 +82,7 @@ export const TUNNELING_SHORTCUTS = [
   { keys: ', .', description: { 'pt-BR': 'muro mais baixo ou mais alto', en: 'lower or higher wall' } },
   { keys: '- =', description: { 'pt-BR': 'menos ou mais elétrons no feixe', en: 'fewer or more electrons in the beam' } },
   { keys: 'O', description: { 'pt-BR': 'mostrar ou esconder a onda', en: 'show or hide the wave' } },
+  { keys: 'V', description: { 'pt-BR': 'assistir ao vídeo explicativo', en: 'watch the explainer video' } },
 ] as const;
 
 export function buildTunnelingCopy(f: TunnelingFacts): ExperimentCopy {
