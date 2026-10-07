@@ -34,13 +34,14 @@ export interface ExplainerVideo {
   dispose(): void;
 }
 
-const LABEL_ID = 'video';
-
 const caption = (locale: Locale): string => (locale === 'en' ? 'Click to watch' : 'Clique para assistir');
 const labelText = (locale: Locale): string => (locale === 'en' ? 'Explainer video · click' : 'Vídeo explicativo · clique');
 
 export function mountExplainerVideo(ctx: LabContext, spec: ExplainerVideoSpec, locale: Locale): ExplainerVideo | null {
   if (!ctx.openVideo) return null;
+  // Uma etiqueta por vídeo: na troca de bancada, a que chega é montada antes
+  // de a que sai ser desmontada, e um id comum faria uma apagar a outra.
+  const labelId = `video:${spec.file}`;
   const tv = createVideoTv({
     materials: ctx.materials,
     posterUrl: spec.poster,
@@ -62,7 +63,7 @@ export function mountExplainerVideo(ctx: LabContext, spec: ExplainerVideoSpec, l
       anchor: tv.screen,
     });
 
-  ctx.labels.add({ id: LABEL_ID, anchor: tv.group, offset: { x: 0, y: tv.height + 0.04, z: 0 }, text: labelText(locale) });
+  ctx.labels.add({ id: labelId, anchor: tv.group, offset: { x: 0, y: tv.height + 0.04, z: 0 }, text: labelText(locale) });
   const removers: (() => void)[] = [ctx.onKey(spec.key ?? 'v', open)];
   if (ctx.registerClickable) {
     removers.push(
@@ -78,12 +79,12 @@ export function mountExplainerVideo(ctx: LabContext, spec: ExplainerVideoSpec, l
   return {
     open,
     setLocale(next: Locale): void {
-      ctx.labels.setText(LABEL_ID, labelText(next));
+      ctx.labels.setText(labelId, labelText(next));
       tv.setCaption(caption(next));
     },
     dispose(): void {
       for (const remove of removers) remove();
-      ctx.labels.remove(LABEL_ID);
+      ctx.labels.remove(labelId);
       tv.dispose();
     },
   };
