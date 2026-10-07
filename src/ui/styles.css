@@ -507,6 +507,50 @@ button {
   font-size: 12px;
 }
 
+/* Botões de ação (presets): pílulas soltas, sem estado; o de destaque em latão. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.actions__button {
+  flex: 1 0 auto;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #dfe5f3;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
+}
+
+.actions__button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.actions__button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.actions__button--accent {
+  border-color: rgba(200, 146, 58, 0.7);
+  background: linear-gradient(180deg, rgba(200, 146, 58, 0.32), rgba(200, 146, 58, 0.16));
+  color: #ffe2ad;
+}
+
+.actions__button--accent:hover {
+  background: linear-gradient(180deg, rgba(200, 146, 58, 0.45), rgba(200, 146, 58, 0.24));
+}
+
 /* Caixas de seleção: uma pílula por opção, com a caixa na cor do objeto. */
 .checks {
   display: flex;
@@ -782,6 +826,18 @@ button {
   padding: 2px;
   border-radius: 11px;
   background: rgba(255, 255, 255, 0.05);
+  /* Oito bancadas não cabem entre o HUD e o painel: as abas rolam e a ativa
+     fica no centro (ADR 0016). As pontas esmaecem para indicar que há mais. */
+  max-width: min(560px, 46vw);
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+  mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+}
+
+.station-switcher__tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .station-switcher__tab {
@@ -1663,6 +1719,12 @@ kbd {
      as setas, que levam às outras. */
   .station-switcher__tab:not(.station-switcher__tab--active) {
     display: none;
+  }
+
+  .station-switcher__tabs {
+    max-width: none;
+    mask-image: none;
+    -webkit-mask-image: none;
   }
 
   .station-switcher__tab {

@@ -6,6 +6,7 @@ import type { QualityManager } from './quality';
 import type { LabelLayer } from '../scene/labels';
 import type { Pass } from 'postprocessing';
 import type { ClickHandle } from './input';
+import type { LabAudio } from './audio';
 
 /**
  * Interface de experimento e registro (SPEC §7).
@@ -55,6 +56,11 @@ export interface LabContext {
    * "voa"). A música de fundo se cala enquanto o vídeo está aberto.
    */
   readonly openVideo?: (video: LabVideo) => void;
+  /**
+   * Som do experimento (ADR 0016): barramento com limitador e teto de ganho.
+   * Enquanto o experimento soa (`setActive`), a música de fundo se cala.
+   */
+  readonly audio?: LabAudio;
 }
 
 /** Vídeo que um experimento pode abrir na frente da tela. */
@@ -150,6 +156,17 @@ export type PanelControl = PanelControlCommon &
         id: string;
         label: Record<Locale, string>;
         options: readonly { value: string; label: string; tone?: 'focus' | 'warm' | 'cool' }[];
+      }
+    | {
+        /**
+         * Fileira de botões de ação: cada um chama `set(id, value)` uma vez,
+         * sem estado próprio. Presets, "mostre-me algo bonito", espalhar a
+         * areia de novo. `accent` destaca o botão (o preset-surpresa).
+         */
+        kind: 'actions';
+        id: string;
+        label: Record<Locale, string>;
+        options: readonly { value: string; label: string; accent?: boolean }[];
       }
     | {
         kind: 'stops';

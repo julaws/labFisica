@@ -6,6 +6,7 @@ import { PALETTE } from './materials';
 import { PORTRAIT_FRAME, type PortraitWall, createPortraitWall } from './portrait-wall';
 import { createShelfDecor } from './shelf-decor';
 import { atomArtwork, galaxyArtwork, wallPosterTexture } from './textures/procedural';
+import { WING_POSTER_COUNT, wingPosterAtlas } from './textures/wing-posters';
 
 /**
  * A sala do laboratório (SPEC §3.1): estúdio escuro com profundidade, piso de
@@ -66,16 +67,26 @@ export interface LightAccent {
 }
 
 /** Posição x das bancadas (estações) na sala, da esquerda para a direita. */
-export const STATION_X: readonly number[] = [-6.3, -2.1, 2.1, 6.3];
+export const STATION_X: readonly number[] = [-6.3, -2.1, 2.1, 6.3, 10.5, 14.7, 18.9, 23.1];
 
-// Larga o bastante para quatro bancadas lado a lado (ADR 0008 e 0011). A
+// As quatro primeiras bancadas (ADR 0008 e 0011) ficam entre −9 e 9 m, com a
+// estante e a galeria de retratos atrás; a ala nova (ADR 0016) estende a sala
+// para a direita, com mais quatro bancadas e um cartaz atrás de cada uma. A
 // parede do fundo fica logo atrás das bancadas (1,1 m da traseira delas; a
 // estante a meio metro), para os retratos e os enfeites aparecerem grandes e
 // pouco desfocados atrás dos experimentos (ADR 0012); a da frente fica longe,
 // atrás de todas as câmeras.
 const BACK_Z = -1.6;
 const FRONT_Z = 5.5;
-const ROOM = { width: 18, depth: FRONT_Z - BACK_Z, height: 3.4, centerZ: (FRONT_Z + BACK_Z) / 2 };
+const LEFT_X = -9;
+const RIGHT_X = 25.8;
+const ROOM = {
+  width: RIGHT_X - LEFT_X,
+  centerX: (LEFT_X + RIGHT_X) / 2,
+  depth: FRONT_Z - BACK_Z,
+  height: 3.4,
+  centerZ: (FRONT_Z + BACK_Z) / 2,
+};
 
 /**
  * Retratos lado a lado, numa fileira de cada lado da estante: os físicos à
@@ -87,7 +98,7 @@ const ROOM = { width: 18, depth: FRONT_Z - BACK_Z, height: 3.4, centerZ: (FRONT_
 const GALLERY = {
   /** Bordas do trecho de parede de cada lado, em |x|: estante e parede lateral. */
   inner: 2.63 + 0.3,
-  outer: ROOM.width / 2 - 0.3,
+  outer: -LEFT_X - 0.3,
   /** Altura do centro dos quadros, m. */
   y: 1.88,
   men: 6,
@@ -119,15 +130,19 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   const shell = new THREE.BoxGeometry(ROOM.width, ROOM.height, ROOM.depth);
   owned.push(shell);
   const walls = new THREE.Mesh(shell, materials.wall);
-  walls.position.set(0, ROOM.height / 2, ROOM.centerZ);
+  walls.position.set(ROOM.centerX, ROOM.height / 2, ROOM.centerZ);
   walls.receiveShadow = true;
   group.add(walls);
 
   const floorGeometry = new THREE.PlaneGeometry(ROOM.width, ROOM.depth);
+  // O concreto foi ajustado para o piso de 18 m: o u cresce com a largura, e
+  // o desenho mantém o tamanho na ala nova.
+  const floorUv = floorGeometry.attributes.uv!;
+  for (let i = 0; i < floorUv.count; i += 1) floorUv.setX(i, (floorUv.getX(i) * ROOM.width) / 18);
   owned.push(floorGeometry);
   const floor = new THREE.Mesh(floorGeometry, materials.polishedConcrete);
   floor.rotation.x = -Math.PI / 2;
-  floor.position.set(0, 0.002, ROOM.centerZ);
+  floor.position.set(ROOM.centerX, 0.002, ROOM.centerZ);
   floor.receiveShadow = true;
   group.add(floor);
 
@@ -212,6 +227,44 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   group.add(frames);
   glowing.push(frames);
 
+  // --- Cartazes da ala nova -------------------------------------------------
+  // Um atrás de cada bancada nova, na altura dos retratos: o buraco negro,
+  // Chladni, os batimentos e o foguete. Uma textura e uma malha para os
+  // quatro, mais uma para os filetes ciano.
+  const wingAtlas = wingPosterAtlas();
+  owned.push(wingAtlas);
+  const wingMaterial = new THREE.MeshStandardMaterial({
+    map: wingAtlas,
+    emissiveMap: wingAtlas,
+    emissive: new THREE.Color(0xffffff),
+    emissiveIntensity: 0.75,
+    roughness: 0.85,
+    metalness: 0,
+  });
+  owned.push(wingMaterial);
+  const wingParts: THREE.BufferGeometry[] = [];
+  const wingFrames: THREE.BufferGeometry[] = [];
+  for (let index = 0; index < WING_POSTER_COUNT; index += 1) {
+    const x = STATION_X[4 + index] ?? 0;
+    const plane = new THREE.PlaneGeometry(1.05, 1.4);
+    const uv = plane.attributes.uv!;
+    for (let i = 0; i < uv.count; i += 1) uv.setX(i, (uv.getX(i) + index) / WING_POSTER_COUNT);
+    wingParts.push(plane.translate(x, 1.98, BACK_Z + 0.02));
+    wingFrames.push(new THREE.PlaneGeometry(1.1, 1.45).translate(x, 1.98, BACK_Z + 0.014));
+  }
+  const wingGeometry = mergeGeometries(wingParts);
+  const wingFrameGeometry = mergeGeometries(wingFrames);
+  for (const part of [...wingParts, ...wingFrames]) part.dispose();
+  if (!wingGeometry || !wingFrameGeometry) throw new Error('Falha ao mesclar os cartazes da ala nova');
+  owned.push(wingGeometry, wingFrameGeometry);
+  const wingPosters = new THREE.Mesh(wingGeometry, wingMaterial);
+  wingPosters.name = 'wing-posters';
+  group.add(wingPosters);
+  glowing.push(wingPosters);
+  const wingPosterFrames = new THREE.Mesh(wingFrameGeometry, materials.emissive(PALETTE.focus, 0.65));
+  group.add(wingPosterFrames);
+  glowing.push(wingPosterFrames);
+
   // --- Quadros nas paredes laterais ------------------------------------------
   // Átomo na parede direita, junto ao canto da estante; galáxia na esquerda.
   // Retroiluminados como os cartazes, com a moldura desenhada na textura. As
@@ -232,8 +285,8 @@ export function createLabRoom(materials: MaterialLibrary): LabRoom {
   owned.push(artAtlas);
 
   const artParts = [
-    { half: 0, x: ROOM.width / 2 - 0.015, rotation: -Math.PI / 2 },
-    { half: 1, x: -ROOM.width / 2 + 0.015, rotation: Math.PI / 2 },
+    { half: 0, x: RIGHT_X - 0.015, rotation: -Math.PI / 2 },
+    { half: 1, x: LEFT_X + 0.015, rotation: Math.PI / 2 },
   ].map(({ half, x, rotation }) => {
     const plane = new THREE.PlaneGeometry(1.6, 1.2);
     const uv = plane.attributes.uv!;

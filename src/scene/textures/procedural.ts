@@ -809,7 +809,7 @@ export function galaxyArtwork(width = 1024, height = 768): THREE.Texture {
   });
 }
 
-function artCanvas(width: number, height: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
+export function artCanvas(width: number, height: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } {
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
@@ -819,7 +819,7 @@ function artCanvas(width: number, height: number): { canvas: HTMLCanvasElement; 
 }
 
 /** Fundo em degradê com moldura escura e filete ciano, como os cartazes. */
-function paintFramedBackground(
+export function paintFramedBackground(
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number,
@@ -839,7 +839,7 @@ function paintFramedBackground(
   ctx.strokeRect(inset - 4, inset - 4, width - inset * 2 + 8, height - inset * 2 + 8);
 }
 
-function caption(ctx: CanvasRenderingContext2D, width: number, height: number, text: string): void {
+export function caption(ctx: CanvasRenderingContext2D, width: number, height: number, text: string): void {
   ctx.globalCompositeOperation = 'source-over';
   ctx.fillStyle = 'rgba(230, 236, 246, 0.8)';
   ctx.font = `600 ${Math.round(height * 0.04)}px Outfit, ui-sans-serif, system-ui, sans-serif`;
@@ -847,7 +847,7 @@ function caption(ctx: CanvasRenderingContext2D, width: number, height: number, t
   ctx.fillText(text, width / 2, height * 0.92);
 }
 
-function finishArt(canvas: HTMLCanvasElement): THREE.Texture {
+export function finishArt(canvas: HTMLCanvasElement): THREE.Texture {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;

@@ -370,6 +370,24 @@ export function createPanel({
         break;
       }
 
+      case 'actions': {
+        const group = document.createElement('div');
+        group.className = 'actions';
+        group.setAttribute('role', 'group');
+        group.setAttribute('aria-labelledby', label.id);
+        for (const option of control.options) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'actions__button';
+          if (option.accent) button.classList.add('actions__button--accent');
+          button.textContent = option.label;
+          button.addEventListener('click', () => experiment.set(control.id, option.value));
+          group.appendChild(button);
+        }
+        wrapper.appendChild(group);
+        break;
+      }
+
       case 'toggle': {
         const button = document.createElement('button');
         button.type = 'button';

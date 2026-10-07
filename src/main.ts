@@ -32,6 +32,7 @@ import { createPanel } from './ui/panel';
 import { createNavPad } from './ui/nav-pad';
 import { createSiteBadge } from './ui/site-badge';
 import { createMusicPlayer } from './ui/music-player';
+import { createLabAudio } from './core/audio';
 import { createQualityToggle } from './ui/quality-toggle';
 import { type ScreenRect, createPortraitViewer } from './ui/portrait-viewer';
 import { createVideoViewer } from './ui/video-viewer';
@@ -395,11 +396,30 @@ async function boot(): Promise<void> {
   // --- Vídeo explicativo -------------------------------------------------------
   // Um experimento pode abrir um vídeo saindo de um objeto da cena (a TV da
   // bancada). Enquanto ele está aberto, a música de fundo se cala.
+  // A música de fundo se cala enquanto o vídeo está aberto ou enquanto um
+  // experimento soa (ADR 0016); o som do experimento se cala com o vídeo.
+  let videoOpen = false;
+  let labSounding = false;
+  const syncMusic = (): void => music.setSuspended(videoOpen || labSounding);
+  const labAudio = createLabAudio({
+    onActiveChange: (active) => {
+      labSounding = active;
+      syncMusic();
+    },
+  });
   const videoViewer = createVideoViewer({
     parent: document.body,
     locale,
-    onOpen: () => music.setSuspended(true),
-    onClosed: () => music.setSuspended(false),
+    onOpen: () => {
+      videoOpen = true;
+      labAudio.setDucked(true);
+      syncMusic();
+    },
+    onClosed: () => {
+      videoOpen = false;
+      labAudio.setDucked(false);
+      syncMusic();
+    },
   });
   /** Retângulo na tela da caixa de um objeto, projetado pela câmera; null se atrás dela. */
   const objectRect = (object: THREE.Object3D): ScreenRect | null => {
@@ -516,6 +536,7 @@ async function boot(): Promise<void> {
         if (portraitViewer.isOpen) return;
         videoViewer.open({ ...video, sourceRect: () => objectRect(video.anchor) });
       },
+      audio: labAudio,
     });
     experiment.setLocale(locale);
     const roots: THREE.Object3D[] = [];

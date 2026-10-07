@@ -88,6 +88,11 @@ export function createStationSwitcher({
       const active = entry.id === current;
       button.classList.toggle('station-switcher__tab--active', active);
       button.setAttribute('aria-selected', String(active));
+      // As abas rolam quando não cabem: a ativa vai para o centro. Sem
+      // scrollIntoView, que rolaria também a página.
+      if (active && tabs.scrollWidth > tabs.clientWidth) {
+        tabs.scrollLeft = button.offsetLeft - (tabs.clientWidth - button.offsetWidth) / 2;
+      }
     }
   };
   sync();
