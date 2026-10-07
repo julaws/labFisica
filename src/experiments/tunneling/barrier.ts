@@ -99,8 +99,16 @@ export function createBarrier({ materials, baseAboveTop }: BarrierOptions): Barr
   const zeroLineMaterial = new THREE.MeshBasicMaterial({ color: 0x7c5cff, toneMapped: false });
   owned.push(zeroLineMaterial);
   const zeroLineGeometry = mergeGeometries([
-    new THREE.BoxGeometry(floorTo - floorFrom, 0.004, 0.004).translate((floorFrom + floorTo) / 2, 0.001, 0.2),
-    new THREE.BoxGeometry(floorTo - floorFrom, 0.004, 0.004).translate((floorFrom + floorTo) / 2, 0.001, -0.2),
+    new THREE.BoxGeometry(floorTo - floorFrom, 0.004, 0.004).translate(
+      (floorFrom + floorTo) / 2,
+      0.001,
+      0.2,
+    ),
+    new THREE.BoxGeometry(floorTo - floorFrom, 0.004, 0.004).translate(
+      (floorFrom + floorTo) / 2,
+      0.001,
+      -0.2,
+    ),
   ]);
   if (!zeroLineGeometry) throw new Error('Falha ao montar a linha de 0 eV');
   geometries.push(zeroLineGeometry);
@@ -110,37 +118,60 @@ export function createBarrier({ materials, baseAboveTop }: BarrierOptions): Barr
 
   // --- Régua de energia ----------------------------------------------------------
   const rulerEv = 4.5;
+  // Desenhada em 128×512 "pontos", com 4 pixels por ponto: a régua fica
+  // nítida mesmo vista de perto e de lado (com a filtragem anisotrópica).
+  const RULER_DPR = 4;
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 512;
+  canvas.width = 128 * RULER_DPR;
+  canvas.height = 512 * RULER_DPR;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D indisponível para a régua');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = 'rgba(14, 18, 30, 0.75)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = '#b9a6ff';
-  ctx.fillStyle = '#d8ccff';
-  ctx.font = '600 26px "DM Mono", ui-monospace, monospace';
-  ctx.textBaseline = 'middle';
-  for (let ev = 0; ev <= rulerEv + 1e-6; ev += 0.5) {
-    const y = canvas.height - (ev / rulerEv) * (canvas.height - 16) - 8;
-    const major = Math.abs(ev - Math.round(ev)) < 1e-6;
-    ctx.lineWidth = major ? 4 : 2;
-    ctx.beginPath();
-    ctx.moveTo(canvas.width - (major ? 46 : 26), y);
-    ctx.lineTo(canvas.width, y);
-    ctx.stroke();
-    if (major) ctx.fillText(`${ev}`, 14, y);
-  }
-  ctx.font = '600 22px "DM Mono", ui-monospace, monospace';
-  ctx.fillText('eV', 14, 22);
+  ctx.scale(RULER_DPR, RULER_DPR);
+  const rulerW = canvas.width / RULER_DPR;
+  const rulerH = canvas.height / RULER_DPR;
+  const drawRuler = (): void => {
+    ctx.clearRect(0, 0, rulerW, rulerH);
+    ctx.fillStyle = 'rgba(14, 18, 30, 0.75)';
+    ctx.fillRect(0, 0, rulerW, rulerH);
+    ctx.strokeStyle = '#b9a6ff';
+    ctx.fillStyle = '#d8ccff';
+    ctx.font = '700 34px "DM Mono", ui-monospace, monospace';
+    ctx.textBaseline = 'middle';
+    for (let ev = 0; ev <= rulerEv + 1e-6; ev += 0.5) {
+      const y = rulerH - (ev / rulerEv) * (rulerH - 16) - 8;
+      const major = Math.abs(ev - Math.round(ev)) < 1e-6;
+      ctx.lineWidth = major ? 5 : 3;
+      ctx.beginPath();
+      ctx.moveTo(rulerW - (major ? 46 : 26), y);
+      ctx.lineTo(rulerW, y);
+      ctx.stroke();
+      if (major) ctx.fillText(`${ev}`, 14, y);
+    }
+    ctx.font = '700 26px "DM Mono", ui-monospace, monospace';
+    ctx.fillText('eV', 12, 24);
+  };
+  drawRuler();
   const rulerTexture = new THREE.CanvasTexture(canvas);
   rulerTexture.colorSpace = THREE.SRGBColorSpace;
+  rulerTexture.anisotropy = 8;
+  // Se a DM Mono ainda não carregou, a régua sai com a fonte reserva: redesenha.
+  void document.fonts?.ready.then(() => {
+    drawRuler();
+    rulerTexture.needsUpdate = true;
+  });
   owned.push(rulerTexture);
-  const rulerMaterial = new THREE.MeshBasicMaterial({ map: rulerTexture, transparent: true, toneMapped: false });
+  const rulerMaterial = new THREE.MeshBasicMaterial({
+    map: rulerTexture,
+    transparent: true,
+    toneMapped: false,
+  });
   owned.push(rulerMaterial);
   const rulerHeight = rulerEv * SCENE_PER_EV;
-  const rulerGeometry = new THREE.PlaneGeometry(rulerHeight / 4, rulerHeight).translate(-0.1, rulerHeight / 2, -BARRIER_DEPTH / 2);
+  const rulerGeometry = new THREE.PlaneGeometry(rulerHeight / 4, rulerHeight).translate(
+    -0.1,
+    rulerHeight / 2,
+    -BARRIER_DEPTH / 2,
+  );
   geometries.push(rulerGeometry);
   group.add(new THREE.Mesh(rulerGeometry, rulerMaterial));
 

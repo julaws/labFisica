@@ -44,12 +44,19 @@ export function createCollector({ materials }: CollectorOptions): Collector {
   const cup = new THREE.Group();
   group.add(cup);
   const cupGeometry = mergeGeometries([
-    new THREE.CylinderGeometry(0.055, 0.055, 0.12, 32, 1, true).rotateZ(Math.PI / 2).translate(0.06, 0, 0),
+    new THREE.CylinderGeometry(0.055, 0.055, 0.12, 32, 1, true)
+      .rotateZ(Math.PI / 2)
+      .translate(0.06, 0, 0),
     new THREE.CylinderGeometry(0.055, 0.055, 0.008, 32).rotateZ(Math.PI / 2).translate(0.12, 0, 0),
   ]);
   if (!cupGeometry) throw new Error('Falha ao montar o coletor');
   geometries.push(cupGeometry);
-  const copper = new THREE.MeshStandardMaterial({ color: 0xc27a4a, metalness: 0.9, roughness: 0.3, side: THREE.DoubleSide });
+  const copper = new THREE.MeshStandardMaterial({
+    color: 0xc27a4a,
+    metalness: 0.9,
+    roughness: 0.3,
+    side: THREE.DoubleSide,
+  });
   owned.push(copper);
   const cupMesh = new THREE.Mesh(cupGeometry, copper);
   cupMesh.castShadow = true;
@@ -70,18 +77,25 @@ export function createCollector({ materials }: CollectorOptions): Collector {
   cup.add(stem);
 
   // --- Painel de contagem -----------------------------------------------------------
+  // Desenhado em 768×480 "pontos", com 2 pixels por ponto, e com filtragem
+  // anisotrópica: o painel fica de lado para a câmera e borrava sem isso.
+  const PANEL_DPR = 2;
+  const panelW = 768;
+  const panelH = 480;
   const canvas = document.createElement('canvas');
-  canvas.width = 768;
-  canvas.height = 480;
+  canvas.width = panelW * PANEL_DPR;
+  canvas.height = panelH * PANEL_DPR;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D indisponível para o contador');
+  ctx.scale(PANEL_DPR, PANEL_DPR);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
   owned.push(texture);
   const screenMaterial = new THREE.MeshBasicMaterial({ map: texture, toneMapped: false });
   owned.push(screenMaterial);
   const screenWidth = 0.46;
-  const screenHeight = screenWidth * (canvas.height / canvas.width);
+  const screenHeight = screenWidth * (panelH / panelW);
   const screenGeometry = new THREE.PlaneGeometry(screenWidth, screenHeight);
   geometries.push(screenGeometry);
   const screen = new THREE.Mesh(screenGeometry, screenMaterial);
@@ -120,21 +134,21 @@ export function createCollector({ materials }: CollectorOptions): Collector {
     },
 
     showReading(reading: CounterReading): void {
-      const w = canvas.width;
-      const h = canvas.height;
+      const w = panelW;
+      const h = panelH;
       ctx.fillStyle = '#0b1020';
       ctx.fillRect(0, 0, w, h);
       ctx.strokeStyle = 'rgba(255, 211, 107, 0.6)';
       ctx.lineWidth = 6;
       ctx.strokeRect(10, 10, w - 20, h - 20);
       ctx.fillStyle = '#ffd36b';
-      ctx.font = '700 40px Outfit, ui-sans-serif, sans-serif';
+      ctx.font = '700 44px Outfit, ui-sans-serif, sans-serif';
       ctx.textBaseline = 'middle';
       ctx.fillText(reading.title, 40, 62);
-      ctx.font = '500 36px "DM Mono", ui-monospace, monospace';
+      ctx.font = '600 42px "DM Mono", ui-monospace, monospace';
       reading.rows.forEach(([label, value], index) => {
-        const y = 140 + index * 64;
-        ctx.fillStyle = '#9fb0d0';
+        const y = 138 + index * 68;
+        ctx.fillStyle = '#b8c6e2';
         ctx.fillText(label, 40, y);
         ctx.fillStyle = '#eef4ff';
         ctx.textAlign = 'right';
@@ -142,8 +156,8 @@ export function createCollector({ materials }: CollectorOptions): Collector {
         ctx.textAlign = 'left';
       });
       ctx.fillStyle = '#8ee8ff';
-      ctx.font = '700 40px "DM Mono", ui-monospace, monospace';
-      ctx.fillText(reading.footer, 40, h - 56);
+      ctx.font = '700 46px "DM Mono", ui-monospace, monospace';
+      ctx.fillText(reading.footer, 40, h - 52);
       texture.needsUpdate = true;
     },
 

@@ -37,7 +37,14 @@ import {
 } from './copy';
 import { type ElectronStream, createElectronStream } from './electrons';
 import { TUNNELING_PLATE } from './equation';
-import { BARRIER_X, BASE_ABOVE_TOP, COLLECTOR_X, NOZZLE_X, SCENE_PER_EV, SCENE_PER_NM } from './layout';
+import {
+  BARRIER_X,
+  BASE_ABOVE_TOP,
+  COLLECTOR_X,
+  NOZZLE_X,
+  SCENE_PER_EV,
+  SCENE_PER_NM,
+} from './layout';
 import { createTunnelingStore } from './state';
 import { type ElectronWave, createElectronWave } from './wave';
 
@@ -149,11 +156,15 @@ export function createTunnelingExperiment(): Experiment {
       'tn-barrier',
       `${en ? 'Wall' : 'Muro'} · ${formatEv(state.height, locale)} × ${formatNm(state.width, locale)}`,
     );
-    context.labels.setText('tn-collector', `${en ? 'Collector' : 'Coletor'} · ${formatPercent(f.transmission, locale)}`);
+    context.labels.setText(
+      'tn-collector',
+      `${en ? 'Collector' : 'Coletor'} · ${formatPercent(f.transmission, locale)}`,
+    );
     context.labels.setText('tn-energy', `E = ${formatEv(ENERGY, locale)}`);
   }
 
-  const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
+  const clamp = (value: number, min: number, max: number): number =>
+    Math.min(Math.max(value, min), max);
   const round = (value: number, step: number): number => Math.round(value / step) * step;
   const { heightRange, widthRange, incidentRange } = DEFAULT_TUNNELING;
 
@@ -212,7 +223,11 @@ export function createTunnelingExperiment(): Experiment {
       ctx.addGlow(electrons.points);
 
       // --- Placa da equação na frente da bancada -------------------------------
-      const equation = createEquationPlate({ spec: TUNNELING_PLATE, width: ctx.bench.width - 0.3, height: 0.46 });
+      const equation = createEquationPlate({
+        spec: TUNNELING_PLATE,
+        width: ctx.bench.width - 0.3,
+        height: 0.46,
+      });
       equation.mesh.position.set(0, ctx.bench.topY - 0.36, ctx.bench.frontZ + 0.006);
       ctx.bench.group.add(equation.mesh);
       disposers.push(() => {
@@ -230,11 +245,19 @@ export function createTunnelingExperiment(): Experiment {
           poster: videoPosterUrl,
           title: { 'pt-BR': 'Planka e o Tunelamento', en: 'Planka and Quantum Tunnelling' },
           description: {
-            'pt-BR': 'A bolinha que não passa, a onda que atravessa e onde o tunelamento aparece no dia a dia, com a Planka.',
+            'pt-BR':
+              'A bolinha que não passa, a onda que atravessa e onde o tunelamento aparece no dia a dia, com a Planka.',
             en: 'The ball that bounces back, the wave that gets through and where tunnelling shows up in everyday life, with Planka (in Portuguese).',
           },
-          position: { x: ctx.bench.width / 2 - 0.62, y: ctx.bench.topY, z: ctx.bench.frontZ - 0.12 },
+          // No canto direito, rente à borda e à frente do coletor: menor que nas
+          // outras bancadas para não cobrir o copo nem o painel de contagem.
+          position: {
+            x: ctx.bench.width / 2 - 0.24,
+            y: ctx.bench.topY,
+            z: ctx.bench.frontZ - 0.28,
+          },
           rotationY: -0.35,
+          scale: 0.7,
         },
         locale,
       );
@@ -247,21 +270,51 @@ export function createTunnelingExperiment(): Experiment {
       }
 
       // --- Etiquetas ---------------------------------------------------------------
-      ctx.labels.add({ id: 'tn-gun', anchor: gun.group, offset: { x: -0.2, y: 0.13, z: 0 }, text: '' });
+      ctx.labels.add({
+        id: 'tn-gun',
+        anchor: gun.group,
+        offset: { x: -0.2, y: 0.13, z: 0 },
+        text: '',
+      });
       ctx.labels.add({ id: 'tn-barrier', anchor: barrier.top, text: '', accent: '#b48cff' });
-      ctx.labels.add({ id: 'tn-collector', anchor: collectorRef.labelAnchor, text: '', accent: '#ffd36b' });
-      ctx.labels.add({ id: 'tn-energy', anchor: barrier.energyAnchor, text: '', accent: '#ffd36b' });
+      ctx.labels.add({
+        id: 'tn-collector',
+        anchor: collectorRef.labelAnchor,
+        text: '',
+        accent: '#ffd36b',
+      });
+      ctx.labels.add({
+        id: 'tn-energy',
+        anchor: barrier.energyAnchor,
+        text: '',
+        accent: '#ffd36b',
+      });
       disposers.push(() => {
-        for (const id of ['tn-gun', 'tn-barrier', 'tn-collector', 'tn-energy']) ctx.labels.remove(id);
+        for (const id of ['tn-gun', 'tn-barrier', 'tn-collector', 'tn-energy'])
+          ctx.labels.remove(id);
       });
 
       // --- Atalhos -------------------------------------------------------------------
       const nudgeWidth = (direction: number): void =>
-        store.set({ width: clamp(round(store.get().width + direction * 0.05e-9, 0.01e-9), widthRange.min, widthRange.max) });
+        store.set({
+          width: clamp(
+            round(store.get().width + direction * 0.05e-9, 0.01e-9),
+            widthRange.min,
+            widthRange.max,
+          ),
+        });
       const nudgeHeight = (direction: number): void =>
-        store.set({ height: clamp(round(store.get().height + direction * 0.1, 0.05), heightRange.min, heightRange.max) });
+        store.set({
+          height: clamp(
+            round(store.get().height + direction * 0.1, 0.05),
+            heightRange.min,
+            heightRange.max,
+          ),
+        });
       const scaleIncident = (factor: number): void =>
-        store.set({ incident: clamp(store.get().incident * factor, incidentRange.min, incidentRange.max) });
+        store.set({
+          incident: clamp(store.get().incident * factor, incidentRange.min, incidentRange.max),
+        });
       disposers.push(
         ctx.onKey('[', () => nudgeWidth(-1)),
         ctx.onKey(']', () => nudgeWidth(1)),
@@ -302,7 +355,9 @@ export function createTunnelingExperiment(): Experiment {
       switch (id) {
         case 'incident':
           // O slider fala em nA.
-          store.set({ incident: clamp(Number(value) * 1e-9, incidentRange.min, incidentRange.max) });
+          store.set({
+            incident: clamp(Number(value) * 1e-9, incidentRange.min, incidentRange.max),
+          });
           break;
         case 'height':
           store.set({ height: clamp(Number(value), heightRange.min, heightRange.max) });
@@ -348,7 +403,11 @@ export function createTunnelingExperiment(): Experiment {
         title: copy.title[hudLocale],
         subtitle: copy.subtitle[hudLocale],
         chips: [
-          { id: 'transmission', label: en ? 'Tunnel' : 'Tunela', value: formatPercent(f.transmission, hudLocale) },
+          {
+            id: 'transmission',
+            label: en ? 'Tunnel' : 'Tunela',
+            value: formatPercent(f.transmission, hudLocale),
+          },
           { id: 'current', label: 'I', value: formatCurrent(f.current, hudLocale) },
           { id: 'height', label: en ? 'Height' : 'Altura', value: formatEv(f.height, hudLocale) },
           { id: 'width', label: en ? 'Width' : 'Largura', value: formatNm(f.width, hudLocale) },
@@ -361,12 +420,25 @@ export function createTunnelingExperiment(): Experiment {
     numbers(numbersLocale: Locale): NumberRow[] {
       const f = facts();
       const en = numbersLocale === 'en';
-      const n = (value: number, decimals: number): string => formatNumber(value, decimals, numbersLocale);
+      const n = (value: number, decimals: number): string =>
+        formatNumber(value, decimals, numbersLocale);
       const below = f.energy < f.height;
       return [
-        { id: 'energy', label: en ? 'Electron energy E' : 'Energia do elétron E', value: formatEv(f.energy, numbersLocale) },
-        { id: 'height', label: en ? 'Wall height V₀' : 'Altura do muro V₀', value: formatEv(f.height, numbersLocale) },
-        { id: 'width', label: en ? 'Wall width a' : 'Largura do muro a', value: formatNm(f.width, numbersLocale) },
+        {
+          id: 'energy',
+          label: en ? 'Electron energy E' : 'Energia do elétron E',
+          value: formatEv(f.energy, numbersLocale),
+        },
+        {
+          id: 'height',
+          label: en ? 'Wall height V₀' : 'Altura do muro V₀',
+          value: formatEv(f.height, numbersLocale),
+        },
+        {
+          id: 'width',
+          label: en ? 'Wall width a' : 'Largura do muro a',
+          value: formatNm(f.width, numbersLocale),
+        },
         {
           id: 'wavelength',
           label: en ? 'de Broglie wavelength λ' : 'Comprimento de onda λ',
@@ -396,7 +468,11 @@ export function createTunnelingExperiment(): Experiment {
           value: below ? formatPercent(f.approximate, numbersLocale) : '—',
           hint: '16E(V₀ − E)/V₀² · e^(−2κa)',
         },
-        { id: 'incident', label: en ? 'Beam current I₀' : 'Corrente do feixe I₀', value: formatCurrent(f.incident, numbersLocale) },
+        {
+          id: 'incident',
+          label: en ? 'Beam current I₀' : 'Corrente do feixe I₀',
+          value: formatCurrent(f.incident, numbersLocale),
+        },
         {
           id: 'current',
           label: en ? 'Tunnelling current I' : 'Corrente de tunelamento I',
