@@ -119,6 +119,7 @@ export const ROCKET_SHORTCUTS = [
   { keys: 'G', description: { 'pt-BR': 'gravidade', en: 'gravity' } },
   { keys: 'H', description: { 'pt-BR': 'arrasto do ar', en: 'air drag' } },
   { keys: '[ ]', description: { 'pt-BR': 'menos ou mais propelente', en: 'less or more propellant' } },
+  { keys: 'V', description: { 'pt-BR': 'assistir ao vídeo explicativo', en: 'watch the explainer video' } },
 ] as const;
 
 export function buildRocketCopy(f: RocketFacts): ExperimentCopy {

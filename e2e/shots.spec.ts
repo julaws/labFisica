@@ -728,3 +728,18 @@ test('vídeo explicativo dos batimentos: tecla V', async ({ page }, testInfo) =>
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-66-tv-batimentos.png` });
 });
+
+test('vídeo explicativo do foguete: tecla V', async ({ page }, testInfo) => {
+  await openLab(page, '#/rocket');
+  await page.mouse.click(5, 450);
+  await page.keyboard.press('v');
+  const viewer = page.getByRole('dialog', { name: 'Planka e o Foguete' });
+  await expect(viewer).toBeVisible();
+  await expect(page.locator('.music')).toHaveClass(/music--suspended/);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-67-video-foguete.png` });
+  await page.keyboard.press('Escape');
+  await expect(viewer).toBeHidden();
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-68-tv-foguete.png` });
+});

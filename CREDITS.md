@@ -83,10 +83,11 @@ Um vídeo por bancada, aberto pela TV retrô de cada uma (`src/scene/explainer-v
 (`planka-fenda.mp4`), "Planka e a Força Magnética" (`planka-magnetismo.mp4`) e
 "Planka e o Tunelamento" (`planka-tunelamento.mp4`) e, na ala nova, "Planka e o
 Buraco Negro" (`planka-buraconegro.mp4`), "Planka e as Figuras de Chladni"
-(`planka-chladni.mp4`) e "Planka e os Batimentos" (`planka-batimentos.mp4`), com as
-capas em `src/assets/videos/`. Os projetos estão em `planka_lentes/`, `planka_fenda/`,
-`planka_magnetismo/`, `planka_tunelamento/`, `planka_buraconegro/`, `planka_chladni/`
-e `planka_batimentos/`. Todos seguem o que vale para o primeiro:
+(`planka-chladni.mp4`), "Planka e os Batimentos" (`planka-batimentos.mp4`) e "Planka e
+o Foguete" (`planka-foguete.mp4`), com as capas em `src/assets/videos/`. Os projetos
+estão em `planka_lentes/`, `planka_fenda/`, `planka_magnetismo/`, `planka_tunelamento/`,
+`planka_buraconegro/`, `planka_chladni/`, `planka_batimentos/` e `planka_foguete/`.
+Todos seguem o que vale para o primeiro:
 
 ### "Planka e as Lentes"
 

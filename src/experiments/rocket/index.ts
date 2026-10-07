@@ -24,6 +24,8 @@ import {
   tsiolkovsky,
 } from '../../optics/mechanics/rocket';
 import { createEquationPlate } from '../../scene/equation-plate';
+import { type ExplainerVideo, mountExplainerVideo } from '../../scene/explainer-video';
+import videoPosterUrl from '../../assets/videos/planka-foguete.jpg?url';
 import { formatNumber } from '../../ui/i18n';
 import { type RocketConsole, createRocketConsole } from './console';
 import {
@@ -59,6 +61,7 @@ export function createRocketExperiment(): Experiment {
   const store = createRocketStore();
   let locale: Locale = 'pt-BR';
   let context: LabContext | null = null;
+  let explainer: ExplainerVideo | null = null;
   const disposers: (() => void)[] = [];
   const root = new THREE.Group();
   root.name = 'rocket';
@@ -294,6 +297,31 @@ export function createRocketExperiment(): Experiment {
         equation.dispose();
       });
 
+      // --- TV do vídeo explicativo da Planka (tecla V) -------------------------
+      explainer = mountExplainerVideo(
+        ctx,
+        {
+          file: 'planka-foguete.mp4',
+          poster: videoPosterUrl,
+          title: { 'pt-BR': 'Planka e o Foguete', en: 'Planka and the Rocket' },
+          description: {
+            'pt-BR': 'A Planka mostra como um foguete sobe empurrando o próprio gás: ação e reação, o momento que se conserva, a equação de Tsiolkovsky, os estágios e a órbita.',
+            en: 'Planka shows how a rocket climbs by pushing its own gas: action and reaction, conserved momentum, the Tsiolkovsky equation, staging and orbit.',
+          },
+          position: { x: -0.06, y: ctx.bench.topY, z: ctx.bench.frontZ - 0.2 },
+          rotationY: -0.35,
+          scale: 0.7,
+        },
+        locale,
+      );
+      if (explainer) {
+        const mounted = explainer;
+        disposers.push(() => {
+          mounted.dispose();
+          explainer = null;
+        });
+      }
+
       const rocketAnchor = new THREE.Object3D();
       rocketAnchor.position.set(0, 0.82, 0);
       vehicle3d.group.add(rocketAnchor);
@@ -473,6 +501,7 @@ export function createRocketExperiment(): Experiment {
 
     setLocale(next: Locale): void {
       locale = next;
+      explainer?.setLocale(next);
       consoleDirty = true;
       applyState();
     },
