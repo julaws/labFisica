@@ -525,3 +525,42 @@ test('vídeo explicativo do tunelamento: tecla V', async ({ page }, testInfo) =>
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-51-tv-tunelamento.png` });
 });
+
+// --- Buraco negro, na quinta bancada (ADR 0017) ------------------------------
+test('buraco negro: sombra, anel de Einstein e visão didática', async ({ page }, testInfo) => {
+  await openLab(page, '#/black-hole');
+  // 10 M☉: horizonte 2GM/c² = 29,5 km; telescópio a 500 km (33,9 M): sombra
+  // de 8,56° e anel de Einstein exato de 22,2°.
+  await expect(page.locator('.chip[data-id="mass"] .chip__value')).toHaveText('10 M☉');
+  await expect(page.locator('.chip[data-id="horizon"] .chip__value')).toHaveText('29,5 km');
+  await expect(page.locator('.chip[data-id="shadow"] .chip__value')).toHaveText('8,56°');
+  await expect(page.locator('.chip[data-id="ring"] .chip__value')).toHaveText('22,2°');
+  await expect(page.locator('.hud__sentence')).toContainText('duas imagens');
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-52-black-hole.png` });
+
+  // Estrela alinhada, disco desligado, telescópio mais longe: o anel aparece.
+  await page.keyboard.press('x');
+  await page.keyboard.press('o');
+  for (let i = 0; i < 6; i += 1) await page.keyboard.press('Equal');
+  await expect(page.locator('.hud__sentence')).toContainText('anel de Einstein');
+  await expect(page.locator('.chip[data-id="shadow"] .chip__value')).toHaveText('2,92°');
+  await page.waitForTimeout(2500);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-53-black-hole-ring.png` });
+
+  // Visão didática: horizonte, esfera de fótons e raio crítico.
+  await page.keyboard.press('v');
+  await expect(page.locator('.label', { hasText: 'Esfera de fótons' })).toHaveCount(1);
+  await page.waitForTimeout(2000);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-54-black-hole-didactic.png` });
+});
+
+test('orçamento do buraco negro', async ({ page }) => {
+  await openLab(page, '#/black-hole');
+  await page.waitForTimeout(500);
+  const frame = await page.evaluate(() => window.__lab ?? null);
+  expect(frame).not.toBeNull();
+  console.info(`orçamento (buraco negro): ${frame!.drawCalls} draw calls, ${frame!.triangles} triângulos`);
+  expect(frame!.drawCalls).toBeLessThan(250);
+  expect(frame!.triangles).toBeLessThan(1_500_000);
+});

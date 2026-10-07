@@ -6,7 +6,7 @@ import globals from 'globals';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'dist-single/**', 'node_modules/**', 'screenshots/**', 'test-results/**', 'playwright-report/**'],
+    ignores: ['dist/**', 'dist-single/**', 'node_modules/**', 'screenshots/**', 'test-results/**', 'playwright-report/**', '.claude/**', 'test-results-scratch/**', 'planka_*/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,

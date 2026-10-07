@@ -376,6 +376,36 @@ dependência exponencial com a distância faz a corrente mudar cerca de dez veze
 Valores no padrão (E = 1 eV, V₀ = 2 eV, a = 0,4 nm): κ = 5,123 nm⁻¹, λ = 1,226 nm,
 T = 6,424%; com a = 0,5 nm, T = 2,355%.
 
+## 12. Luz em volta de um buraco negro de Schwarzschild (ADR 0017)
+
+Código em `src/optics/gravity/schwarzschild.ts`, testes em `tests/optics/schwarzschild.test.ts`.
+
+**Órbita da luz**: com u = 1/r, numa geodésica nula de Schwarzschild,
+d²u/dφ² = −u + 3GMu²/c² (Misner, Thorne e Wheeler, *Gravitation*, §25.6; Hartle, *Gravity*,
+cap. 9), e a integral primeira (du/dφ)² = 1/b² − u²(1 − 2GMu/c²).
+
+**Raios notáveis**: horizonte r_s = 2GM/c²; esfera de fótons 3GM/c²; parâmetro de impacto
+crítico b_c = 3√3·GM/c²; órbita estável mais interna 6GM/c².
+
+**Sombra** para um observador estático em r (Synge, *MNRAS* 131, 463, 1966):
+sen ψ = b_c·√(1 − 2M/r)/r.
+
+**Campo fraco**: α = 4GM/(c²b) + (15π/4)(GM/(c²b))² + … (Keeton e Petters, *Phys. Rev. D* 72,
+104006, 2005); raio de Einstein θ_E = √(4GM·D_LS/(c²·D_L·D_S)) (Einstein, *Science* 84, 506,
+1936). Luz rasante ao Sol: 1,75″ (Dyson, Eddington e Davidson, 1920, com a expedição de
+Sobral).
+
+**Constantes**: GM☉ = 1,327 124 4 × 10²⁰ m³/s² (IAU 2015, Resolução B3); c = 299 792 458 m/s;
+raio do Sol 695 700 km (IAU 2015).
+
+**Disco**: perfil de temperatura de disco fino com torque nulo na borda de dentro, T ∝
+r^(−3/4)(1 − √(r_in/r))^(1/4) (Shakura e Sunyaev, *A&A* 24, 337, 1973); fator de desvio de
+um emissor em órbita circular kepleriana, g = √(1 − 3M/r)/(1 − Ωλ), Ω = √(M/r³), λ = L_z/E
+(Luminet, *A&A* 75, 228, 1979, que fez a primeira imagem de um buraco negro com disco).
+
+Valores no padrão (10 M☉, telescópio a 500 km = 33,86 M): r_s = 29,53 km, sombra de 8,56°,
+anel de Einstein exato de 22,2° (campo fraco: 19,7°).
+
 ---
 
 ## Situação por tema
@@ -396,3 +426,4 @@ T = 6,424%; com a = 0,5 nm, T = 2,355%.
 | Dupla fenda com elétrons (de Broglie relativístico, Fresnel de fendas longas, detector) | documentado (§9) e testado, ADR 0009 | 02/10/2026 ✔ |
 | Força magnética (Lorentz, Helmholtz, Boris relativístico, filtro de Wien) | documentado (§10) e testado, ADR 0010 | 02/10/2026 ✔ |
 | Tunelamento por barreira retangular (solução exata de Schrödinger, T, corrente I₀·T) | documentado (§11) e testado, ADR 0011 | 03/10/2026 ✔ |
+| Buraco negro de Schwarzschild (geodésicas nulas, sombra, anel de Einstein, disco) | documentado (§12) e testado, ADR 0017 | 07/10/2026 ✔ |

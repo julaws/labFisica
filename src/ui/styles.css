@@ -892,6 +892,13 @@ button {
   opacity: 0.6;
 }
 
+/* No alto, as abas ficam entre o HUD (≈ 340 px) e o painel (≈ 490 px). */
+@media (min-width: 1241px) {
+  .station-switcher__tabs {
+    max-width: min(900px, max(240px, calc(100vw - 1060px)));
+  }
+}
+
 /* Entre o HUD e o painel não cabe em telas médias: desce para o rodapé. */
 @media (max-width: 1240px) and (min-width: 821px) {
   .station-switcher {

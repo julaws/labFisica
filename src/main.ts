@@ -274,6 +274,12 @@ async function boot(): Promise<void> {
     station: 3,
     load: async () => (await import('./experiments/tunneling')).createTunnelingExperiment(),
   });
+  registry.register({
+    id: 'black-hole',
+    title: { 'pt-BR': 'Buraco negro', en: 'Black hole' },
+    station: 4,
+    load: async () => (await import('./experiments/black-hole')).createBlackHoleExperiment(),
+  });
 
   const params = new URLSearchParams(window.location.search);
 

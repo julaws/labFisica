@@ -21,6 +21,11 @@ A licença CC0 do Poly Haven permite uso comercial, redistribuição e inclusão
 produto pago, sem exigência de atribuição — o crédito acima é por cortesia.
 Todo o resto da aparência é procedural, gerado em código em `src/scene/textures/`.
 
+Os experimentos da ala nova (ADR 0016) não usam nenhum asset externo: os cartazes atrás
+das bancadas (`src/scene/textures/wing-posters.ts`), o céu estrelado e a Via Láctea do
+buraco negro (`src/experiments/black-hole/sky.ts`, desenhados na placa de vídeo) e os sons
+(osciladores Web Audio) são gerados em código.
+
 ## Retratos da galeria (domínio público)
 
 `src/assets/portraits/physicists.jpg`, usado por `src/scene/portrait-wall.ts`: onze
@@ -131,6 +136,7 @@ com cobrança.
 | Dado | Fonte | Licença | Obtido em | Onde é usado |
 |---|---|---|---|---|
 | Coeficientes de Sellmeier dos vidros SCHOTT (N-BK7, N-SK16, N-LAK22, N-SF2, N-SF5; N-SSK2, N-SK4 e F5 em 30/09/2026) | [refractiveindex.info database](https://github.com/polyanskiy/refractiveindex.info-database), a partir do SCHOTT Zemax catalog 2017-01-20b | CC0 1.0 | 26/09/2026 | `src/optics/glass.ts` |
+| GM☉ (parâmetro gravitacional nominal do Sol) e raio nominal do Sol | IAU 2015, Resolução B3 | Domínio público (resolução científica) | 07/10/2026 | `src/optics/gravity/schwarzschild.ts` |
 | Prescrição do Gauss duplo 50 mm f/2 (raios, espessuras, n_D e ν do Exemplo 1) | Patente US 2.532.751, J. G. Baker / Perkin-Elmer, 1950 | Domínio público (patente expirada) | 30/09/2026 | `src/optics/prescriptions/baker-double-gauss.ts` |
 
 Coeficientes de vidros, prescrições e fórmulas têm as referências completas em
