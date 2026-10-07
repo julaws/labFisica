@@ -23,6 +23,8 @@ import {
   weakDeflection,
 } from '../../optics/gravity/schwarzschild';
 import { createEquationPlate } from '../../scene/equation-plate';
+import { type ExplainerVideo, mountExplainerVideo } from '../../scene/explainer-video';
+import videoPosterUrl from '../../assets/videos/planka-buraconegro.jpg?url';
 import { formatNumber } from '../../ui/i18n';
 import {
   type BlackHoleFacts,
@@ -72,6 +74,7 @@ export function createBlackHoleExperiment(): Experiment {
   const store = createBlackHoleStore();
   let locale: Locale = 'pt-BR';
   let context: LabContext | null = null;
+  let explainer: ExplainerVideo | null = null;
   const disposers: (() => void)[] = [];
   const uniforms = createTracerUniforms();
 
@@ -291,6 +294,32 @@ export function createBlackHoleExperiment(): Experiment {
         equation.dispose();
       });
 
+      // --- TV do vídeo explicativo da Planka (tecla B) -------------------------
+      explainer = mountExplainerVideo(
+        ctx,
+        {
+          file: 'planka-buraconegro.mp4',
+          poster: videoPosterUrl,
+          title: { 'pt-BR': 'Planka e o Buraco Negro', en: 'Planka and the Black Hole' },
+          description: {
+            'pt-BR': 'O que é um buraco negro, a luz que faz a curva, a sombra, o anel de Einstein e o disco que brilha, com a Planka.',
+            en: 'What a black hole is, light that bends, the shadow, the Einstein ring and the glowing disk, with Planka (in Portuguese).',
+          },
+          position: { x: ctx.bench.width / 2 - 0.24, y: ctx.bench.topY, z: ctx.bench.frontZ - 0.28 },
+          rotationY: -0.35,
+          scale: 0.7,
+          key: 'b',
+        },
+        locale,
+      );
+      if (explainer) {
+        const mounted = explainer;
+        disposers.push(() => {
+          mounted.dispose();
+          explainer = null;
+        });
+      }
+
       // --- Etiquetas ------------------------------------------------------------------
       const orbRef = orb;
       const telescopeRef = telescope;
@@ -499,6 +528,7 @@ export function createBlackHoleExperiment(): Experiment {
 
     setLocale(next: Locale): void {
       locale = next;
+      explainer?.setLocale(next);
       applyState();
     },
 

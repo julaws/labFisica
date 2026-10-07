@@ -97,6 +97,7 @@ export const BLACK_HOLE_SHORTCUTS = [
   { keys: 'O', description: { 'pt-BR': 'alinhar a estrela', en: 'line up the star' } },
   { keys: 'X', description: { 'pt-BR': 'ligar ou desligar o disco', en: 'accretion disk on or off' } },
   { keys: 'V', description: { 'pt-BR': 'visão realista ou didática', en: 'realistic or didactic view' } },
+  { keys: 'B', description: { 'pt-BR': 'assistir ao vídeo explicativo', en: 'watch the explainer video' } },
 ] as const;
 
 export function buildBlackHoleCopy(f: BlackHoleFacts): ExperimentCopy {

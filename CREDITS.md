@@ -81,9 +81,11 @@ piano solo: os concertos têm trompas na orquestra, e o pedido era evitar metais
 Um vídeo por bancada, aberto pela TV retrô de cada uma (`src/scene/explainer-video.ts`):
 "Planka e as Lentes" (`public/video/planka-lentes.mp4`), "Planka e a Dupla Fenda"
 (`planka-fenda.mp4`), "Planka e a Força Magnética" (`planka-magnetismo.mp4`) e
-"Planka e o Tunelamento" (`planka-tunelamento.mp4`), com as capas em
+"Planka e o Tunelamento" (`planka-tunelamento.mp4`) e, na ala nova, "Planka e o
+Buraco Negro" (`planka-buraconegro.mp4`), com as capas em
 `src/assets/videos/`. Os projetos estão em `planka_lentes/`, `planka_fenda/`,
-`planka_magnetismo/` e `planka_tunelamento/`. Todos seguem o que vale para o primeiro:
+`planka_magnetismo/`, `planka_tunelamento/` e `planka_buraconegro/`. Todos seguem o
+que vale para o primeiro:
 
 ### "Planka e as Lentes"
 
