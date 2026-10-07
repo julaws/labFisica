@@ -698,3 +698,18 @@ test('vídeo explicativo do buraco negro: tecla B', async ({ page }, testInfo) =
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-62-tv-buraconegro.png` });
 });
+
+test('vídeo explicativo de Chladni: tecla V', async ({ page }, testInfo) => {
+  await openLab(page, '#/chladni');
+  await page.mouse.click(5, 450);
+  await page.keyboard.press('v');
+  const viewer = page.getByRole('dialog', { name: 'Planka e as Figuras de Chladni' });
+  await expect(viewer).toBeVisible();
+  await expect(page.locator('.music')).toHaveClass(/music--suspended/);
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-63-video-chladni.png` });
+  await page.keyboard.press('Escape');
+  await expect(viewer).toBeHidden();
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-64-tv-chladni.png` });
+});

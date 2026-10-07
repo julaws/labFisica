@@ -68,6 +68,7 @@ export const CHLADNI_SHORTCUTS = [
   { keys: 'B', description: { 'pt-BR': 'espalhar a areia de novo', en: 'scatter the sand again' } },
   { keys: 'M', description: { 'pt-BR': 'ligar ou desligar o som', en: 'sound on or off' } },
   { keys: 'N', description: { 'pt-BR': 'varredura de frequência', en: 'frequency sweep' } },
+  { keys: 'V', description: { 'pt-BR': 'assistir ao vídeo explicativo', en: 'watch the explainer video' } },
 ] as const;
 
 export function buildChladniCopy(f: ChladniFacts): ExperimentCopy {

@@ -27,6 +27,8 @@ import {
   stepSand,
 } from '../../optics/acoustics/chladni';
 import { createEquationPlate } from '../../scene/equation-plate';
+import { type ExplainerVideo, mountExplainerVideo } from '../../scene/explainer-video';
+import videoPosterUrl from '../../assets/videos/planka-chladni.jpg?url';
 import { formatNumber } from '../../ui/i18n';
 import { type ChladniFacts, buildChladniCopy, describeChladni, formatHz, formatMode } from './copy';
 import { CHLADNI_PLATE } from './equation';
@@ -55,6 +57,7 @@ export function createChladniExperiment(): Experiment {
   const store = createChladniStore();
   let locale: Locale = 'pt-BR';
   let context: LabContext | null = null;
+  let explainer: ExplainerVideo | null = null;
   const disposers: (() => void)[] = [];
   const root = new THREE.Group();
   root.name = 'chladni';
@@ -288,6 +291,31 @@ export function createChladniExperiment(): Experiment {
         equation.dispose();
       });
 
+      // --- TV do vídeo explicativo da Planka (tecla V) -------------------------
+      explainer = mountExplainerVideo(
+        ctx,
+        {
+          file: 'planka-chladni.mp4',
+          poster: videoPosterUrl,
+          title: { 'pt-BR': 'Planka e as Figuras de Chladni', en: 'Planka and the Chladni Figures' },
+          description: {
+            'pt-BR': 'A Planka mostra como a areia desenha os modos de vibração de uma placa, a ressonância e a história de Chladni e Sophie Germain.',
+            en: 'Planka shows how sand draws the vibration modes of a plate, resonance, and the story of Chladni and Sophie Germain.',
+          },
+          position: { x: 0.44, y: ctx.bench.topY, z: ctx.bench.frontZ - 0.72 },
+          rotationY: -0.12,
+          scale: 0.7,
+        },
+        locale,
+      );
+      if (explainer) {
+        const mounted = explainer;
+        disposers.push(() => {
+          mounted.dispose();
+          explainer = null;
+        });
+      }
+
       const rigRef = rig;
       const generatorRef = generator;
       ctx.labels.add({ id: 'ch-plate', anchor: rigRef.center, offset: { x: 0, y: 0.12, z: -0.42 }, text: '' });
@@ -510,6 +538,7 @@ export function createChladniExperiment(): Experiment {
 
     setLocale(next: Locale): void {
       locale = next;
+      explainer?.setLocale(next);
       applyState();
     },
 
