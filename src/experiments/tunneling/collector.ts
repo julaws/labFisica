@@ -1,5 +1,16 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import {
+  HardwareKit,
+  bncJack,
+  groupGeometries,
+  hardwareMaterial,
+  indicatorLed,
+  monitorStand,
+  opticalPost,
+  pose,
+  screenBezel,
+} from '../../scene/hardware';
 import type { MaterialLibrary } from '../../scene/materials';
 import { COLLECTOR_X } from './layout';
 
@@ -40,17 +51,11 @@ export function createCollector({ materials }: CollectorOptions): Collector {
   const owned: (THREE.Material | THREE.Texture)[] = [];
   const glowing: THREE.Object3D[] = [];
 
-  // Copo e haste, numa peça que sobe e desce com o feixe.
+  // Copo de Faraday torneado: boca com aba, fundo fechado e um conector BNC
+  // atrás, isolado por um anel de porcelana e preso por uma braçadeira. O
+  // conjunto sobe e desce com o feixe.
   const cup = new THREE.Group();
   group.add(cup);
-  const cupGeometry = mergeGeometries([
-    new THREE.CylinderGeometry(0.055, 0.055, 0.12, 32, 1, true)
-      .rotateZ(Math.PI / 2)
-      .translate(0.06, 0, 0),
-    new THREE.CylinderGeometry(0.055, 0.055, 0.008, 32).rotateZ(Math.PI / 2).translate(0.12, 0, 0),
-  ]);
-  if (!cupGeometry) throw new Error('Falha ao montar o coletor');
-  geometries.push(cupGeometry);
   const copper = new THREE.MeshStandardMaterial({
     color: 0xc27a4a,
     metalness: 0.9,
@@ -58,9 +63,41 @@ export function createCollector({ materials }: CollectorOptions): Collector {
     side: THREE.DoubleSide,
   });
   owned.push(copper);
+  const cupGeometry = new THREE.LatheGeometry(
+    [
+      new THREE.Vector2(0.049, 0.002),
+      new THREE.Vector2(0.06, 0),
+      new THREE.Vector2(0.061, 0.006),
+      new THREE.Vector2(0.055, 0.012),
+      new THREE.Vector2(0.055, 0.112),
+      new THREE.Vector2(0.05, 0.12),
+      new THREE.Vector2(0, 0.122),
+    ],
+    48,
+  ).rotateZ(-Math.PI / 2);
+  geometries.push(cupGeometry);
   const cupMesh = new THREE.Mesh(cupGeometry, copper);
   cupMesh.castShadow = true;
   cup.add(cupMesh);
+  {
+    const kit = new HardwareKit();
+    // Isolador de porcelana e braçadeira anodizada atrás do copo.
+    kit.add('ceramic', new THREE.CylinderGeometry(0.042, 0.042, 0.018, 40).rotateZ(Math.PI / 2).translate(0.131, 0, 0));
+    kit.add(
+      'anodized',
+      new THREE.LatheGeometry(
+        [new THREE.Vector2(0.055, -0.012), new THREE.Vector2(0.066, -0.012), new THREE.Vector2(0.066, 0.012), new THREE.Vector2(0.055, 0.012)],
+        48,
+      )
+        .rotateZ(-Math.PI / 2)
+        .translate(0.09, 0, 0),
+    );
+    kit.add('anodized', new RoundedBoxGeometry(0.03, 0.03, 0.034, 2, 0.004).translate(0.09, -0.07, 0));
+    bncJack(kit, pose(0.14, 0, 0, Math.PI / 2), 1.4);
+    const mount = kit.build(materials, 'faraday-cup-mount');
+    geometries.push(...groupGeometries(mount));
+    cup.add(mount);
+  }
 
   const ringGeometry = new THREE.TorusGeometry(0.058, 0.006, 10, 40).rotateY(Math.PI / 2);
   geometries.push(ringGeometry);
@@ -70,11 +107,28 @@ export function createCollector({ materials }: CollectorOptions): Collector {
   cup.add(ring);
   glowing.push(ring);
 
-  const stemGeometry = new THREE.CylinderGeometry(0.01, 0.014, 1, 12).translate(0, -0.5, 0);
+  // Poste de aço que estica com a altura do feixe, saindo de um porta-poste
+  // fixo no pedestal (com a base aparafusada e o cabo coaxial até o contador).
+  const stemGeometry = new THREE.CylinderGeometry(0.0085, 0.0085, 1, 20).translate(0, -0.5, 0);
   geometries.push(stemGeometry);
-  const stem = new THREE.Mesh(stemGeometry, materials.anodizedAluminum);
-  stem.position.x = 0.07;
+  const stem = new THREE.Mesh(stemGeometry, hardwareMaterial(materials, 'steel'));
+  stem.castShadow = true;
+  stem.position.x = 0.09;
   cup.add(stem);
+  {
+    const kit = new HardwareKit();
+    opticalPost(kit, pose(COLLECTOR_X + 0.09, 0, 0), { top: 0.07, holderHeight: 0.06, postRadius: 0.0085 });
+    const cable = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(COLLECTOR_X + 0.09, 0.03, -0.02),
+      new THREE.Vector3(COLLECTOR_X + 0.07, 0.006, -0.08),
+      new THREE.Vector3(COLLECTOR_X - 0.05, 0.005, -0.16),
+      new THREE.Vector3(COLLECTOR_X - 0.15, 0.006, -0.2),
+    ]);
+    kit.add('rubber', new THREE.TubeGeometry(cable, 32, 0.0045, 8, false));
+    const holder = kit.build(materials, 'faraday-cup-holder');
+    geometries.push(...groupGeometries(holder));
+    group.add(holder);
+  }
 
   // --- Painel de contagem -----------------------------------------------------------
   // Desenhado em 768×480 "pontos", com 2 pixels por ponto, e com filtragem
@@ -99,14 +153,26 @@ export function createCollector({ materials }: CollectorOptions): Collector {
   const screenGeometry = new THREE.PlaneGeometry(screenWidth, screenHeight);
   geometries.push(screenGeometry);
   const screen = new THREE.Mesh(screenGeometry, screenMaterial);
-  const caseGeometry = mergeGeometries([
-    new THREE.BoxGeometry(screenWidth + 0.03, screenHeight + 0.03, 0.03).translate(0, 0, -0.016),
-    new THREE.BoxGeometry(0.03, 0.4, 0.03).translate(0, -screenHeight / 2 - 0.2, -0.03),
-  ]);
-  if (!caseGeometry) throw new Error('Falha ao montar o painel do contador');
-  geometries.push(caseGeometry);
   const display = new THREE.Group();
-  display.add(screen, new THREE.Mesh(caseGeometry, materials.anodizedAluminum));
+  display.add(screen);
+  {
+    // Gabinete de monitor: caixa arredondada, moldura chanfrada, a corcunda
+    // da eletrônica atrás, pé de monitor até o pedestal e o LED de ligado.
+    const kit = new HardwareKit();
+    const lift = 0.3;
+    kit.add('case', new RoundedBoxGeometry(screenWidth + 0.05, screenHeight + 0.05, 0.03, 3, 0.01).translate(0, 0, -0.017));
+    screenBezel(kit, pose(0, 0, -0.004), { width: screenWidth, height: screenHeight, border: 0.018, depth: 0.006 });
+    kit.add('case', new RoundedBoxGeometry(screenWidth * 0.6, screenHeight * 0.6, 0.03, 3, 0.01).translate(0, 0.005, -0.045));
+    monitorStand(kit, pose(0, -lift, -0.05), { height: lift - 0.01, baseWidth: 0.2, baseDepth: 0.13 });
+    const housing = kit.build(materials, 'counter-housing');
+    geometries.push(...groupGeometries(housing));
+    display.add(housing);
+    const led = indicatorLed(0xffd36b, 0.003);
+    led.position.set(screenWidth / 2 - 0.004, -screenHeight / 2 - 0.011, 0.004);
+    geometries.push(led.geometry);
+    owned.push(led.material as THREE.Material);
+    display.add(led);
+  }
   display.position.set(COLLECTOR_X - 0.16, 0.3, -0.22);
   display.rotation.y = -0.25;
   group.add(display);

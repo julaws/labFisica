@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { HardwareKit, capScrew, groupGeometries, pose } from '../../scene/hardware';
 import type { MaterialLibrary } from '../../scene/materials';
 import { BARRIER_DEPTH, COLLECTOR_X, NOZZLE_X, SCENE_PER_EV, SCENE_PER_NM } from './layout';
 
@@ -86,7 +88,8 @@ export function createBarrier({ materials, baseAboveTop }: BarrierOptions): Barr
   // --- Pedestal: o chão do diagrama, com a linha de 0 eV -----------------------
   const floorFrom = NOZZLE_X + 0.05;
   const floorTo = COLLECTOR_X + 0.12;
-  const pedestalGeometry = new THREE.BoxGeometry(floorTo - floorFrom, baseAboveTop, 0.4).translate(
+  // Bloco de cantos arredondados, com parafusos Allen ao longo da frente.
+  const pedestalGeometry = new RoundedBoxGeometry(floorTo - floorFrom, baseAboveTop, 0.4, 3, Math.min(0.012, baseAboveTop / 3)).translate(
     (floorFrom + floorTo) / 2,
     -baseAboveTop / 2,
     0,
@@ -96,6 +99,18 @@ export function createBarrier({ materials, baseAboveTop }: BarrierOptions): Barr
   pedestal.receiveShadow = true;
   pedestal.castShadow = true;
   group.add(pedestal);
+  {
+    const kit = new HardwareKit();
+    const span = floorTo - floorFrom;
+    const screws = Math.max(2, Math.round(span / 0.22));
+    for (let i = 0; i <= screws; i += 1) {
+      const x = floorFrom + 0.04 + ((span - 0.08) * i) / screws;
+      capScrew(kit, pose(x, -baseAboveTop / 2, 0.2), Math.min(0.006, baseAboveTop * 0.18), 'chrome', false);
+    }
+    const fasteners = kit.build(materials, 'tunneling-pedestal-screws');
+    geometries.push(...groupGeometries(fasteners));
+    group.add(fasteners);
+  }
   const zeroLineMaterial = new THREE.MeshBasicMaterial({ color: 0x7c5cff, toneMapped: false });
   owned.push(zeroLineMaterial);
   const zeroLineGeometry = mergeGeometries([
