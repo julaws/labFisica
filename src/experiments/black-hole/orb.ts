@@ -227,7 +227,9 @@ export function createOrb({ materials, uniforms, steps }: OrbOptions): Orb {
   owned.push(plateMaterial);
   const plate = new THREE.Mesh(plateGeometry, plateMaterial);
   plate.name = 'nameplate';
-  plate.position.set(0, 0.04, 0.2);
+  // À frente da borda da base (raio 0,222 no pé): inclinada, a borda de
+  // baixo da placa não pode entrar no chanfro.
+  plate.position.set(0, 0.04, 0.245);
   plate.rotation.x = -0.32;
   group.add(plate);
 
