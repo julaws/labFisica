@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { HardwareKit, groupGeometries, opticalPost, pose, screenBezel } from '../../scene/hardware';
 import type {
   CinematicShot,
   Experiment,
@@ -775,11 +777,20 @@ export function createLensFocusExperiment(): Experiment {
       stand.name = 'lens-equation';
       equation.mesh.position.y = 0.05 + plateSize.height / 2;
       stand.add(equation.mesh);
-      const footGeometry = new THREE.BoxGeometry(plateSize.width * 0.7, 0.05, 0.12).translate(0, 0.025, 0);
-      geometries.push(footGeometry);
-      const foot = new THREE.Mesh(footGeometry, ctx.materials.anodizedAluminum);
-      foot.castShadow = true;
-      stand.add(foot);
+      // Suporte de bancada: base anodizada com dois postes de aço segurando a
+      // placa, emoldurada como um painel.
+      {
+        const kit = new HardwareKit();
+        const lift = 0.05;
+        kit.add('anodized', new RoundedBoxGeometry(plateSize.width * 0.78, 0.014, 0.11, 2, 0.005).translate(0, 0.007, -0.01));
+        for (const side of [-1, 1]) {
+          opticalPost(kit, pose(side * plateSize.width * 0.3, 0.014, -0.012), { top: lift + 0.04 - 0.014, base: false, holderHeight: 0.03, postRadius: 0.0055, thumbscrew: null });
+        }
+        screenBezel(kit, pose(0, lift + plateSize.height / 2, -0.004), { width: plateSize.width, height: plateSize.height, border: 0.012, depth: 0.008 });
+        const hardware = kit.build(ctx.materials, 'lens-equation-stand');
+        geometries.push(...groupGeometries(hardware));
+        stand.add(hardware);
+      }
       // No canto da frente: na vista padrão a placa cai inteira à direita do
       // vidro, sem cobrir a imagem.
       stand.position.set(ctx.bench.width / 2 - plateSize.width / 2 - 0.05, ctx.bench.topY, ctx.bench.frontZ - 0.15);

@@ -240,13 +240,17 @@ export function createLensElement(
 }
 
 /**
- * Hastes do modo explodido, uma por elemento, ligando cada vidro ao trilho.
- * Uma InstancedMesh só: seis hastes custavam seis draw calls em cada passe
- * (principal, transmissão, normais, sombra) e levavam o modo explodido acima
- * do orçamento da SPEC §8.
+ * Hastes do modo explodido, uma por elemento, ligando cada vidro ao trilho:
+ * poste de aço inox escovado e, no pé, o porta-poste anodizado com a base e o
+ * parafuso de aperto em latão, como numa mesa óptica de verdade.
+ *
+ * Três InstancedMesh (poste, suporte, parafuso): seis hastes custavam seis
+ * draw calls em cada passe (principal, transmissão, normais, sombra) e
+ * levavam o modo explodido acima do orçamento da SPEC §8.
  */
 export function createElementPosts(count: number): {
-  mesh: THREE.InstancedMesh;
+  /** As hastes e os suportes; `visible` liga e desliga tudo. */
+  mesh: THREE.Group;
   /**
    * Põe a haste `index` sob o elemento em `x`: o topo fica em `top` (abaixo do
    * eixo, na borda de baixo do vidro) e ela desce `height`.
@@ -255,35 +259,89 @@ export function createElementPosts(count: number): {
   geometries: THREE.BufferGeometry[];
   materials: THREE.Material[];
 } {
-  const geometry = new THREE.CylinderGeometry(lensMm(1.6), lensMm(2.2), 1, 12);
-  geometry.translate(0, -0.5, 0);
-  const material = new THREE.MeshStandardMaterial({
-    color: 0x14171c,
-    roughness: 0.5,
-    metalness: 0.85,
+  const group = new THREE.Group();
+  group.name = 'element-posts';
+  group.visible = false;
+
+  const postGeometry = new THREE.CylinderGeometry(lensMm(1.3), lensMm(1.3), 1, 20);
+  postGeometry.translate(0, -0.5, 0);
+  const steel = new THREE.MeshPhysicalMaterial({
+    color: 0xb4bcc6,
+    metalness: 1,
+    roughness: 0.3,
+    anisotropy: 0.5,
+    envMapIntensity: 0.8,
   });
-  const mesh = new THREE.InstancedMesh(geometry, material, count);
-  mesh.name = 'element-posts';
-  mesh.castShadow = true;
-  mesh.frustumCulled = false;
-  mesh.visible = false;
+  const posts = new THREE.InstancedMesh(postGeometry, steel, count);
+  posts.name = 'element-post-rods';
+
+  // Porta-poste com o aro de cima e a base aparafusada no carrinho; origem
+  // no pé (y = 0), sobe HOLDER.
+  const holderRadius = lensMm(2.6);
+  const holderHeight = lensMm(5);
+  const baseHeight = lensMm(0.8);
+  const holderParts = [
+    new THREE.CylinderGeometry(lensMm(5.5), lensMm(5.5), baseHeight, 32).translate(0, baseHeight / 2, 0),
+    new THREE.CylinderGeometry(holderRadius, holderRadius * 1.08, holderHeight, 28).translate(0, baseHeight + holderHeight / 2, 0),
+    new THREE.TorusGeometry(holderRadius * 1.02, lensMm(0.22), 6, 28).rotateX(Math.PI / 2).translate(0, baseHeight + holderHeight, 0),
+  ].map((geometry) => geometry.toNonIndexed());
+  const holderGeometry = mergeGeometries(holderParts);
+  for (const part of holderParts) part.dispose();
+  if (!holderGeometry) throw new Error('Falha ao montar os suportes das hastes');
+  const anodized = new THREE.MeshPhysicalMaterial({
+    color: 0x14171c,
+    metalness: 0.9,
+    roughness: 0.48,
+    clearcoat: 0.25,
+    clearcoatRoughness: 0.4,
+  });
+  const holders = new THREE.InstancedMesh(holderGeometry, anodized, count);
+  holders.name = 'element-post-holders';
+
+  // Parafuso de aperto em latão, na frente do suporte (+z, para a câmera).
+  const screwParts = [
+    new THREE.CylinderGeometry(lensMm(0.35), lensMm(0.35), lensMm(1.4), 10).rotateX(Math.PI / 2).translate(0, 0, holderRadius + lensMm(0.6)),
+    new THREE.CylinderGeometry(lensMm(1.1), lensMm(1.1), lensMm(1), 18).rotateX(Math.PI / 2).translate(0, 0, holderRadius + lensMm(1.6)),
+  ].map((geometry) => geometry.toNonIndexed());
+  const screwGeometry = mergeGeometries(screwParts);
+  for (const part of screwParts) part.dispose();
+  if (!screwGeometry) throw new Error('Falha ao montar os parafusos das hastes');
+  screwGeometry.translate(0, baseHeight + holderHeight * 0.7, 0);
+  const brass = new THREE.MeshPhysicalMaterial({ color: 0xa85a16, metalness: 1, roughness: 0.4, envMapIntensity: 0.5 });
+  const screws = new THREE.InstancedMesh(screwGeometry, brass, count);
+  screws.name = 'element-post-screws';
+
+  for (const mesh of [posts, holders, screws]) {
+    mesh.castShadow = true;
+    mesh.frustumCulled = false;
+    group.add(mesh);
+  }
 
   const matrix = new THREE.Matrix4();
   const position = new THREE.Vector3();
   const scale = new THREE.Vector3();
   const rotation = new THREE.Quaternion();
+  const footHeight = baseHeight + holderHeight;
 
   return {
-    mesh,
+    mesh: group,
     place(index: number, x: number, height: number, top = 0): void {
       position.set(x, top, 0);
       scale.set(1, Math.max(height, 1e-4), 1);
       matrix.compose(position, rotation, scale);
-      mesh.setMatrixAt(index, matrix);
-      mesh.instanceMatrix.needsUpdate = true;
+      posts.setMatrixAt(index, matrix);
+      // O suporte fica no pé da haste e cresce com ela no começo da animação
+      // (enquanto a haste é mais curta que ele).
+      const grow = Math.min(1, height / footHeight);
+      position.set(x, top - height, 0);
+      scale.set(grow, grow, grow);
+      matrix.compose(position, rotation, scale);
+      holders.setMatrixAt(index, matrix);
+      screws.setMatrixAt(index, matrix);
+      for (const mesh of [posts, holders, screws]) mesh.instanceMatrix.needsUpdate = true;
     },
-    geometries: [geometry],
-    materials: [material],
+    geometries: [postGeometry, holderGeometry, screwGeometry],
+    materials: [steel, anodized, brass],
   };
 }
 

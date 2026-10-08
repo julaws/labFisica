@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { HardwareKit, capScrew, groupGeometries, screenBezel } from '../../scene/hardware';
 import type { MaterialLibrary } from '../../scene/materials';
 import { lensMm } from './lens-model';
 import { IMAGE_PLANE_MAGNIFICATION } from '../../scene/scale';
@@ -85,32 +85,27 @@ export function createImagePlane({ materials, x, sensor }: ImagePlaneOptions): I
   group.add(screen);
 
   // --- Moldura ---------------------------------------------------------------
+  // Moldura chanfrada de cantos arredondados, com um parafuso em cada canto
+  // da face virada para a lente. O kit a entrega numa malha por acabamento.
   const frameThickness = lensMm(3.5);
   const frameDepth = lensMm(2.5);
-  // As quatro barras viram uma geometria só: é uma malha a desenhar, não
-  // quatro, em cada passe (orçamento de draw calls, SPEC §8).
-  const bars: THREE.BufferGeometry[] = [];
-  for (const side of [-1, 1]) {
-    bars.push(
-      new THREE.BoxGeometry(frameDepth, height + frameThickness * 2, frameThickness).translate(
-        0,
-        0,
-        side * (width / 2 + frameThickness / 2),
-      ),
-      new THREE.BoxGeometry(frameDepth, frameThickness, width + frameThickness * 2).translate(
-        0,
-        side * (height / 2 + frameThickness / 2),
-        0,
-      ),
-    );
+  const kit = new HardwareKit();
+  // A moldura é feita de frente para +z; girada -90°, a frente olha para a lente.
+  const facing = new THREE.Matrix4().makeRotationY(-Math.PI / 2);
+  const centered = facing.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, -frameDepth / 2));
+  screenBezel(kit, centered, { width, height, border: frameThickness, depth: frameDepth, radius: frameThickness * 0.9 });
+  const sx = width / 2 + frameThickness / 2;
+  const sy = height / 2 + frameThickness / 2;
+  for (const [dx, dy] of [
+    [-sx, -sy],
+    [sx, -sy],
+    [-sx, sy],
+    [sx, sy],
+  ] as const) {
+    capScrew(kit, facing.clone().multiply(new THREE.Matrix4().makeTranslation(dx, dy, frameDepth / 2 + lensMm(0.25))), lensMm(0.9), 'brass', false);
   }
-  const frameGeometry = mergeGeometries(bars);
-  for (const bar of bars) bar.dispose();
-  if (!frameGeometry) throw new Error('Falha ao mesclar a moldura da placa');
-  geometries.push(frameGeometry);
-
-  const frame = new THREE.Mesh(frameGeometry, materials.anodizedAluminum);
-  frame.castShadow = true;
+  const frame = kit.build(materials, 'image-plane-frame');
+  geometries.push(...groupGeometries(frame));
   group.add(frame);
 
   // --- Anéis de círculo de confusão -----------------------------------------
