@@ -171,7 +171,7 @@ docs/             SPEC, fontes, ADRs
 
 ## Publicação
 
-No ar em **https://julaws.github.io/labOptica/**. Cada push na `main` roda
+No ar em **https://julaws.github.io/labFisica/**. Cada push na `main` roda
 typecheck, lint e testes e publica no GitHub Pages
 (`.github/workflows/deploy.yml`).
 
