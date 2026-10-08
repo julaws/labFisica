@@ -1,7 +1,8 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { Locale } from '../../core/experiment';
 import { type Flight, type FlightSample, ORBITAL_SPEED, tsiolkovsky } from '../../optics/mechanics/rocket';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { HardwareKit, groupGeometries, monitorStand, pose, screenBezel } from '../../scene/hardware';
 import type { MaterialLibrary } from '../../scene/materials';
 import { formatNumber } from '../../ui/i18n';
 
@@ -70,17 +71,30 @@ export function createRocketConsole(materials: MaterialLibrary, quality: 'low' |
   tilt.position.set(0, 0.36, 0);
   tilt.rotation.x = -0.32;
   group.add(tilt);
-  const body = mergeGeometries([new THREE.BoxGeometry(panelW, panelH, 0.04).translate(0, 0, -0.022)]);
-  const stand = mergeGeometries([
-    new THREE.BoxGeometry(0.06, 0.3, 0.06).translate(0, 0.15, -0.06),
-    new THREE.BoxGeometry(0.4, 0.02, 0.26).translate(0, 0.01, -0.04),
-  ]);
-  if (!body || !stand) throw new Error('Falha ao montar o console');
-  geometries.push(body, stand);
-  tilt.add(new THREE.Mesh(body, materials.darkSteel));
-  const standMesh = new THREE.Mesh(stand, materials.darkSteel);
-  standMesh.castShadow = true;
-  group.add(standMesh);
+  // Painel de cantos arredondados com uma moldura chanfrada em volta de
+  // cada tela, sobre um pé de monitor.
+  {
+    const panelKit = new HardwareKit();
+    panelKit.add('case', new RoundedBoxGeometry(panelW, panelH, 0.04, 3, 0.014).translate(0, 0, -0.022));
+    for (let index = 0; index < 4; index += 1) {
+      const column = index % 2;
+      const row = Math.floor(index / 2);
+      screenBezel(panelKit, pose((column - 0.5) * (screenW + gap), (0.5 - row) * (screenH + gap), -0.004), {
+        width: screenW,
+        height: screenH,
+        border: 0.01,
+        depth: 0.006,
+      });
+    }
+    const panel = panelKit.build(materials, 'rocket-console-panel');
+    geometries.push(...groupGeometries(panel));
+    tilt.add(panel);
+    const standKit = new HardwareKit();
+    monitorStand(standKit, pose(0, 0, -0.03), { height: 0.3, baseWidth: 0.4, baseDepth: 0.24 });
+    const stand = standKit.build(materials, 'rocket-console-stand');
+    geometries.push(...groupGeometries(stand));
+    group.add(stand);
+  }
 
   const screens = [0, 1, 2, 3].map((index) => {
     const canvas = document.createElement('canvas');

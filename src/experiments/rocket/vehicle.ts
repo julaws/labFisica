@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { MaterialLibrary } from '../../scene/materials';
 import { nameplateTexture } from '../../scene/textures/procedural';
 
@@ -52,10 +53,20 @@ export function createVehicle(materials: MaterialLibrary): Vehicle3D {
   // --- Plataforma e torre ------------------------------------------------------------
   const pad = new THREE.Group();
   group.add(pad);
-  const padGeometry = mergeGeometries([
-    new THREE.BoxGeometry(0.42, 0.05, 0.36).translate(0, 0.025, 0),
-    new THREE.BoxGeometry(0.2, 0.04, 0.2).translate(0, 0.07, 0),
-  ]);
+  // Plataforma: base de cantos arredondados, o pedestal de lançamento com
+  // o anel e quatro garras de fixação em volta do bocal.
+  const padParts = [
+    new RoundedBoxGeometry(0.42, 0.05, 0.36, 3, 0.01).translate(0, 0.025, 0),
+    new RoundedBoxGeometry(0.2, 0.04, 0.2, 2, 0.008).translate(0, 0.07, 0),
+    new THREE.TorusGeometry(0.068, 0.006, 8, 48).rotateX(Math.PI / 2).translate(0, PAD_TOP + 0.001, 0),
+    ...[0, 1, 2, 3].map((k) =>
+      new RoundedBoxGeometry(0.014, 0.03, 0.03, 2, 0.004)
+        .translate(0, PAD_TOP + 0.012, 0.072)
+        .rotateY((k * Math.PI) / 2 + Math.PI / 4),
+    ),
+  ].map((geometry) => geometry.toNonIndexed());
+  const padGeometry = mergeGeometries(padParts);
+  for (const part of padParts) part.dispose();
   if (!padGeometry) throw new Error('Falha ao montar a plataforma');
   geometries.push(padGeometry);
   const padMesh = new THREE.Mesh(padGeometry, materials.darkSteel);
@@ -250,10 +261,18 @@ export function createVehicle(materials: MaterialLibrary): Vehicle3D {
         bell.position.y = 0.025;
         stage.add(bell);
         if (index === 0) {
+          // Empenas enflechadas: bordo de ataque inclinado, ponta recortada.
+          const finShape = new THREE.Shape();
+          finShape.moveTo(RADIUS - 0.002, 0.03);
+          finShape.lineTo(RADIUS + 0.058, -0.002);
+          finShape.lineTo(RADIUS + 0.058, 0.045);
+          finShape.lineTo(RADIUS - 0.002, 0.16);
+          finShape.closePath();
           const fins = mergeGeometries(
             [0, 1, 2, 3].map((k) =>
-              new THREE.BoxGeometry(0.004, 0.08, 0.05)
-                .translate(0, 0.09, RADIUS + 0.022)
+              new THREE.ExtrudeGeometry(finShape, { depth: 0.004, bevelEnabled: true, bevelThickness: 0.0012, bevelSize: 0.0012, bevelSegments: 1 })
+                .rotateY(-Math.PI / 2)
+                .translate(0.002, 0, 0)
                 .rotateY((k * Math.PI) / 2 + Math.PI / 4),
             ),
           );
@@ -267,9 +286,17 @@ export function createVehicle(materials: MaterialLibrary): Vehicle3D {
         y += height + 0.006;
       });
       // Coifa com a carga, presa ao último estágio.
+      // Coifa em ogiva com ponta arredondada (perfil de torno).
+      const ogive: THREE.Vector2[] = [];
+      const noseLength = 0.13;
+      for (let i = 0; i <= 16; i += 1) {
+        const t = i / 16;
+        const r = RADIUS * 0.98 * Math.pow(Math.max(1 - t ** 1.7, 0), 0.62);
+        ogive.push(new THREE.Vector2(Math.max(r, i === 16 ? 0 : 0.002), 0.1 + noseLength * t));
+      }
       const nose = mergeGeometries([
-        new THREE.CylinderGeometry(RADIUS * 0.98, RADIUS, 0.05, 32).translate(0, 0.075, 0),
-        new THREE.ConeGeometry(RADIUS * 0.98, 0.12, 32).translate(0, 0.16, 0),
+        new THREE.CylinderGeometry(RADIUS * 0.98, RADIUS, 0.05, 32).translate(0, 0.075, 0).toNonIndexed(),
+        new THREE.LatheGeometry(ogive, 32).toNonIndexed(),
       ]);
       if (nose) {
         stageGeometries.push(nose);
@@ -278,6 +305,21 @@ export function createVehicle(materials: MaterialLibrary): Vehicle3D {
         // A coifa vai no último estágio até o fim (é a carga).
         noseMesh.position.y = heights.at(-1)!;
         stageGroups.at(-1)?.add(noseMesh);
+      }
+      // Padrão de rolagem no último estágio, como nos foguetes de teste: dois
+      // anéis de quartos pretos alternados, para ver o foguete girar.
+      const topHeight = heights.at(-1)!;
+      const band = Math.min(0.05, topHeight * 0.22);
+      const quarters = mergeGeometries(
+        [0, 1, 2, 3].map((k) =>
+          new THREE.CylinderGeometry(RADIUS * 1.004, RADIUS * 1.004, band, 12, 1, true, (k * Math.PI) / 2, Math.PI / 2)
+            .translate(0, 0.05 + topHeight - 0.03 - band * (k % 2 === 0 ? 0.5 : 1.5), 0)
+            .toNonIndexed(),
+        ),
+      );
+      if (quarters) {
+        stageGeometries.push(quarters);
+        stageGroups.at(-1)?.add(new THREE.Mesh(quarters, black));
       }
     },
 

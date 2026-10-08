@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { EARTH_RADIUS } from '../../optics/mechanics/rocket';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { HardwareKit, groupGeometries, pose, screenBezel } from '../../scene/hardware';
 import type { MaterialLibrary } from '../../scene/materials';
 
 /**
@@ -125,18 +126,18 @@ export function createSkyView(materials: MaterialLibrary, width: number, height:
   group.add(panel);
   glowing.push(panel);
 
-  const frame = mergeGeometries([
-    new THREE.BoxGeometry(width + 0.05, 0.025, 0.04).translate(0, 0.06 - 0.0125, -0.01),
-    new THREE.BoxGeometry(width + 0.05, 0.025, 0.04).translate(0, height + 0.06 + 0.0125, -0.01),
-    new THREE.BoxGeometry(0.025, height + 0.05, 0.04).translate(-width / 2 - 0.0125, height / 2 + 0.06, -0.01),
-    new THREE.BoxGeometry(0.025, height + 0.05, 0.04).translate(width / 2 + 0.0125, height / 2 + 0.06, -0.01),
-    new THREE.BoxGeometry(width * 0.5, 0.06, 0.2).translate(0, 0.03, -0.05),
-  ]);
-  if (!frame) throw new Error('Falha ao montar a janela do céu');
-  geometries.push(frame);
-  const frameMesh = new THREE.Mesh(frame, materials.darkSteel);
-  frameMesh.castShadow = true;
-  group.add(frameMesh);
+  // Moldura chanfrada em volta da janela, sobre dois pés e uma base.
+  {
+    const kit = new HardwareKit();
+    screenBezel(kit, pose(0, height / 2 + 0.06, -0.03), { width, height, border: 0.026, depth: 0.04, radius: 0.02 });
+    kit.add('anodized', new RoundedBoxGeometry(width * 0.62, 0.03, 0.2, 2, 0.008).translate(0, 0.015, -0.05));
+    for (const side of [-1, 1]) {
+      kit.add('anodized', new RoundedBoxGeometry(0.04, 0.06, 0.06, 2, 0.008).translate(side * width * 0.24, 0.045, -0.02));
+    }
+    const frame = kit.build(materials, 'sky-window-frame');
+    geometries.push(...groupGeometries(frame));
+    group.add(frame);
+  }
 
   return {
     group,
