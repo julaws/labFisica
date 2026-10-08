@@ -288,6 +288,11 @@ export function createRocketExperiment(): Experiment {
       console3d.group.rotation.y = -0.18;
       root.add(console3d.group);
       for (const object of console3d.glowing) ctx.addGlow(object);
+      // As telas usam as fontes da web: redesenha quando elas terminam de carregar.
+      void document.fonts.ready.then(() => {
+        consoleDirty = true;
+        context?.invalidate();
+      });
 
       const equation = createEquationPlate({ spec: ROCKET_PLATE, width: ctx.bench.width - 0.3, height: 0.46 });
       equation.mesh.position.set(0, ctx.bench.topY - 0.36, ctx.bench.frontZ + 0.006);

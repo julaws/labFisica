@@ -46,6 +46,8 @@ const GOLD = '#ffd36b';
 const GREY = '#9fb0d0';
 const RED = '#ff7a6b';
 const INK = '#e6eaf2';
+const TICK_FONT = '700 30px "DM Mono", ui-monospace, monospace';
+const LEGEND_FONT = '700 26px Outfit, ui-sans-serif, sans-serif';
 
 export function createRocketConsole(materials: MaterialLibrary, quality: 'low' | 'high'): RocketConsole {
   const group = new THREE.Group();
@@ -53,7 +55,9 @@ export function createRocketConsole(materials: MaterialLibrary, quality: 'low' |
   const geometries: THREE.BufferGeometry[] = [];
   const owned: (THREE.Material | THREE.Texture)[] = [];
   const glowing: THREE.Object3D[] = [];
-  const scale = quality === 'low' ? 0.7 : 1;
+  // Cada tela é desenhada a 2 pixels por ponto (1,4 em qualidade baixa): o texto
+  // dos eixos fica nítido de perto e de lado, com a filtragem anisotrópica.
+  const scale = quality === 'low' ? 1.4 : 2;
 
   const screenW = 0.46;
   const screenH = screenW * (H / W);
@@ -87,7 +91,7 @@ export function createRocketConsole(materials: MaterialLibrary, quality: 'low' |
     ctx.scale(scale, scale);
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 8;
+    texture.anisotropy = 16;
     owned.push(texture);
     const material = new THREE.MeshBasicMaterial({ map: texture, toneMapped: false });
     owned.push(material);
@@ -97,8 +101,9 @@ export function createRocketConsole(materials: MaterialLibrary, quality: 'low' |
     const column = index % 2;
     const row = Math.floor(index / 2);
     mesh.position.set((column - 0.5) * (screenW + gap), (0.5 - row) * (screenH + gap), 0.001);
+    // Fora do bloom: o brilho espalhava um halo em volta do texto claro e
+    // deixava as telas embaçadas.
     tilt.add(mesh);
-    glowing.push(mesh);
     return { ctx, texture };
   });
 
@@ -113,13 +118,16 @@ export function createRocketConsole(materials: MaterialLibrary, quality: 'low' |
     ctx.lineWidth = 3;
     ctx.strokeRect(6, 6, W - 12, H - 12);
     ctx.fillStyle = INK;
-    ctx.font = '700 28px Outfit, ui-sans-serif, sans-serif';
+    ctx.font = '700 40px Outfit, ui-sans-serif, sans-serif';
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
-    ctx.fillText(title, 24, 34);
+    ctx.fillText(title, 24, 42);
   };
 
-  /** Eixos de um gráfico: devolve o mapeamento (x, y) → pixels. */
+  /**
+   * Eixos de um gráfico: devolve o mapeamento (x, y) → pixels. Só três marcas
+   * por eixo, em letra grande: o painel é lido de longe, em ângulo.
+   */
   const axes = (
     ctx: CanvasRenderingContext2D,
     xMax: number,
@@ -129,32 +137,33 @@ export function createRocketConsole(materials: MaterialLibrary, quality: 'low' |
     locale: Locale,
     xMin = 0,
   ): ((x: number, y: number) => [number, number]) => {
-    const left = 92;
-    const right = W - 30;
-    const top = 70;
-    const bottom = H - 62;
-    ctx.strokeStyle = 'rgba(170, 200, 255, 0.14)';
-    ctx.lineWidth = 1.5;
-    ctx.font = '500 20px "DM Mono", ui-monospace, monospace';
+    const left = 118;
+    const right = W - 40;
+    const top = 104;
+    const bottom = H - 70;
+    ctx.strokeStyle = 'rgba(170, 200, 255, 0.2)';
+    ctx.lineWidth = 2;
+    ctx.font = TICK_FONT;
     ctx.fillStyle = GREY;
-    for (let i = 0; i <= 4; i += 1) {
-      const y = bottom - ((bottom - top) * i) / 4;
+    for (let i = 0; i <= 2; i += 1) {
+      const y = bottom - ((bottom - top) * i) / 2;
       ctx.beginPath();
       ctx.moveTo(left, y);
       ctx.lineTo(right, y);
       ctx.stroke();
       ctx.textAlign = 'right';
-      ctx.fillText(formatNumber((yMax * i) / 4, yMax >= 10 ? 0 : 1, locale), left - 10, y);
+      ctx.fillText(formatNumber((yMax * i) / 2, yMax >= 10 ? 0 : 1, locale), left - 12, y);
     }
-    for (let i = 0; i <= 4; i += 1) {
-      const x = left + ((right - left) * i) / 4;
-      ctx.textAlign = 'center';
-      ctx.fillText(formatNumber(xMin + ((xMax - xMin) * i) / 4, xMax - xMin >= 10 ? 0 : 1, locale), x, bottom + 22);
+    for (let i = 0; i <= 2; i += 1) {
+      const x = left + ((right - left) * i) / 2;
+      const value = formatNumber(xMin + ((xMax - xMin) * i) / 2, xMax - xMin >= 10 ? 0 : 1, locale);
+      // A unidade do eixo x vai junto do último valor.
+      ctx.textAlign = i === 0 ? 'left' : i === 2 ? 'right' : 'center';
+      ctx.fillText(i === 2 ? `${value} ${xLabel}` : value, x, bottom + 34);
     }
     ctx.textAlign = 'right';
-    ctx.fillText(xLabel, right, bottom + 46);
-    ctx.textAlign = 'left';
-    ctx.fillText(yLabel, left, top - 18);
+    ctx.font = LEGEND_FONT;
+    ctx.fillText(yLabel, right, top - 22);
     return (x, y) => [left + ((x - xMin) / (xMax - xMin)) * (right - left), bottom - (y / yMax) * (bottom - top)];
   };
 
@@ -183,10 +192,10 @@ export function createRocketConsole(materials: MaterialLibrary, quality: 'low' |
         const total = now.rocketMomentum + now.gasMomentum + now.droppedMomentum - now.externalImpulse;
         bars.push([en ? 'sum' : 'soma', total, GOLD]);
         const peak = Math.max(1, ...samples.map((s) => Math.abs(s.gasMomentum)), ...samples.map((s) => Math.abs(s.rocketMomentum)));
-        const mid = H * 0.55;
-        const span = H * 0.32;
-        const barW = 92;
-        const left = 70;
+        const mid = H * 0.5;
+        const span = H * 0.22;
+        const barW = 96;
+        const left = 40;
         const step = (W - 2 * left) / bars.length;
         ctx.strokeStyle = 'rgba(230, 236, 246, 0.4)';
         ctx.lineWidth = 2;
@@ -201,18 +210,19 @@ export function createRocketConsole(materials: MaterialLibrary, quality: 'low' |
           ctx.globalAlpha = 0.85;
           ctx.fillRect(x, Math.min(mid, mid - height), barW, Math.max(Math.abs(height), 2));
           ctx.globalAlpha = 1;
-          ctx.font = '600 21px "DM Mono", ui-monospace, monospace';
+          ctx.font = '700 27px Outfit, ui-sans-serif, sans-serif';
           ctx.textAlign = 'center';
           ctx.fillStyle = INK;
-          ctx.fillText(label, x + barW / 2, H - 50);
+          ctx.fillText(label, x + barW / 2, H - 62);
           ctx.fillStyle = color;
           // t·km/s = 10⁶ kg·m/s.
-          ctx.fillText(formatNumber(value / 1e6, 1, locale), x + barW / 2, H - 24);
+          ctx.font = TICK_FONT;
+          ctx.fillText(formatNumber(value / 1e6, 1, locale), x + barW / 2, H - 28);
         });
         ctx.textAlign = 'right';
         ctx.fillStyle = GREY;
-        ctx.font = '500 20px "DM Mono", ui-monospace, monospace';
-        ctx.fillText('t·km/s', W - 24, 34);
+        ctx.font = LEGEND_FONT;
+        ctx.fillText('t·km/s', W - 24, 42);
         screens[0]!.texture.needsUpdate = true;
       }
 
@@ -228,7 +238,7 @@ export function createRocketConsole(materials: MaterialLibrary, quality: 'low' |
           const [x1] = map(tMax, 0);
           ctx.strokeStyle = GOLD;
           ctx.setLineDash([6, 6]);
-          ctx.lineWidth = 2;
+          ctx.lineWidth = 3;
           ctx.beginPath();
           ctx.moveTo(x0, y0);
           ctx.lineTo(x1, y0);
@@ -236,13 +246,13 @@ export function createRocketConsole(materials: MaterialLibrary, quality: 'low' |
           ctx.setLineDash([]);
           ctx.fillStyle = GOLD;
           ctx.textAlign = 'right';
-          ctx.font = '600 20px "DM Mono", ui-monospace, monospace';
-          ctx.fillText(en ? 'orbit 7.8 km/s' : 'órbita 7,8 km/s', x1, y0 - 14);
+          ctx.font = LEGEND_FONT;
+          ctx.fillText(en ? 'orbit 7.8 km/s' : 'órbita 7,8 km/s', x1, y0 - 18);
         }
         // Ideal (tracejada) e real.
         ctx.strokeStyle = 'rgba(127, 227, 255, 0.55)';
-        ctx.setLineDash([10, 8]);
-        ctx.lineWidth = 2.5;
+        ctx.setLineDash([14, 10]);
+        ctx.lineWidth = 4;
         ctx.beginPath();
         for (let i = 0; i <= 120; i += 1) {
           const t = (tMax * i) / 120;
@@ -266,12 +276,12 @@ export function createRocketConsole(materials: MaterialLibrary, quality: 'low' |
           }
           ctx.stroke();
         };
-        plot(Number.POSITIVE_INFINITY, 'rgba(141, 255, 207, 0.25)', 3);
-        plot(now.t, '#8dffcf', 4);
+        plot(Number.POSITIVE_INFINITY, 'rgba(141, 255, 207, 0.25)', 4);
+        plot(now.t, '#8dffcf', 6);
         ctx.textAlign = 'left';
-        ctx.font = '500 19px "DM Mono", ui-monospace, monospace';
-        ctx.fillStyle = 'rgba(127, 227, 255, 0.8)';
-        ctx.fillText(en ? '--- Tsiolkovsky (no losses)' : '--- Tsiolkovsky (sem perdas)', 110, 92);
+        ctx.font = LEGEND_FONT;
+        ctx.fillStyle = 'rgba(127, 227, 255, 0.9)';
+        ctx.fillText(en ? '- - Tsiolkovsky (no losses)' : '- - Tsiolkovsky (sem perdas)', 134, 122);
         screens[1]!.texture.needsUpdate = true;
       }
 
@@ -296,8 +306,8 @@ export function createRocketConsole(materials: MaterialLibrary, quality: 'low' |
           }
           ctx.stroke();
         };
-        plot(Number.POSITIVE_INFINITY, 'rgba(255, 180, 92, 0.25)', 3);
-        plot(now.t, ORANGE, 4);
+        plot(Number.POSITIVE_INFINITY, 'rgba(255, 180, 92, 0.25)', 4);
+        plot(now.t, ORANGE, 6);
         screens[2]!.texture.needsUpdate = true;
       }
 
@@ -307,9 +317,9 @@ export function createRocketConsole(materials: MaterialLibrary, quality: 'low' |
         frame(ctx, en ? 'Δv × MASS RATIO' : 'Δv × RAZÃO DE MASSAS');
         const rMax = Math.max(10, ...data.massRatios.map((r) => Math.ceil(r + 1)));
         const dvMax = (tsiolkovsky(data.exhaust, rMax, 1) / 1000) * 1.08;
-        const map = axes(ctx, rMax, dvMax, 'm₀/m_f', 'Δv km/s', locale, 1);
+        const map = axes(ctx, rMax, dvMax, 'm₀/m_f', 'Δv (km/s)', locale, 1);
         ctx.strokeStyle = CYAN;
-        ctx.lineWidth = 3.5;
+        ctx.lineWidth = 5;
         ctx.beginPath();
         for (let i = 0; i <= 160; i += 1) {
           const r = 1 + ((rMax - 1) * i) / 160;
@@ -322,16 +332,16 @@ export function createRocketConsole(materials: MaterialLibrary, quality: 'low' |
           const [x, y] = map(ratio, data.stageDeltaV[i]! / 1000);
           ctx.fillStyle = GOLD;
           ctx.beginPath();
-          ctx.arc(x, y, 9, 0, Math.PI * 2);
+          ctx.arc(x, y, 12, 0, Math.PI * 2);
           ctx.fill();
-          ctx.font = '600 20px "DM Mono", ui-monospace, monospace';
+          ctx.font = LEGEND_FONT;
           ctx.textAlign = 'left';
-          ctx.fillText(`${i + 1}º`, x + 14, y - 12);
+          ctx.fillText(`${i + 1}º`, x + 16, y - 18);
         });
         ctx.fillStyle = GREY;
         ctx.textAlign = 'left';
-        ctx.font = '500 19px "DM Mono", ui-monospace, monospace';
-        ctx.fillText(`vₑ = ${formatNumber(data.exhaust / 1000, 2, locale)} km/s`, 110, 92);
+        ctx.font = LEGEND_FONT;
+        ctx.fillText(`vₑ = ${formatNumber(data.exhaust / 1000, 2, locale)} km/s`, 134, 122);
         screens[3]!.texture.needsUpdate = true;
       }
     },

@@ -8,7 +8,8 @@ import { nameplateTexture } from '../../scene/textures/procedural';
  *
  * - O foguete é montado com 1, 2 ou 3 estágios, cada um da altura
  *   proporcional ao propelente dele. Na separação, o estágio gasto se solta e
- *   cai girando.
+ *   cai girando em torno do próprio centro, ficando para trás; só depois que
+ *   ele se afasta o resto da pilha desce, suave, para o lugar de sempre.
  * - Fica no mesmo lugar da bancada durante o voo (a câmera "acompanha"); quem
  *   se mexe é o mundo: a plataforma some, o céu do painel atrás escurece e a
  *   Terra vira uma curva lá embaixo.
@@ -116,17 +117,34 @@ export function createVehicle(materials: MaterialLibrary): Vehicle3D {
   owned.push(bellMaterial);
 
   interface Debris {
+    /** Pivô no centro do estágio solto (o estágio vai pendurado nele). */
     readonly object: THREE.Group;
     velocity: number;
     spin: number;
+    drift: number;
     life: number;
   }
   const debris: Debris[] = [];
+  /** Altura de cada estágio e a posição dele na pilha montada. */
+  let heights: number[] = [];
+  let baseY: number[] = [];
+  /** Quanto a pilha já desceu (a base do estágio aceso vai para y = 0). */
+  let stackShift = 0;
+  /** Separação em andamento: a pilha começa `settleFrom` acima do lugar e desce. */
+  let settleFrom = 0;
+  let settleClock = Number.POSITIVE_INFINITY;
+  /** O estágio solto se afasta antes de a pilha começar a descer. */
+  const SETTLE_DELAY = 0.55;
+  const SETTLE_TIME = 1.1;
+  const DEBRIS_LIFE = 1.8;
 
   function clearStages(): void {
     for (const stage of stageGroups) stage.removeFromParent();
     for (const item of debris) item.object.removeFromParent();
     debris.length = 0;
+    stackShift = 0;
+    settleFrom = 0;
+    settleClock = Number.POSITIVE_INFINITY;
     for (const geometry of stageGeometries) geometry.dispose();
     stageGeometries.length = 0;
     stageGroups = [];
@@ -185,6 +203,16 @@ export function createVehicle(materials: MaterialLibrary): Vehicle3D {
   let next = 0;
   let dropped = 0;
   let nozzleY = PAD_TOP;
+
+  /** Põe os estágios ainda presos no lugar, `offset` acima da posição final. */
+  const placeStack = (offset: number): void => {
+    for (let i = dropped; i < stageGroups.length; i += 1) stageGroups[i]!.position.y = baseY[i]! - stackShift + offset;
+  };
+  const stackOffset = (): number => {
+    if (!Number.isFinite(settleClock)) return 0;
+    const k = Math.min(Math.max((settleClock - SETTLE_DELAY) / SETTLE_TIME, 0), 1);
+    return settleFrom * (1 - k * k * (3 - 2 * k));
+  };
   const random = (() => {
     let state = 99;
     return () => {
@@ -202,12 +230,14 @@ export function createVehicle(materials: MaterialLibrary): Vehicle3D {
       clearStages();
       dropped = 0;
       // O primeiro estágio é o de baixo; alturas proporcionais à fração, com mínimo.
-      const heights = fractions.map((f) => Math.max(0.08, f * (TOTAL_HEIGHT - 0.12)));
+      heights = fractions.map((f) => Math.max(0.08, f * (TOTAL_HEIGHT - 0.12)));
+      baseY = [];
       let y = 0;
       fractions.forEach((_, index) => {
         const height = heights[index]!;
         const stage = new THREE.Group();
         stage.position.y = y;
+        baseY.push(y);
         const body = new THREE.CylinderGeometry(RADIUS, RADIUS, height, 32).translate(0, 0.05 + height / 2, 0);
         // Faixa preta no topo de cada estágio (o anel entre estágios).
         const band = new THREE.CylinderGeometry(RADIUS * 1.01, RADIUS * 1.01, 0.018, 32).translate(0, 0.05 + height - 0.009, 0);
@@ -254,18 +284,26 @@ export function createVehicle(materials: MaterialLibrary): Vehicle3D {
     setDropped(count: number): void {
       while (dropped < count && dropped < stageGroups.length - 1) {
         const stage = stageGroups[dropped]!;
-        // Solta o estágio: passa para o grupo de fora, na mesma posição.
-        const world = new THREE.Vector3();
-        stage.getWorldPosition(world);
-        group.worldToLocal(world);
+        // Solta o estágio exatamente onde ele está: um pivô no centro dele, no
+        // grupo de fora, com o estágio pendurado (gira em torno do centro).
+        const half = 0.05 + heights[dropped]! / 2;
+        const center = stage.localToWorld(new THREE.Vector3(0, half, 0));
+        group.worldToLocal(center);
+        const pivot = new THREE.Group();
+        pivot.position.copy(center);
+        group.add(pivot);
         stage.removeFromParent();
-        stage.position.copy(world);
-        group.add(stage);
-        debris.push({ object: stage, velocity: 0, spin: (random() - 0.5) * 2, life: 0 });
+        stage.position.set(0, -half, 0);
+        pivot.add(stage);
+        // Já sai caindo em relação ao foguete, que continua acelerando.
+        debris.push({ object: pivot, velocity: 0.12, spin: (random() < 0.5 ? -1 : 1) * (0.5 + random() * 0.5), drift: (random() - 0.5) * 0.08, life: 0 });
+        // O resto da pilha fica onde está (o novo estágio de baixo vai para
+        // y = 0 só no fim) e desce depois que o estágio solto se afasta.
         dropped += 1;
-        // O resto do foguete desce para o lugar dele na pilha.
-        const shift = stageGroups[dropped]!.position.y;
-        for (let i = dropped; i < stageGroups.length; i += 1) stageGroups[i]!.position.y -= shift;
+        settleFrom = stageGroups[dropped]!.position.y;
+        stackShift = baseY[dropped]!;
+        settleClock = 0;
+        placeStack(settleFrom);
       }
     },
 
@@ -277,7 +315,6 @@ export function createVehicle(materials: MaterialLibrary): Vehicle3D {
       pad.position.y = -Math.min(altitude / 3000, 1) * 0.6;
       thrusting = nextThrusting;
       exhaustSpeed = exhaust / 3000;
-      nozzleY = rocket.position.y + (stageGroups[dropped]?.position.y ?? 0);
     },
 
     update(dt: number): void {
@@ -285,15 +322,24 @@ export function createVehicle(materials: MaterialLibrary): Vehicle3D {
       for (let i = debris.length - 1; i >= 0; i -= 1) {
         const item = debris[i]!;
         item.life += dt;
-        item.velocity += 0.6 * dt;
+        item.velocity += 0.3 * dt;
         item.object.position.y -= item.velocity * dt;
-        item.object.position.x += 0.04 * dt * item.spin;
+        item.object.position.x += item.drift * dt;
         item.object.rotation.z += item.spin * dt;
-        if (item.life > 2.5) {
+        // Fica para trás: encolhe como quem se afasta da câmera que acompanha o foguete.
+        item.object.scale.setScalar(1 / (1 + 0.9 * item.life));
+        if (item.life > DEBRIS_LIFE || item.object.position.y < 0.14) {
           item.object.removeFromParent();
           debris.splice(i, 1);
         }
       }
+      // A pilha que sobrou desce, suave, para o lugar dela.
+      if (Number.isFinite(settleClock)) {
+        settleClock += dt;
+        placeStack(stackOffset());
+        if (settleClock >= SETTLE_DELAY + SETTLE_TIME) settleClock = Number.POSITIVE_INFINITY;
+      }
+      nozzleY = rocket.position.y + (stageGroups[dropped]?.position.y ?? 0);
       // Chama no bocal.
       flameClock += dt;
       flame.visible = thrusting;
