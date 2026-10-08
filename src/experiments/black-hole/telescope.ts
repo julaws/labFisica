@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { HardwareKit, disposeGroup, groupGeometries, indicatorLed, monitorStand, opticalPost, pose, screenBezel } from '../../scene/hardware';
 import type { MaterialLibrary } from '../../scene/materials';
 import { TRACER_CHUNK, type TracerUniforms } from './tracer';
 
@@ -167,27 +168,26 @@ export function createTelescope({ materials, uniforms, steps, width }: Telescope
   legend.position.set(0, screenY - SCREEN_HEIGHT / 2 - legendHeight / 2 - 0.012, 0.022);
   group.add(legend);
 
-  // Moldura de aço escuro e pé.
-  const frameDepth = 0.035;
-  const frameGeometry = mergeGeometries([
-    new THREE.BoxGeometry(SCREEN_WIDTH + 0.05, SCREEN_HEIGHT + legendHeight + 0.075, frameDepth).translate(
-      0,
-      screenY - legendHeight / 2 - 0.006,
-      0,
-    ),
-    new THREE.BoxGeometry(0.05, screenY - SCREEN_HEIGHT / 2 - legendHeight, 0.05).translate(
-      0,
-      (screenY - SCREEN_HEIGHT / 2 - legendHeight) / 2,
-      -0.03,
-    ),
-    new THREE.BoxGeometry(0.42, 0.025, 0.24).translate(0, 0.0125, -0.03),
-  ]);
-  if (!frameGeometry) throw new Error('Falha ao montar o monitor do telescópio');
-  geometries.push(frameGeometry);
-  const frame = new THREE.Mesh(frameGeometry, materials.darkSteel);
-  frame.castShadow = true;
-  frame.receiveShadow = true;
-  group.add(frame);
+  // Gabinete do monitor: caixa arredondada, moldura chanfrada em volta da
+  // tela e da legenda, corcunda da eletrônica atrás, pé de monitor e LED.
+  {
+    const frameDepth = 0.035;
+    const kit = new HardwareKit();
+    const openHeight = SCREEN_HEIGHT + legendHeight + 0.012;
+    const centerY = screenY - legendHeight / 2 - 0.006;
+    kit.add('case', new RoundedBoxGeometry(SCREEN_WIDTH + 0.05, openHeight + 0.05, frameDepth, 3, 0.012).translate(0, centerY, 0));
+    screenBezel(kit, pose(0, centerY, frameDepth / 2 - 0.002), { width: SCREEN_WIDTH, height: openHeight, border: 0.022, depth: 0.006 });
+    kit.add('case', new RoundedBoxGeometry(SCREEN_WIDTH * 0.6, openHeight * 0.6, 0.035, 3, 0.012).translate(0, centerY + 0.01, -frameDepth / 2 - 0.014));
+    monitorStand(kit, pose(0, 0, -0.06), { height: centerY - 0.02, baseWidth: 0.34, baseDepth: 0.2 });
+    const housing = kit.build(materials, 'telescope-monitor');
+    geometries.push(...groupGeometries(housing));
+    group.add(housing);
+    const led = indicatorLed(0x7fe3ff, 0.0035);
+    led.position.set(SCREEN_WIDTH / 2 - 0.004, centerY - openHeight / 2 - 0.013, frameDepth / 2 + 0.004);
+    geometries.push(led.geometry);
+    owned.push(led.material as THREE.Material);
+    group.add(led);
+  }
 
   const forward = new THREE.Vector3();
   const right = new THREE.Vector3();
@@ -286,6 +286,84 @@ export function createTelescope({ materials, uniforms, steps, width }: Telescope
     dispose(): void {
       for (const geometry of geometries) geometry.dispose();
       for (const item of owned) item.dispose();
+      group.clear();
+    },
+  };
+}
+
+/**
+ * O telescópio de verdade na bancada, mirando a esfera: refrator branco com
+ * para-sol, anéis, barra dovetail, focalizador com botões e buscadora, sobre
+ * uma cabeça alt-az num poste óptico. É só cenário (a imagem do monitor vem do
+ * traçador), mas deixa claro de onde vem a "vista do telescópio".
+ *
+ * Origem no pé do poste, no tampo; o tubo aponta para `target` (no mesmo
+ * referencial do pai do grupo, depois de posicionado).
+ */
+export function createScopeProp(materials: MaterialLibrary, axisHeight = 0.32): { group: THREE.Group; aim(target: THREE.Vector3): void; dispose(): void } {
+  const group = new THREE.Group();
+  group.name = 'telescope-prop';
+  const mount = new THREE.Group();
+  const ota = new THREE.Group();
+  group.add(mount, ota);
+  ota.position.y = axisHeight;
+  let built: THREE.Group[] = [];
+
+  // Tubo (OTA) no referencial dele: objetiva em +x, focalizador em −x.
+  const otaKit = new HardwareKit();
+  const r = 0.036;
+  otaKit.add('ceramic', new THREE.CylinderGeometry(r, r, 0.3, 40).rotateZ(Math.PI / 2));
+  otaKit.add('anodized', new THREE.CylinderGeometry(r * 1.18, r * 1.12, 0.1, 40, 1, true).rotateZ(Math.PI / 2).translate(0.19, 0, 0));
+  otaKit.add('anodized', new THREE.TorusGeometry(r * 1.15, 0.004, 8, 40).rotateY(Math.PI / 2).translate(0.24, 0, 0));
+  otaKit.add('chrome', new THREE.TorusGeometry(r * 0.98, 0.003, 8, 40).rotateY(Math.PI / 2).translate(0.15, 0, 0));
+  otaKit.add('anodized', new THREE.CylinderGeometry(r * 0.96, r * 0.96, 0.004, 40).rotateZ(Math.PI / 2).translate(0.148, 0, 0));
+  // Focalizador: corpo, tubo de saída, botões e ocular.
+  otaKit.add('anodized', new THREE.CylinderGeometry(r * 0.9, r, 0.03, 32).rotateZ(Math.PI / 2).translate(-0.165, 0, 0));
+  otaKit.add('chrome', new THREE.CylinderGeometry(0.017, 0.017, 0.06, 24).rotateZ(Math.PI / 2).translate(-0.21, 0, 0));
+  otaKit.add('anodized', new THREE.CylinderGeometry(0.02, 0.016, 0.045, 24).rotateZ(Math.PI / 2).translate(-0.26, 0, 0));
+  otaKit.add('anodized', new RoundedBoxGeometry(0.04, 0.025, 0.05, 2, 0.006).translate(-0.18, -r - 0.004, 0));
+  for (const side of [-1, 1]) {
+    otaKit.add('chrome', new THREE.CylinderGeometry(0.011, 0.011, 0.012, 20).rotateX(Math.PI / 2).translate(-0.18, -r - 0.008, side * 0.034));
+  }
+  // Anéis e barra dovetail.
+  for (const x of [-0.07, 0.07]) {
+    otaKit.add('anodized', new THREE.TorusGeometry(r + 0.004, 0.006, 8, 36).rotateY(Math.PI / 2).translate(x, 0, 0));
+    otaKit.add('anodized', new RoundedBoxGeometry(0.018, 0.02, 0.022, 2, 0.004).translate(x, -r - 0.012, 0));
+  }
+  otaKit.add('anodized', new RoundedBoxGeometry(0.24, 0.012, 0.034, 2, 0.004).translate(0, -r - 0.026, 0));
+  // Buscadora em cima.
+  otaKit.add('anodized', new THREE.CylinderGeometry(0.011, 0.011, 0.12, 20).rotateZ(Math.PI / 2).translate(-0.02, r + 0.03, 0));
+  for (const x of [-0.06, 0.02]) otaKit.add('anodized', new THREE.CylinderGeometry(0.004, 0.004, 0.022, 10).translate(x, r + 0.012, 0));
+  const otaGroup = otaKit.build(materials, 'telescope-prop-ota');
+  ota.add(otaGroup);
+
+  // Montagem: cabeça alt-az num poste óptico com base.
+  const mountKit = new HardwareKit();
+  const headY = axisHeight - r - 0.032 - 0.03;
+  opticalPost(mountKit, pose(0, 0, 0), { top: headY, holderHeight: 0.07, postRadius: 0.009 });
+  mountKit.add('anodized', new RoundedBoxGeometry(0.06, 0.03, 0.05, 2, 0.008).translate(0, headY + 0.015, 0));
+  mountKit.add('anodized', new RoundedBoxGeometry(0.05, 0.04, 0.012, 2, 0.004).translate(0, headY + 0.045, 0.02));
+  mountKit.add('brass', new THREE.CylinderGeometry(0.009, 0.009, 0.014, 18).rotateX(Math.PI / 2).translate(0, headY + 0.05, 0.034));
+  const mountGroup = mountKit.build(materials, 'telescope-prop-mount');
+  mount.add(mountGroup);
+  built = [otaGroup, mountGroup];
+
+  const local = new THREE.Vector3();
+  return {
+    group,
+    aim(target: THREE.Vector3): void {
+      group.updateWorldMatrix(true, false);
+      local.copy(target);
+      group.worldToLocal(local);
+      const dx = local.x;
+      const dy = local.y - axisHeight;
+      const dz = local.z;
+      const yaw = Math.atan2(-dz, dx);
+      const pitch = Math.atan2(dy, Math.hypot(dx, dz));
+      ota.rotation.set(0, yaw, pitch, 'YZX');
+    },
+    dispose(): void {
+      for (const piece of built) disposeGroup(piece);
       group.clear();
     },
   };

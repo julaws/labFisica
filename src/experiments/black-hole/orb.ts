@@ -135,33 +135,85 @@ export function createOrb({ materials, uniforms, steps }: OrbOptions): Orb {
   shell.renderOrder = 2;
   center.add(shell);
 
-  // --- Pedestal: base de aço, coluna e colar de latão, meridiano ------------
+  // --- Pedestal torneado: base de aço com filete de latão, coluna balaústre
+  // de latão com um nó no meio e três braços curvos que seguram o colar -------
   const collarY = -0.21;
   const collarRadius = Math.sqrt(ORB_RADIUS ** 2 - collarY ** 2) + 0.006;
-  const brassParts = mergeGeometries([
+  const floorY = -center.position.y;
+  const baseTop = 0.08;
+  const columnBottom = floorY + baseTop - 0.004;
+  const columnTop = collarY - 0.07;
+  const mid = (columnBottom + columnTop) / 2;
+  const brassPieces: THREE.BufferGeometry[] = [
     new THREE.TorusGeometry(collarRadius, 0.011, 14, 96).rotateX(Math.PI / 2).translate(0, collarY, 0),
-    new THREE.CylinderGeometry(0.03, 0.042, center.position.y + collarY, 32).translate(
-      0,
-      -(center.position.y + collarY) / 2 + collarY,
-      0,
+    new THREE.LatheGeometry(
+      [
+        new THREE.Vector2(0, columnBottom),
+        new THREE.Vector2(0.05, columnBottom),
+        new THREE.Vector2(0.052, columnBottom + 0.01),
+        new THREE.Vector2(0.032, columnBottom + 0.03),
+        new THREE.Vector2(0.022, columnBottom + 0.055),
+        new THREE.Vector2(0.022, mid - 0.025),
+        new THREE.Vector2(0.038, mid - 0.008),
+        new THREE.Vector2(0.038, mid + 0.008),
+        new THREE.Vector2(0.022, mid + 0.025),
+        new THREE.Vector2(0.024, columnTop - 0.03),
+        new THREE.Vector2(0.045, columnTop - 0.006),
+        new THREE.Vector2(0.045, columnTop),
+        new THREE.Vector2(0, columnTop),
+      ],
+      48,
     ),
-  ]);
+  ];
+  for (let i = 0; i < 3; i += 1) {
+    const a = (i * 2 * Math.PI) / 3 + Math.PI / 2;
+    const dir = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+    const arm = new THREE.CatmullRomCurve3([
+      dir.clone().multiplyScalar(0.03).setY(columnTop - 0.004),
+      dir.clone().multiplyScalar(collarRadius * 0.55).setY(columnTop + 0.008),
+      dir.clone().multiplyScalar(collarRadius * 0.93).setY(collarY - 0.022),
+      dir.clone().multiplyScalar(collarRadius).setY(collarY - 0.004),
+    ]);
+    brassPieces.push(new THREE.TubeGeometry(arm, 24, 0.0065, 10, false));
+  }
+  const brassParts = mergeGeometries(brassPieces.map((piece) => (piece.index ? piece.toNonIndexed() : piece)));
+  for (const piece of brassPieces) piece.dispose();
   if (!brassParts) throw new Error('Falha ao montar o pedestal da esfera');
   geometries.push(brassParts);
   const brass = new THREE.Mesh(brassParts, materials.brushedBrass);
   brass.castShadow = true;
   center.add(brass);
 
-  const baseGeometry = mergeGeometries([
-    new THREE.CylinderGeometry(0.2, 0.22, 0.035, 64).translate(0, 0.0175, 0),
-    new THREE.CylinderGeometry(0.11, 0.15, 0.04, 48).translate(0, 0.055, 0),
-  ]);
+  const baseGeometry = mergeGeometries(
+    [
+      new THREE.LatheGeometry(
+        [
+          new THREE.Vector2(0, 0),
+          new THREE.Vector2(0.218, 0),
+          new THREE.Vector2(0.222, 0.006),
+          new THREE.Vector2(0.216, 0.03),
+          new THREE.Vector2(0.2, 0.037),
+          new THREE.Vector2(0.158, 0.04),
+          new THREE.Vector2(0.152, 0.058),
+          new THREE.Vector2(0.118, 0.074),
+          new THREE.Vector2(0.06, baseTop),
+          new THREE.Vector2(0, baseTop),
+        ],
+        72,
+      ).toNonIndexed(),
+    ],
+  );
   if (!baseGeometry) throw new Error('Falha ao montar a base da esfera');
   geometries.push(baseGeometry);
   const base = new THREE.Mesh(baseGeometry, materials.darkSteel);
   base.castShadow = true;
   base.receiveShadow = true;
   group.add(base);
+  // Filete de latão no degrau da base.
+  const inlayGeometry = new THREE.TorusGeometry(0.168, 0.0035, 8, 96).rotateX(Math.PI / 2).translate(0, -center.position.y + 0.04, 0);
+  geometries.push(inlayGeometry);
+  const inlay = new THREE.Mesh(inlayGeometry, materials.brushedBrass);
+  center.add(inlay);
 
   // Placa dourada na frente da base, como nas outras bancadas.
   const plateGeometry = new THREE.PlaneGeometry(0.24, 0.24 * (352 / 1024));

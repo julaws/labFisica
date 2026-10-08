@@ -35,10 +35,10 @@ import {
   formatSolarMasses,
 } from './copy';
 import { BLACK_HOLE_PLATE } from './equation';
-import { ORB_REGION_KM, type Orb, createOrb } from './orb';
+import { ORB_RADIUS, ORB_REGION_KM, type Orb, createOrb } from './orb';
 import { type Sky, createSky } from './sky';
 import { BLACK_HOLE_RANGES, createBlackHoleStore } from './state';
-import { SCREEN_HEIGHT, type Telescope, createTelescope } from './telescope';
+import { SCREEN_HEIGHT, type Telescope, createScopeProp, createTelescope } from './telescope';
 import { createTracerUniforms } from './tracer';
 
 /**
@@ -284,6 +284,15 @@ export function createBlackHoleExperiment(): Experiment {
       telescope.group.rotation.y = -0.2;
       root.add(telescope.group);
       for (const object of telescope.glowing) ctx.addGlow(object);
+
+      // Um telescópio de verdade na frente da bancada, mirando o centro da
+      // esfera: só cenário, mas mostra de onde vem a vista do monitor.
+      // À esquerda do monitor e baixo: na vista padrão não cobre a legenda.
+      const scope = createScopeProp(materials, 0.26);
+      scope.group.position.set(-0.2, 0, 0.18);
+      root.add(scope.group);
+      scope.aim(root.localToWorld(new THREE.Vector3(-0.62, ORB_RADIUS + 0.17, -0.06)));
+      disposers.push(() => scope.dispose());
 
       // --- Placa da equação na frente da bancada -------------------------------
       const equation = createEquationPlate({ spec: BLACK_HOLE_PLATE, width: ctx.bench.width - 0.3, height: 0.46 });
