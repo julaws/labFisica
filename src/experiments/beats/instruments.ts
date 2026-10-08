@@ -1,5 +1,17 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import {
+  HardwareKit,
+  bncJack,
+  groupGeometries,
+  indicatorLed,
+  instrumentCase,
+  monitorStand,
+  panelKnob,
+  pose,
+  screenBezel,
+} from '../../scene/hardware';
 import type { MaterialLibrary } from '../../scene/materials';
 import { nameplateTexture } from '../../scene/textures/procedural';
 
@@ -223,26 +235,26 @@ export function createBeatsRig(materials: MaterialLibrary, quality: 'low' | 'hig
   group.add(scopeGroup);
   const scopeW = 0.6;
   const scopeH = scopeW * (9 / 16);
-  scopeGroup.add(
-    solid(
-      [
-        new THREE.BoxGeometry(0.76, 0.5, 0.4).translate(0, 0.27, 0),
-        new THREE.BoxGeometry(0.66, 0.02, 0.32).translate(0, 0.01, 0),
-      ],
-      materials.darkSteel,
-      'scope-body',
-    ),
-  );
-  const scopeBezel = new THREE.MeshStandardMaterial({ color: 0x0b0d10, roughness: 0.4, metalness: 0.3 });
-  owned.push(scopeBezel);
-  scopeGroup.add(
-    solid([new THREE.BoxGeometry(scopeW + 0.04, scopeH + 0.04, 0.02).translate(0, 0.31, 0.205)], scopeBezel, 'scope-bezel'),
-  );
+  // Gabinete de instrumento com alças, o CRT recuado atrás da moldura,
+  // botões de painel, as entradas CH1/CH2 e o LED de ligado.
+  {
+    const kit = new HardwareKit();
+    const front = instrumentCase(kit, pose(0, 0, 0), { width: 0.76, height: 0.5, depth: 0.4, handles: true, radius: 0.016 });
+    screenBezel(kit, pose(0, 0.31, front.frontZ - 0.002), { width: scopeW, height: scopeH, border: 0.022, depth: 0.012, radius: 0.02 });
+    for (const x of [-0.25, -0.12, 0.12, 0.25]) panelKnob(kit, pose(x, 0.075, front.frontZ), 0.017);
+    for (const x of [-0.035, 0.035]) bncJack(kit, pose(x, 0.075, front.frontZ), 1.3);
+    const body = kit.build(materials, 'scope-body');
+    geometries.push(...groupGeometries(body));
+    scopeGroup.add(body);
+    const led = indicatorLed(0x8dffcf, 0.004);
+    led.position.set(0.31, 0.075, front.frontZ + 0.003);
+    geometries.push(led.geometry);
+    owned.push(led.material as THREE.Material);
+    scopeGroup.add(led);
+  }
   const scope = screen(1024, 576, new THREE.PlaneGeometry(scopeW, scopeH));
-  scope.mesh.position.set(0, 0.31, 0.216);
+  scope.mesh.position.set(0, 0.31, 0.209);
   scopeGroup.add(scope.mesh);
-  const scopeKnobs = [-0.25, -0.12, 0.12, 0.25].map((x) => new THREE.CylinderGeometry(0.018, 0.02, 0.02, 24).rotateX(Math.PI / 2).translate(x, 0.07, 0.21));
-  scopeGroup.add(solid(scopeKnobs, materials.knurledRubber, 'scope-knobs'));
 
   // --- Monitor de espectro -------------------------------------------------------------------
   const spectrumGroup = new THREE.Group();
@@ -251,17 +263,22 @@ export function createBeatsRig(materials: MaterialLibrary, quality: 'low' | 'hig
   group.add(spectrumGroup);
   const specW = 0.58;
   const specH = specW * (9 / 16);
-  spectrumGroup.add(
-    solid(
-      [
-        new THREE.BoxGeometry(specW + 0.05, specH + 0.05, 0.035).translate(0, 0.37, 0),
-        new THREE.BoxGeometry(0.04, 0.2, 0.04).translate(0, 0.1, -0.02),
-        new THREE.BoxGeometry(0.26, 0.02, 0.18).translate(0, 0.01, -0.02),
-      ],
-      materials.darkSteel,
-      'spectrum-monitor',
-    ),
-  );
+  {
+    // Monitor: caixa arredondada, moldura, corcunda atrás, pé e LED.
+    const kit = new HardwareKit();
+    kit.add('case', new RoundedBoxGeometry(specW + 0.05, specH + 0.05, 0.035, 3, 0.012).translate(0, 0.37, 0));
+    screenBezel(kit, pose(0, 0.37, 0.0155), { width: specW, height: specH, border: 0.02, depth: 0.006 });
+    kit.add('case', new RoundedBoxGeometry(specW * 0.6, specH * 0.6, 0.035, 3, 0.012).translate(0, 0.38, -0.031));
+    monitorStand(kit, pose(0, 0, -0.06), { height: 0.37 - 0.01, baseWidth: 0.26, baseDepth: 0.16 });
+    const housing = kit.build(materials, 'spectrum-monitor');
+    geometries.push(...groupGeometries(housing));
+    spectrumGroup.add(housing);
+    const led = indicatorLed(0x8dffcf, 0.0035);
+    led.position.set(specW / 2 - 0.004, 0.37 - specH / 2 - 0.013, 0.022);
+    geometries.push(led.geometry);
+    owned.push(led.material as THREE.Material);
+    spectrumGroup.add(led);
+  }
   const spectrum = screen(1024, 576, new THREE.PlaneGeometry(specW, specH));
   spectrum.mesh.position.set(0, 0.37, 0.019);
   spectrumGroup.add(spectrum.mesh);
@@ -271,16 +288,46 @@ export function createBeatsRig(materials: MaterialLibrary, quality: 'low' | 'hig
   phasorGroup.position.set(1.27, 0, -0.06);
   phasorGroup.rotation.y = -0.38;
   group.add(phasorGroup);
-  phasorGroup.add(
-    solid(
+  {
+    // Carcaça torneada (frente reta, traseira abaulada) num pedestal
+    // torneado com pescoço.
+    const kit = new HardwareKit();
+    const shell = new THREE.LatheGeometry(
       [
-        new THREE.CylinderGeometry(0.2, 0.2, 0.16, 48).rotateX(Math.PI / 2).translate(0, 0.27, 0),
-        new THREE.BoxGeometry(0.2, 0.08, 0.16).translate(0, 0.04, 0),
+        new THREE.Vector2(0, -0.1),
+        new THREE.Vector2(0.12, -0.096),
+        new THREE.Vector2(0.17, -0.08),
+        new THREE.Vector2(0.196, -0.05),
+        new THREE.Vector2(0.202, -0.01),
+        new THREE.Vector2(0.202, 0.07),
+        new THREE.Vector2(0.196, 0.08),
+        new THREE.Vector2(0, 0.08),
       ],
-      materials.darkSteel,
-      'phasor-body',
-    ),
-  );
+      64,
+    )
+      .rotateX(Math.PI / 2)
+      .translate(0, 0.27, 0);
+    kit.add('case', shell);
+    kit.add(
+      'anodized',
+      new THREE.LatheGeometry(
+        [
+          new THREE.Vector2(0, 0),
+          new THREE.Vector2(0.11, 0),
+          new THREE.Vector2(0.114, 0.006),
+          new THREE.Vector2(0.106, 0.018),
+          new THREE.Vector2(0.04, 0.026),
+          new THREE.Vector2(0.026, 0.04),
+          new THREE.Vector2(0, 0.04),
+        ],
+        48,
+      ),
+    );
+    kit.add('anodized', new RoundedBoxGeometry(0.05, 0.05, 0.05, 2, 0.01).translate(0, 0.055, -0.02));
+    const body = kit.build(materials, 'phasor-body');
+    geometries.push(...groupGeometries(body));
+    phasorGroup.add(body);
+  }
   phasorGroup.add(solid([new THREE.TorusGeometry(0.185, 0.012, 12, 64).translate(0, 0.27, 0.08)], materials.brushedBrass, 'phasor-ring'));
   const phasor = screen(512, 512, new THREE.CircleGeometry(0.175, 64));
   phasor.mesh.position.set(0, 0.27, 0.082);
@@ -293,9 +340,25 @@ export function createBeatsRig(materials: MaterialLibrary, quality: 'low' | 'hig
   const whiteWidth = 0.05;
   const whites = [-12, -10, -9, -7, -5, -4, -2, 0];
   const caseWidth = whites.length * whiteWidth + 0.04;
-  keyboard.add(solid([new THREE.BoxGeometry(caseWidth, 0.03, 0.2).translate(0, 0.015, 0)], wood, 'keyboard-case'));
-  const whiteGeometry = new THREE.BoxGeometry(whiteWidth - 0.004, 0.018, 0.17).translate(0, 0.009, 0);
-  const blackGeometry = new THREE.BoxGeometry(0.028, 0.02, 0.1).translate(0, 0.01, 0);
+  // Caixa de madeira com laterais mais altas e o friso de trás, um feltro
+  // vermelho atrás das teclas (como num piano) e teclas de cantos boleados.
+  keyboard.add(
+    solid(
+      [
+        new RoundedBoxGeometry(caseWidth, 0.03, 0.2, 2, 0.006).translate(0, 0.015, 0),
+        new RoundedBoxGeometry(0.02, 0.062, 0.2, 2, 0.006).translate(-caseWidth / 2 + 0.01, 0.031, 0),
+        new RoundedBoxGeometry(0.02, 0.062, 0.2, 2, 0.006).translate(caseWidth / 2 - 0.01, 0.031, 0),
+        new RoundedBoxGeometry(caseWidth, 0.07, 0.035, 2, 0.008).translate(0, 0.035, -0.09),
+      ].map((g) => g.toNonIndexed()),
+      wood,
+      'keyboard-case',
+    ),
+  );
+  const felt = new THREE.MeshStandardMaterial({ color: 0x6e1420, roughness: 1, metalness: 0 });
+  owned.push(felt);
+  keyboard.add(solid([new THREE.BoxGeometry(caseWidth - 0.04, 0.006, 0.01).translate(0, 0.051, -0.068)], felt, 'keyboard-felt'));
+  const whiteGeometry = new RoundedBoxGeometry(whiteWidth - 0.004, 0.018, 0.17, 2, 0.0035).translate(0, 0.009, 0);
+  const blackGeometry = new RoundedBoxGeometry(0.028, 0.02, 0.1, 2, 0.004).translate(0, 0.01, 0);
   geometries.push(whiteGeometry, blackGeometry);
   const keys: THREE.Mesh[] = [];
   const keyMaterials = new Map<number, THREE.MeshStandardMaterial>();
