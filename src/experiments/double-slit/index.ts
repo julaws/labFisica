@@ -20,7 +20,9 @@ import {
   fringeSpacing,
   screenIntensity,
 } from '../../optics/waves/double-slit';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { RAIL_SCENE_PER_MILLIMETER } from '../../scene/bench';
+import { HardwareKit, groupGeometries, indicatorLed, monitorStand, opticalPost, pose, screenBezel } from '../../scene/hardware';
 import { createEquationPlate } from '../../scene/equation-plate';
 import { type ExplainerVideo, mountExplainerVideo } from '../../scene/explainer-video';
 import videoPosterUrl from '../../assets/videos/planka-fenda.jpg?url';
@@ -324,14 +326,22 @@ export function createDoubleSlitExperiment(): Experiment {
       slitCarriage.group.add(slitRoot);
       for (const object of plate.glowing) ctx.addGlow(object);
 
-      // Suporte da placa: do poste do carrinho até a borda de baixo dela.
-      const standHeight = AXIS_HEIGHT - 0.16 - 0.05;
-      const standGeometry = new THREE.BoxGeometry(0.03, standHeight, 0.06);
-      standGeometry.translate(0, -0.16 - standHeight / 2, 0);
-      geometries.push(standGeometry);
-      const stand = new THREE.Mesh(standGeometry, materials.anodizedAluminum);
-      stand.castShadow = true;
-      slitRoot.add(stand);
+      // Suporte da placa: poste óptico do bloco do carrinho até a borda de
+      // baixo da moldura (a chapa vai de −0,16 a 0,16; a moldura, 22 mm além).
+      {
+        const kit = new HardwareKit();
+        const carriageTop = 0.052;
+        const frameBottom = -0.16 - 0.022;
+        opticalPost(kit, pose(0, -AXIS_HEIGHT + carriageTop, 0), {
+          top: frameBottom - (-AXIS_HEIGHT + carriageTop),
+          base: false,
+          holderHeight: 0.05,
+          postRadius: 0.0075,
+        });
+        const stand = kit.build(materials, 'slit-plate-stand');
+        geometries.push(...groupGeometries(stand));
+        slitRoot.add(stand);
+      }
 
       // --- Anteparo ---------------------------------------------------------
       const screenMount = ctx.bench.mountAt(railMm(LAYOUT.slitX + store.get().distance));
@@ -358,23 +368,28 @@ export function createDoubleSlitExperiment(): Experiment {
       face.position.z = MONITOR.depth / 2 + 0.001;
       monitor.add(face);
       const faceHeight = MONITOR.width * (SCREEN_HEIGHT / 0.36);
-      const caseGeometry = new THREE.BoxGeometry(MONITOR.width + 0.04, faceHeight + 0.04, MONITOR.depth);
-      geometries.push(caseGeometry);
-      const monitorCase = new THREE.Mesh(caseGeometry, materials.anodizedAluminum);
-      monitorCase.castShadow = true;
-      monitor.add(monitorCase);
       const benchTop = ctx.bench.railTopY - 0.052;
       const centerY = ctx.bench.railTopY + AXIS_HEIGHT + MONITOR.lift + faceHeight / 2;
       const poleHeight = centerY - benchTop;
-      const poleGeometry = new THREE.CylinderGeometry(0.012, 0.012, poleHeight, 16);
-      poleGeometry.translate(0, -poleHeight / 2, -MONITOR.depth / 2 - 0.012);
-      const footGeometry = new THREE.CylinderGeometry(0.07, 0.08, 0.016, 32);
-      footGeometry.translate(0, -poleHeight + 0.008, -MONITOR.depth / 2 - 0.012);
-      geometries.push(poleGeometry, footGeometry);
-      const pole = new THREE.Mesh(poleGeometry, materials.anodizedAluminum);
-      const foot = new THREE.Mesh(footGeometry, materials.anodizedAluminum);
-      pole.castShadow = true;
-      monitor.add(pole, foot);
+      {
+        // Gabinete arredondado com moldura chanfrada na frente, a corcunda da
+        // eletrônica atrás e um pé de monitor de verdade até o tampo.
+        const kit = new HardwareKit();
+        kit.add('case', new RoundedBoxGeometry(MONITOR.width + 0.05, faceHeight + 0.05, MONITOR.depth, 3, 0.012));
+        screenBezel(kit, pose(0, 0, MONITOR.depth / 2 - 0.004), { width: MONITOR.width, height: faceHeight, border: 0.022, depth: 0.007 });
+        kit.add('case', new RoundedBoxGeometry(MONITOR.width * 0.62, faceHeight * 0.62, 0.035, 3, 0.012).translate(0, 0.01, -MONITOR.depth / 2 - 0.012));
+        monitorStand(kit, pose(0, -poleHeight, -MONITOR.depth / 2 - 0.03), { height: poleHeight - 0.01, baseWidth: 0.24, baseDepth: 0.15 });
+        const housing = kit.build(materials, 'phosphor-monitor-case');
+        geometries.push(...groupGeometries(housing));
+        monitor.add(housing);
+        const led = indicatorLed(0x8dffcf, 0.0035);
+        led.position.set(MONITOR.width / 2 - 0.004, -faceHeight / 2 - 0.013, MONITOR.depth / 2 + 0.004);
+        monitor.add(led);
+        disposers.push(() => {
+          led.geometry.dispose();
+          (led.material as THREE.Material).dispose();
+        });
+      }
       monitor.position.set(LAYOUT.slitX + MONITOR.x, centerY, MONITOR.z);
       ctx.bench.group.add(monitor);
       disposers.push(() => monitor.removeFromParent());

@@ -19,13 +19,14 @@ import { brushedMetalRoughness } from './textures/procedural';
  */
 
 /** Acabamentos do kit. Os três primeiros vêm da biblioteca da sala. */
-export type Finish = 'anodized' | 'brass' | 'darkSteel' | 'steel' | 'rubber' | 'case' | 'chrome';
+export type Finish = 'anodized' | 'brass' | 'darkSteel' | 'steel' | 'rubber' | 'case' | 'chrome' | 'ceramic';
 
 interface ExtraMaterials {
   readonly steel: THREE.MeshPhysicalMaterial;
   readonly chrome: THREE.MeshPhysicalMaterial;
   readonly rubber: THREE.MeshStandardMaterial;
   readonly case: THREE.MeshPhysicalMaterial;
+  readonly ceramic: THREE.MeshPhysicalMaterial;
 }
 
 // Um conjunto por biblioteca: as bancadas trocam, os materiais ficam (como
@@ -35,7 +36,13 @@ const extras = new WeakMap<MaterialLibrary, ExtraMaterials>();
 function extraMaterials(library: MaterialLibrary): ExtraMaterials {
   const cached = extras.get(library);
   if (cached) return cached;
-  const brushed = brushedMetalRoughness();
+  // Escovado no sentido do eixo do poste: a textura base risca em u, que no
+  // cilindro dá a volta; girada 90°, os riscos correm ao longo da altura (sem
+  // isso o poste parecia uma barra rosqueada).
+  const brushed = brushedMetalRoughness().clone();
+  brushed.center.set(0.5, 0.5);
+  brushed.rotation = Math.PI / 2;
+  brushed.needsUpdate = true;
   const created: ExtraMaterials = {
     // Aço inox retificado dos postes ópticos: claro, escovado no sentido do eixo.
     steel: new THREE.MeshPhysicalMaterial({
@@ -49,6 +56,8 @@ function extraMaterials(library: MaterialLibrary): ExtraMaterials {
     // Cromado de parafusos e conectores: reflexo nítido, pequeno na tela.
     chrome: new THREE.MeshPhysicalMaterial({ color: 0xd9dee6, metalness: 1, roughness: 0.16, envMapIntensity: 0.9 }),
     rubber: new THREE.MeshStandardMaterial({ color: 0x0b0c0f, roughness: 0.9, metalness: 0 }),
+    // Porcelana vitrificada dos isoladores de alta tensão.
+    ceramic: new THREE.MeshPhysicalMaterial({ color: 0xe9e4da, roughness: 0.28, metalness: 0, clearcoat: 0.9, clearcoatRoughness: 0.12 }),
     // Gabinete de instrumento: pintura texturizada grafite-azulada, um tom
     // acima do corpo da bancada para o aparelho se destacar dele.
     case: (() => {

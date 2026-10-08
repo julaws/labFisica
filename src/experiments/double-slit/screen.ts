@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { HardwareKit, groupGeometries, opticalPost, pose, screenBezel } from '../../scene/hardware';
 import type { MaterialLibrary } from '../../scene/materials';
 
 /**
@@ -131,26 +132,36 @@ export function createPhosphorScreen({
   const frame = new THREE.Mesh(new THREE.BufferGeometry(), materials.anodizedAluminum);
   frame.castShadow = true;
   group.add(frame);
-  // Pé da borda de baixo da placa até o carrinho.
-  const footHeight = Math.max(axisHeight - height / 2, 0.01);
-  const footGeometry = new THREE.BoxGeometry(0.04, footHeight, 0.08);
-  footGeometry.translate(0.02, -height / 2 - footHeight / 2, 0);
-  geometries.push(footGeometry);
-  const foot = new THREE.Mesh(footGeometry, materials.anodizedAluminum);
-  foot.castShadow = true;
-  group.add(foot);
+  // Poste óptico da borda de baixo da placa até o carrinho (o porta-poste
+  // assenta no bloco do carrinho, 52 mm acima da origem dele).
+  {
+    const kit = new HardwareKit();
+    const carriageTop = 0.052;
+    const top = axisHeight - height / 2 - carriageTop;
+    if (top > 0.02) {
+      opticalPost(kit, pose(0.02, -axisHeight + carriageTop, 0), { top, base: false, holderHeight: Math.min(0.06, top * 0.5), postRadius: 0.0075 });
+    }
+    // Bloco de fixação na borda de baixo da moldura.
+    kit.add('anodized', new RoundedBoxGeometry(0.04, 0.02, 0.07, 2, 0.005).translate(0.02, -height / 2 - 0.018 - 0.01, 0));
+    const mount = kit.build(materials, 'phosphor-mount');
+    geometries.push(...groupGeometries(mount));
+    group.add(mount);
+  }
 
+  // Moldura arredondada, refeita quando a largura muda.
   const buildFrame = (w: number): void => {
     const bar = 0.018;
     const depth = 0.03;
-    const parts = [
-      new THREE.BoxGeometry(depth, height + bar * 2, bar).translate(0.002, 0, -w / 2 - bar / 2),
-      new THREE.BoxGeometry(depth, height + bar * 2, bar).translate(0.002, 0, w / 2 + bar / 2),
-      new THREE.BoxGeometry(depth, bar, w).translate(0.002, height / 2 + bar / 2, 0),
-      new THREE.BoxGeometry(depth, bar, w).translate(0.002, -height / 2 - bar / 2, 0),
-    ];
-    const merged = mergeGeometries(parts);
-    for (const part of parts) part.dispose();
+    const kit = new HardwareKit();
+    const facing = new THREE.Matrix4().makeRotationY(-Math.PI / 2);
+    screenBezel(kit, facing.multiply(new THREE.Matrix4().makeTranslation(0, 0, -depth / 2 - 0.002)), {
+      width: w,
+      height,
+      border: bar,
+      depth,
+      radius: bar * 0.9,
+    });
+    const merged = kit.merge().get('anodized');
     frame.geometry.dispose();
     if (merged) frame.geometry = merged;
     plane.scale.z = w;

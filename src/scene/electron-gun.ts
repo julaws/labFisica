@@ -1,15 +1,20 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { HardwareKit, capScrew, groupGeometries, opticalPost, pose } from './hardware';
 import type { MaterialLibrary } from './materials';
 import { PALETTE } from './materials';
 import { nameplateTexture } from './textures/procedural';
 
 /**
  * Canhão de elétrons (ADR 0009 e 0010), usado por mais de um experimento:
- * tubo de alumínio escuro com bobinas de latão (as lentes magnéticas que
- * focalizam o feixe), um bocal na frente e o
- * catodo aceso lá atrás. O eixo do feixe é +x; a origem do grupo é a ponta
- * do bocal, de onde os elétrons saem. A placa dourada fica na base.
+ * corpo torneado de alumínio anodizado, com flanges e frisos, três bobinas de
+ * cobre enroladas em carretéis (as lentes magnéticas que focalizam o feixe),
+ * o bocal cônico na frente e, atrás, o isolador de porcelana com o cabo de
+ * alta tensão descendo até a bancada. O tubo vai preso por duas braçadeiras
+ * em postes ópticos sobre uma base; a placa dourada fica na frente da base.
+ *
+ * O eixo do feixe é +x; a origem do grupo é a ponta do bocal, de onde os
+ * elétrons saem.
  */
 
 export interface ElectronGun {
@@ -33,6 +38,41 @@ export interface ElectronGunOptions {
 
 const LENGTH = 0.42;
 const RADIUS = 0.065;
+/** Fundo do corpo (a tampa traseira), em x. */
+const BACK = -0.05 - LENGTH - 0.03;
+const BASE = { width: 0.36, height: 0.1, depth: 0.2, x: -0.25 } as const;
+
+/** Perfil (raio, posição no eixo) do corpo torneado, de trás para a frente. */
+function bodyProfile(): THREE.Vector2[] {
+  const r = RADIUS;
+  const points: [number, number][] = [
+    [0, BACK - 0.004],
+    [r * 0.78, BACK - 0.004],
+    [r * 1.14, BACK + 0.006],
+    [r * 1.14, BACK + 0.024],
+    [r, BACK + 0.03],
+  ];
+  // Frisos de refrigeração entre as bobinas.
+  for (const x of [-0.42, -0.185, -0.075]) {
+    points.push([r, x - 0.006], [r * 0.95, x - 0.004], [r * 0.95, x + 0.004], [r, x + 0.006]);
+  }
+  points.push(
+    [r, -0.062],
+    [r * 1.12, -0.058],
+    [r * 1.12, -0.05],
+    [r * 0.8, -0.046],
+    [0.019, -0.004],
+    [0.014, 0],
+    [0, 0],
+  );
+  // O torno gira em torno de y: (raio, y) → depois o eixo vira +x.
+  return points.map(([radius, x]) => new THREE.Vector2(radius, x));
+}
+
+/** Lathe em torno de +x a partir de um perfil (raio, x). */
+function turned(profile: THREE.Vector2[], segments = 56): THREE.BufferGeometry {
+  return new THREE.LatheGeometry(profile, segments).rotateZ(-Math.PI / 2);
+}
 
 export function createElectronGun({
   materials,
@@ -44,33 +84,94 @@ export function createElectronGun({
   const geometries: THREE.BufferGeometry[] = [];
   const owned: THREE.Material[] = [];
   const glowing: THREE.Object3D[] = [];
+  const kit = new HardwareKit();
 
-  const along = (geometry: THREE.BufferGeometry, x: number): THREE.BufferGeometry =>
-    geometry.rotateZ(-Math.PI / 2).translate(x, 0, 0);
+  // --- Corpo torneado --------------------------------------------------------
+  kit.add('anodized', turned(bodyProfile()));
 
-  // Corpo: tubo, tampa traseira e bocal cônico, uma malha só.
-  const body = mergeGeometries([
-    along(new THREE.CylinderGeometry(RADIUS, RADIUS, LENGTH, 48), -0.05 - LENGTH / 2),
-    along(new THREE.CylinderGeometry(RADIUS * 1.12, RADIUS * 1.12, 0.03, 48), -0.05 - LENGTH),
-    along(new THREE.CylinderGeometry(0.018, RADIUS * 0.8, 0.05, 48), -0.025),
+  // --- Bobinas: carretel anodizado e enrolamento de cobre com espiras --------
+  for (const x of [-0.13, -0.24, -0.35]) {
+    const width = 0.05;
+    for (const side of [-1, 1]) {
+      const flange = new THREE.CylinderGeometry(RADIUS * 1.32, RADIUS * 1.32, 0.005, 48).rotateZ(Math.PI / 2).translate(x + (side * width) / 2, 0, 0);
+      kit.add('anodized', flange);
+    }
+    const core = new THREE.CylinderGeometry(RADIUS * 1.2, RADIUS * 1.2, width - 0.004, 48, 1, true).rotateZ(Math.PI / 2).translate(x, 0, 0);
+    kit.add('brass', core);
+    const turns = 7;
+    for (let i = 0; i < turns; i += 1) {
+      const t = x - width / 2 + 0.006 + ((width - 0.012) * i) / (turns - 1);
+      kit.add('brass', new THREE.TorusGeometry(RADIUS * 1.2, 0.0034, 6, 48).rotateY(Math.PI / 2).translate(t, 0, 0));
+    }
+  }
+
+  // --- Isolador de alta tensão e cabo -----------------------------------------
+  // Porcelana com aletas (as "saias") na tampa traseira, e o cabo grosso que
+  // sai dele, faz a curva e desce até a bancada, atrás do canhão.
+  const insulator: [number, number][] = [
+    [0.022, 0],
+    [0.03, 0.004],
+  ];
+  for (let i = 0; i < 4; i += 1) {
+    const y = 0.012 + i * 0.016;
+    insulator.push([0.024, y - 0.004], [0.036, y], [0.036, y + 0.003], [0.024, y + 0.007]);
+  }
+  insulator.push([0.018, 0.078], [0.012, 0.086], [0, 0.088]);
+  const ceramic = new THREE.LatheGeometry(
+    insulator.map(([r, y]) => new THREE.Vector2(r, y)),
+    32,
+  )
+    .rotateZ(Math.PI / 2)
+    .translate(BACK - 0.004, 0, 0);
+  kit.add('ceramic', ceramic);
+  const cableStart = new THREE.Vector3(BACK - 0.09, 0, 0);
+  const floor = -axisHeight + 0.008;
+  const cable = new THREE.CatmullRomCurve3([
+    cableStart,
+    new THREE.Vector3(BACK - 0.13, -0.01, -0.02),
+    new THREE.Vector3(BACK - 0.15, floor * 0.55, -0.06),
+    new THREE.Vector3(BACK - 0.12, floor + 0.01, -0.12),
+    new THREE.Vector3(BACK + 0.06, floor, -0.15),
   ]);
-  if (!body) throw new Error('Falha ao montar o canhão');
-  geometries.push(body);
-  const bodyMesh = new THREE.Mesh(body, materials.anodizedAluminum);
-  bodyMesh.castShadow = true;
-  group.add(bodyMesh);
+  kit.add('rubber', new THREE.TubeGeometry(cable, 48, 0.0075, 10, false));
+  // Prensa-cabo de latão na ponta do isolador.
+  kit.add('brass', new THREE.CylinderGeometry(0.012, 0.012, 0.012, 20).rotateZ(Math.PI / 2).translate(BACK - 0.088, 0, 0));
 
-  // Bobinas de latão em volta do tubo: as lentes magnéticas.
-  const coils = mergeGeometries(
-    [-0.13, -0.24, -0.35].map((x) =>
-      new THREE.TorusGeometry(RADIUS * 1.08, 0.012, 12, 48).rotateY(Math.PI / 2).translate(x, 0, 0),
-    ),
+  // --- Suporte: base, postes e braçadeiras ------------------------------------
+  const baseTop = -axisHeight + BASE.height;
+  kit.add(
+    'anodized',
+    new RoundedBoxGeometry(BASE.width, BASE.height, BASE.depth, 3, 0.012).translate(BASE.x, -axisHeight + BASE.height / 2, 0),
   );
-  if (!coils) throw new Error('Falha ao montar as bobinas');
-  geometries.push(coils);
-  const coilMesh = new THREE.Mesh(coils, materials.brushedBrass);
-  coilMesh.castShadow = true;
-  group.add(coilMesh);
+  for (const [dx, dz] of [
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1],
+  ] as const) {
+    capScrew(kit, pose(BASE.x + dx * (BASE.width / 2 - 0.022), baseTop, dz * (BASE.depth / 2 - 0.022)).multiply(new THREE.Matrix4().makeRotationX(-Math.PI / 2)), 0.006, 'steel', false);
+  }
+  const clampDrop = 0.016;
+  const postTop = -RADIUS - clampDrop - baseTop;
+  for (const x of [-0.185, -0.42]) {
+    // Braçadeira: anel em volta do tubo e um bloco embaixo para o poste.
+    const ring = new THREE.LatheGeometry(
+      [new THREE.Vector2(RADIUS * 1.0, -0.012), new THREE.Vector2(RADIUS * 1.13, -0.012), new THREE.Vector2(RADIUS * 1.13, 0.012), new THREE.Vector2(RADIUS * 1.0, 0.012)],
+      48,
+    )
+      .rotateZ(Math.PI / 2)
+      .translate(x, 0, 0);
+    kit.add('anodized', ring);
+    kit.add('anodized', new RoundedBoxGeometry(0.03, clampDrop + 0.012, 0.034, 2, 0.004).translate(x, -RADIUS - clampDrop / 2, 0));
+    capScrew(kit, pose(x, -RADIUS * 0.55, RADIUS * 1.13), 0.0045, 'steel', false);
+    if (postTop > 0.02) {
+      opticalPost(kit, pose(x, baseTop, 0), { top: postTop, base: false, holderHeight: Math.min(0.06, postTop * 0.6), postRadius: 0.0085 });
+    }
+  }
+
+  const hardware = kit.build(materials, 'electron-gun-body');
+  geometries.push(...groupGeometries(hardware));
+  group.add(hardware);
 
   // Bocal aceso: um disco emissivo na saída do feixe.
   const nozzleMaterial = new THREE.MeshBasicMaterial({ color: PALETTE.focus, toneMapped: false });
@@ -81,20 +182,6 @@ export function createElectronGun({
   nozzle.position.x = 0.001;
   group.add(nozzle);
   glowing.push(nozzle);
-
-  // Suporte: coluna e base até o carrinho, com a placa na frente.
-  const standHeight = axisHeight - RADIUS;
-  const stand = mergeGeometries([
-    new THREE.BoxGeometry(0.05, standHeight, 0.05).translate(-0.25, -RADIUS - standHeight / 2, 0),
-    // Base alta o bastante para a placa caber inteira na frente dela.
-    new THREE.BoxGeometry(0.36, 0.1, 0.2).translate(-0.25, -axisHeight + 0.05, 0),
-  ]);
-  if (!stand) throw new Error('Falha ao montar o suporte do canhão');
-  geometries.push(stand);
-  const standMesh = new THREE.Mesh(stand, materials.anodizedAluminum);
-  standMesh.castShadow = true;
-  standMesh.receiveShadow = true;
-  group.add(standMesh);
 
   const plateTexture = nameplateTexture('@juliophisico', nameplate);
   const plateGeometry = new THREE.PlaneGeometry(0.26, 0.26 * (352 / 1024));
@@ -109,7 +196,7 @@ export function createElectronGun({
   const plate = new THREE.Mesh(plateGeometry, plateMaterial);
   plate.name = 'nameplate';
   // Na frente da base, voltada para quem está diante da bancada (+z).
-  plate.position.set(-0.25, -axisHeight + 0.05, 0.1 + 0.002);
+  plate.position.set(BASE.x, -axisHeight + BASE.height / 2, BASE.depth / 2 + 0.002);
   group.add(plate);
 
   return {

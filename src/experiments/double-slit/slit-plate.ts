@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { HardwareKit, capScrew, groupGeometries, screenBezel } from '../../scene/hardware';
 import type { MaterialLibrary } from '../../scene/materials';
 
 /**
@@ -72,6 +73,36 @@ export function createSlitPlate({ materials, slitWidth, separation }: SlitPlateO
   plate.castShadow = true;
   plate.receiveShadow = true;
   group.add(plate);
+
+  // --- Moldura do porta-placa ----------------------------------------------------
+  // Aro chanfrado em volta da chapa, com quatro parafusos de latão na face do
+  // canhão: a chapa fica presa como num porta-filtro de bancada óptica.
+  {
+    const kit = new HardwareKit();
+    const border = 0.022;
+    const depth = PLATE.thickness + 0.01;
+    const facing = new THREE.Matrix4().makeRotationY(-Math.PI / 2);
+    screenBezel(kit, facing.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0, -depth / 2)), {
+      width: PLATE.halfWidth * 2,
+      height: PLATE.halfHeight * 2,
+      border,
+      depth,
+      radius: border * 0.9,
+    });
+    const sz = PLATE.halfWidth + border / 2;
+    const sy = PLATE.halfHeight + border / 2;
+    for (const [dz, dy] of [
+      [-sz, -sy],
+      [sz, -sy],
+      [-sz, sy],
+      [sz, sy],
+    ] as const) {
+      capScrew(kit, facing.clone().multiply(new THREE.Matrix4().makeTranslation(dz, dy, depth / 2 + 0.003)), 0.0055, 'brass', false);
+    }
+    const frame = kit.build(materials, 'slit-plate-frame');
+    geometries.push(...groupGeometries(frame));
+    group.add(frame);
+  }
 
   // --- Tampas deslizantes, do lado do canhão ---------------------------------
   // Fechada, a tampa cobre a fenda; aberta, desliza para fora, sobre a chapa.
