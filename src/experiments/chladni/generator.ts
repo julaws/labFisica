@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { HardwareKit, bncJack, groupGeometries, indicatorLed, instrumentCase, panelKnob, pose, screenBezel } from '../../scene/hardware';
 import type { MaterialLibrary } from '../../scene/materials';
 
 /**
@@ -34,20 +35,11 @@ export function createGenerator(materials: MaterialLibrary, cableTo: THREE.Vecto
   const width = 0.42;
   const height = 0.2;
   const depth = 0.26;
-  const caseGeometry = mergeGeometries([
-    new THREE.BoxGeometry(width, height, depth).translate(0, height / 2 + 0.012, 0),
-    // Pezinhos.
-    new THREE.BoxGeometry(0.05, 0.012, 0.05).translate(-width / 2 + 0.05, 0.006, depth / 2 - 0.05),
-    new THREE.BoxGeometry(0.05, 0.012, 0.05).translate(width / 2 - 0.05, 0.006, depth / 2 - 0.05),
-    new THREE.BoxGeometry(0.05, 0.012, 0.05).translate(-width / 2 + 0.05, 0.006, -depth / 2 + 0.05),
-    new THREE.BoxGeometry(0.05, 0.012, 0.05).translate(width / 2 - 0.05, 0.006, -depth / 2 + 0.05),
-  ]);
-  if (!caseGeometry) throw new Error('Falha ao montar o gerador');
-  geometries.push(caseGeometry);
-  const box = new THREE.Mesh(caseGeometry, materials.darkSteel);
-  box.castShadow = true;
-  box.receiveShadow = true;
-  group.add(box);
+  // Gabinete de instrumento: cantos arredondados, painel frontal anodizado
+  // com parafusos, pés de borracha, ventilação e alças cromadas.
+  const kit = new HardwareKit();
+  const front = instrumentCase(kit, pose(0, 0, 0), { width, height, depth, handles: true, radius: 0.012 });
+  const mid = front.bottom + height / 2;
 
   // Visor.
   const canvas = document.createElement('canvas');
@@ -61,30 +53,41 @@ export function createGenerator(materials: MaterialLibrary, cableTo: THREE.Vecto
   owned.push(texture);
   const displayMaterial = new THREE.MeshBasicMaterial({ map: texture, toneMapped: false });
   owned.push(displayMaterial);
-  const displayWidth = 0.27;
-  const displayGeometry = new THREE.PlaneGeometry(displayWidth, displayWidth * (400 / 1024));
+  const displayWidth = 0.25;
+  const displayHeight = displayWidth * (400 / 1024);
+  const displayGeometry = new THREE.PlaneGeometry(displayWidth, displayHeight);
   geometries.push(displayGeometry);
   const display = new THREE.Mesh(displayGeometry, displayMaterial);
-  display.position.set(-0.05, 0.012 + height / 2 + 0.005, depth / 2 + 0.002);
+  const displayY = mid + 0.025;
+  display.position.set(-0.055, displayY, front.frontZ + 0.003);
   group.add(display);
   glowing.push(display);
+  screenBezel(kit, pose(-0.055, displayY, front.frontZ - 0.001), { width: displayWidth, height: displayHeight, border: 0.01, depth: 0.005 });
 
-  // Botão de sintonia e bornes.
-  const knobGeometry = new THREE.CylinderGeometry(0.03, 0.032, 0.03, 32).rotateX(Math.PI / 2);
-  geometries.push(knobGeometry);
-  const knob = new THREE.Mesh(knobGeometry, materials.knurledRubber);
-  knob.position.set(width / 2 - 0.06, 0.012 + height / 2 + 0.02, depth / 2 + 0.015);
-  group.add(knob);
-  const jackGeometry = mergeGeometries([
-    new THREE.CylinderGeometry(0.009, 0.009, 0.02, 16).rotateX(Math.PI / 2).translate(width / 2 - 0.085, 0.05, depth / 2 + 0.01),
-    new THREE.CylinderGeometry(0.009, 0.009, 0.02, 16).rotateX(Math.PI / 2).translate(width / 2 - 0.04, 0.05, depth / 2 + 0.01),
-  ]);
-  if (!jackGeometry) throw new Error('Falha ao montar os bornes');
-  geometries.push(jackGeometry);
-  group.add(new THREE.Mesh(jackGeometry, materials.brushedBrass));
+  // Botão grande de sintonia, dois menores (amplitude e forma de onda),
+  // as saídas BNC e a chave de liga.
+  panelKnob(kit, pose(width / 2 - 0.065, mid + 0.03, front.frontZ), 0.026);
+  panelKnob(kit, pose(-0.13, mid - 0.06, front.frontZ), 0.013);
+  panelKnob(kit, pose(-0.06, mid - 0.06, front.frontZ), 0.013);
+  const jacks: [number, number][] = [
+    [width / 2 - 0.085, front.bottom + 0.042],
+    [width / 2 - 0.04, front.bottom + 0.042],
+  ];
+  for (const [x, y] of jacks) bncJack(kit, pose(x, y, front.frontZ), 1.3);
+  kit.add('rubber', new RoundedBoxGeometry(0.026, 0.034, 0.012, 2, 0.004).translate(-width / 2 + 0.05, mid - 0.06, front.frontZ + 0.004));
+  kit.add('chrome', new RoundedBoxGeometry(0.018, 0.012, 0.01, 2, 0.003).translate(-width / 2 + 0.05, mid - 0.052, front.frontZ + 0.011));
+  const hardware = kit.build(materials, 'chladni-generator-case');
+  geometries.push(...groupGeometries(hardware));
+  group.add(hardware);
+  const led = indicatorLed(0x8dffcf, 0.0035);
+  led.position.set(-width / 2 + 0.05, mid - 0.028, front.frontZ + 0.003);
+  geometries.push(led.geometry);
+  owned.push(led.material as THREE.Material);
+  group.add(led);
+  glowing.push(led);
 
   // Cabo do borne até a base do excitador (em coordenadas do grupo).
-  const start = new THREE.Vector3(width / 2 - 0.04, 0.05, depth / 2 + 0.02);
+  const start = new THREE.Vector3(width / 2 - 0.04, front.bottom + 0.042, front.frontZ + 0.02);
   const end = cableTo.clone();
   const curve = new THREE.CatmullRomCurve3([
     start,

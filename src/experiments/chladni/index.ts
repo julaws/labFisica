@@ -273,7 +273,7 @@ export function createChladniExperiment(): Experiment {
       // O cabo vai até a base do excitador, no referencial do gerador.
       const generatorPosition = new THREE.Vector3(0.98, 0, 0.12);
       const generatorRotation = -0.42;
-      const exciter = new THREE.Vector3(-0.28 + 0.13, 0.03, -0.04).sub(generatorPosition);
+      const exciter = new THREE.Vector3(-0.28 + 0.146, 0.075, -0.04).sub(generatorPosition);
       exciter.applyAxisAngle(new THREE.Vector3(0, 1, 0), -generatorRotation);
       generator = createGenerator(materials, exciter);
       generator.group.position.copy(generatorPosition);

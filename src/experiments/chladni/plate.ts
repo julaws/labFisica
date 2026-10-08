@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { PlateField, PlateShape } from '../../optics/acoustics/chladni';
+import { HardwareKit, bncJack, groupGeometries, pose } from '../../scene/hardware';
 import type { MaterialLibrary } from '../../scene/materials';
 import { brushedMetalRoughness, nameplateTexture } from '../../scene/textures/procedural';
 
@@ -78,11 +79,24 @@ export function createPlateRig(materials: MaterialLibrary): PlateRig {
   center.add(plate);
 
   // --- Excitador e haste ----------------------------------------------------------
-  const bodyGeometry = mergeGeometries([
-    new THREE.CylinderGeometry(0.12, 0.13, 0.15, 48).translate(0, 0.075, 0),
-    new THREE.CylinderGeometry(0.135, 0.135, 0.012, 48).translate(0, 0.006, 0),
-  ]);
-  if (!bodyGeometry) throw new Error('Falha ao montar o excitador');
+  // Corpo torneado do excitador: pé chanfrado, aletas de refrigeração e a
+  // tampa com bisel. A placa de identificação fica na frente das aletas.
+  const profile: [number, number][] = [
+    [0, 0],
+    [0.135, 0],
+    [0.139, 0.004],
+    [0.139, 0.012],
+    [0.126, 0.018],
+  ];
+  for (let i = 0; i < 6; i += 1) {
+    const y = 0.03 + i * 0.019;
+    profile.push([0.122, y - 0.006], [0.129, y - 0.003], [0.129, y + 0.003], [0.122, y + 0.006]);
+  }
+  profile.push([0.122, 0.142], [0.114, 0.15], [0, 0.15]);
+  const bodyGeometry = new THREE.LatheGeometry(
+    profile.map(([r, y]) => new THREE.Vector2(r, y)),
+    64,
+  );
   geometries.push(bodyGeometry);
   const body = new THREE.Mesh(bodyGeometry, materials.darkSteel);
   body.castShadow = true;
@@ -106,6 +120,15 @@ export function createPlateRig(materials: MaterialLibrary): PlateRig {
   geometries.push(rodGeometry);
   const rod = new THREE.Mesh(rodGeometry, materials.anodizedAluminum);
   group.add(rod);
+
+  // Entrada BNC do excitador, virada para o gerador (+x).
+  {
+    const kit = new HardwareKit();
+    bncJack(kit, pose(0.124, 0.075, 0, Math.PI / 2), 1.4);
+    const input = kit.build(materials, 'chladni-exciter-input');
+    geometries.push(...groupGeometries(input));
+    group.add(input);
+  }
 
   // Porca de latão no centro da placa; sobe e desce com ela.
   const nutGeometry = new THREE.CylinderGeometry(0.018, 0.018, 0.012, 6).translate(0, 0.006, 0);
