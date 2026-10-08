@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { HardwareKit, groupGeometries } from '../../scene/hardware';
 import type { MaterialLibrary } from '../../scene/materials';
 import { BEAM_Y, CHAMBER_RADIUS, INNER_TUBE, NECK_JOIN_X, NECK_RADIUS, NOZZLE_X } from './apparatus';
 
@@ -52,22 +53,66 @@ export function createChamber({ materials, centerHeight }: ChamberOptions): Cham
   group.add(glassMesh);
 
   // --- Metal: tubo interno, colar e suporte, uma malha só ----------------------
-  const standHeight = centerHeight - CHAMBER_RADIUS;
-  const metalGeometry = mergeGeometries([
+    const metalGeometry = mergeGeometries([
     // Tubo interno blindado, de onde o feixe sai dentro da câmara.
     along(new THREE.CylinderGeometry(INNER_TUBE.radius, INNER_TUBE.radius, INNER_TUBE.end - NECK_JOIN_X, 16), NECK_JOIN_X, INNER_TUBE.end),
     // Colar na junção do gargalo com a esfera.
     along(new THREE.CylinderGeometry(NECK_RADIUS + 0.008, NECK_RADIUS + 0.008, 0.03, 20), NECK_JOIN_X - 0.03, NECK_JOIN_X),
-    // Suporte da esfera, do apoio até embaixo dela, com um pé largo e a taça.
-    new THREE.CylinderGeometry(0.02, 0.026, standHeight, 16).translate(0, -CHAMBER_RADIUS - standHeight / 2, 0),
-    new THREE.CylinderGeometry(0.06, 0.07, 0.018, 28).translate(0, -centerHeight + 0.009, 0),
-    new THREE.CylinderGeometry(0.05, 0.03, 0.03, 28).translate(0, -CHAMBER_RADIUS + 0.004, 0),
   ]);
   if (!metalGeometry) throw new Error('Falha ao montar as peças de metal da câmara');
   geometries.push(metalGeometry);
   const metal = new THREE.Mesh(metalGeometry, materials.anodizedAluminum);
   metal.castShadow = true;
   group.add(metal);
+
+  // --- Pedestal torneado da esfera --------------------------------------------
+  // Pé anodizado de borda chanfrada, haste de aço e a taça de latão com um
+  // anel de borracha onde o vidro assenta.
+  {
+    const kit = new HardwareKit();
+    const floor = -centerHeight;
+    kit.add(
+      'anodized',
+      new THREE.LatheGeometry(
+        [
+          new THREE.Vector2(0, floor),
+          new THREE.Vector2(0.074, floor),
+          new THREE.Vector2(0.078, floor + 0.004),
+          new THREE.Vector2(0.078, floor + 0.012),
+          new THREE.Vector2(0.066, floor + 0.02),
+          new THREE.Vector2(0.03, floor + 0.026),
+          new THREE.Vector2(0.022, floor + 0.04),
+          new THREE.Vector2(0, floor + 0.04),
+        ],
+        48,
+      ),
+    );
+    const stemBottom = floor + 0.038;
+    const stemTop = -CHAMBER_RADIUS - 0.012;
+    if (stemTop > stemBottom) {
+      kit.add('steel', new THREE.CylinderGeometry(0.0115, 0.0115, stemTop - stemBottom, 24).translate(0, (stemTop + stemBottom) / 2, 0));
+    }
+    kit.add(
+      'brass',
+      new THREE.LatheGeometry(
+        [
+          new THREE.Vector2(0, stemTop - 0.006),
+          new THREE.Vector2(0.018, stemTop - 0.006),
+          new THREE.Vector2(0.02, stemTop),
+          new THREE.Vector2(0.046, -CHAMBER_RADIUS + 0.012),
+          new THREE.Vector2(0.05, -CHAMBER_RADIUS + 0.016),
+          new THREE.Vector2(0.044, -CHAMBER_RADIUS + 0.016),
+          new THREE.Vector2(0.02, -CHAMBER_RADIUS + 0.002),
+          new THREE.Vector2(0, -CHAMBER_RADIUS + 0.002),
+        ],
+        48,
+      ),
+    );
+    kit.add('rubber', new THREE.TorusGeometry(0.043, 0.0035, 8, 40).rotateX(Math.PI / 2).translate(0, -CHAMBER_RADIUS + 0.014, 0));
+    const pedestal = kit.build(materials, 'chamber-pedestal');
+    geometries.push(...groupGeometries(pedestal));
+    group.add(pedestal);
+  }
 
   return {
     group,
