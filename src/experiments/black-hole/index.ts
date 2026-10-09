@@ -271,6 +271,7 @@ export function createBlackHoleExperiment(): Experiment {
 
       sky = createSky(ctx.renderer, budget.sky);
       uniforms.uSky.value = sky.texture;
+      uniforms.uStars.value = sky.stars;
 
       // --- A esfera de vidro, à esquerda ------------------------------------------
       orb = createOrb({ materials, uniforms, steps: budget.steps });
@@ -729,6 +730,7 @@ export function createBlackHoleExperiment(): Experiment {
       telescope = null;
       sky = null;
       uniforms.uSky.value = null;
+      uniforms.uStars.value = null;
       context = null;
     },
   };

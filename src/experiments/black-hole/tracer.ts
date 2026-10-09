@@ -24,6 +24,7 @@ import { ISCO_RADIUS } from '../../optics/gravity/schwarzschild';
 
 export const TRACER_CHUNK = /* glsl */ `
 uniform sampler2D uSky;
+uniform sampler2D uStars;
 uniform float uSkyIntensity;
 uniform vec3 uSource;
 uniform float uSourceRadius;
@@ -209,11 +210,102 @@ vec3 sourceStar(vec3 d) {
   return vec3(0.82, 0.9, 1.0) * (core + halo) * uSourceIntensity;
 }
 
+// --- Estrelas pontuais ---------------------------------------------------------
+// Onde há resolução (o monitor do telescópio), as estrelas são calculadas aqui,
+// na direção de fuga de cada raio, com o tamanho de um pixel: ficam pontos
+// nítidos em qualquer aumento, em vez dos borrões do texel ampliado. Brilho em
+// lei de potência (muitas fracas, poucas fortes), cor de corpo negro de 3 000
+// a 25 000 K e, nas mais fortes, halo e a cruz de difração do telescópio
+// (alinhada à tela pelas derivadas). Onde o céu fica comprimido (a esfera), as
+// estrelas da textura assumem e estas somem, sem cintilar.
+
+vec3 bhHash33(vec3 p) {
+  p = fract(p * vec3(0.1031, 0.1030, 0.0973));
+  p += dot(p, p.yxz + 33.33);
+  return fract((p.xxy + p.yxx) * p.zyx);
+}
+
+vec3 starTint(float t) {
+  float kelvin = t < 0.55
+    ? mix(3000.0, 5600.0, t / 0.55)
+    : (t < 0.9 ? mix(5600.0, 8500.0, (t - 0.55) / 0.35) : mix(9500.0, 25000.0, (t - 0.9) / 0.1));
+  vec3 c = blackbody(kelvin);
+  c /= max(max(c.r, c.g), max(c.b, 1e-4));
+  return mix(vec3(1.0), c, 0.7);
+}
+
+vec3 pointStarLayer(vec3 d, float cell, float density, float gain, float pix, vec3 ax, vec3 ay, float spikes) {
+  vec3 id = floor(d / cell);
+  vec3 r = bhHash33(id + vec3(cell * 977.0));
+  if (r.x > density) return vec3(0.0);
+  // Centro longe da borda da célula: halo e cruz não são cortados.
+  vec3 center = normalize((id + 0.35 + 0.3 * bhHash33(id + vec3(17.0 + cell * 531.0))) * cell);
+  vec3 off = d - center * dot(d, center);
+  float rr = dot(off, off);
+  float lum = gain * (0.07 + 0.25 * r.y * r.y + pow(r.y, 7.0));
+  float sigma = 0.7 * pix;
+  float light = exp(-rr / (sigma * sigma));
+  float bright = smoothstep(0.2 * gain, gain, lum);
+  if (bright > 0.0) {
+    light += 0.1 * bright * exp(-sqrt(rr) / (1.4 * pix));
+    float sx = dot(off, ax);
+    float sy = dot(off, ay);
+    float len = pix * (2.5 + 5.0 * bright);
+    float w = 0.45 * pix;
+    float spike = exp(-(sx * sx) / (len * len)) * exp(-(sy * sy) / (w * w))
+                + exp(-(sy * sy) / (len * len)) * exp(-(sx * sx) / (w * w));
+    light += spikes * 0.3 * bright * spike;
+  }
+  return starTint(r.z) * lum * light;
+}
+
+vec3 pointStars(vec3 d, vec3 ddx, vec3 ddy, out float weight) {
+  float pix = max(max(length(ddx), length(ddy)), 1e-6);
+  // Onde a lente estica o céu, o pixel cobre uma fatia fina de direções: a
+  // cruz de difração (que é do telescópio, não do céu) sai só onde ele é
+  // quase quadrado.
+  float iso = clamp(length(cross(ddx, ddy)) / (pix * pix), 0.0, 1.0);
+  float spikes = smoothstep(0.45, 0.8, iso);
+  vec3 ax = ddx - d * dot(ddx, d);
+  vec3 ay = ddy - d * dot(ddy, d);
+  ax = length(ax) > 1e-9 ? normalize(ax) : vec3(1.0, 0.0, 0.0);
+  ay = length(ay) > 1e-9 ? normalize(ay) : vec3(0.0, 1.0, 0.0);
+  // Cada camada some quando o pixel passa de ~1/6 da célula dela: no monitor
+  // (0,002 a 0,004 rad por pixel, conforme a qualidade) as três ficam; na
+  // esfera, onde o céu inteiro cabe em poucas centenas de pixels, a textura
+  // assume.
+  float wFine = 1.0 - smoothstep(0.12, 0.2, pix / 0.04);
+  float wMid = 1.0 - smoothstep(0.12, 0.2, pix / 0.07);
+  float wCoarse = 1.0 - smoothstep(0.12, 0.2, pix / 0.13);
+  weight = wFine;
+  vec3 stars = vec3(0.0);
+  if (wFine > 0.0) stars += wFine * pointStarLayer(d, 0.04, 0.85, 0.6, pix, ax, ay, 0.0);
+  if (wMid > 0.0) stars += wMid * pointStarLayer(d, 0.07, 0.6, 1.5, pix, ax, ay, 0.0);
+  if (wCoarse > 0.0) stars += wCoarse * pointStarLayer(d, 0.13, 0.45, 5.0, pix, ax, ay, spikes);
+  return stars;
+}
+
+vec3 skyStars(vec3 d, vec3 ddx, vec3 ddy) {
+  vec2 uv = skyUv(d);
+  vec2 gx = skyUv(normalize(d + ddx)) - uv;
+  vec2 gy = skyUv(normalize(d + ddy)) - uv;
+  gx.x -= floor(gx.x + 0.5);
+  gy.x -= floor(gy.x + 0.5);
+  gx = clamp(gx, vec2(-0.03), vec2(0.03));
+  gy = clamp(gy, vec2(-0.03), vec2(0.03));
+  return textureGrad(uStars, uv, gx, gy).rgb;
+}
+
 vec3 shadeTrace(TraceResult hit) {
   vec3 ddx = dFdx(hit.dir);
   vec3 ddy = dFdy(hit.dir);
   vec3 color = hit.light;
-  if (hit.kind == 0) color += hit.transmittance * (skyColor(hit.dir, ddx, ddy) + sourceStar(hit.dir));
+  if (hit.kind == 0) {
+    float procedural;
+    vec3 points = pointStars(hit.dir, ddx, ddy, procedural);
+    vec3 stars = mix(skyStars(hit.dir, ddx, ddy), vec3(0.0), procedural) + points;
+    color += hit.transmittance * (skyColor(hit.dir, ddx, ddy) + stars * uSkyIntensity + sourceStar(hit.dir));
+  }
   return color;
 }
 `;
@@ -221,6 +313,8 @@ vec3 shadeTrace(TraceResult hit) {
 export interface TracerUniforms {
   [name: string]: THREE.IUniform;
   uSky: THREE.IUniform<THREE.Texture | null>;
+  /** Estrelas do céu (camada separada da Via Láctea, ver sky.ts). */
+  uStars: THREE.IUniform<THREE.Texture | null>;
   uSkyIntensity: THREE.IUniform<number>;
   uSource: THREE.IUniform<THREE.Vector3>;
   uSourceRadius: THREE.IUniform<number>;
@@ -242,6 +336,7 @@ export const DISK_COLOR_TEMPERATURE = 4300;
 export function createTracerUniforms(): TracerUniforms {
   return {
     uSky: { value: null },
+    uStars: { value: null },
     uSkyIntensity: { value: 1 },
     uSource: { value: new THREE.Vector3(0, 0, -1) },
     uSourceRadius: { value: (0.6 * Math.PI) / 180 },

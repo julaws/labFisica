@@ -75,6 +75,8 @@ vec3 starColor(float t) {
 }
 
 uniform float uTexel;
+// 0: Via Láctea e véu; 1: só as estrelas (camadas separadas, ver tracer.ts).
+uniform float uLayer;
 
 vec3 starLayer(vec3 d, float cells, float density, float sigma, float gain) {
   vec3 cell = floor(d * cells);
@@ -110,28 +112,37 @@ void main() {
              + starLayer(d, 1.0 / (16.0 * uTexel), 0.3, 1.0 * uTexel, 8.0)
              + starLayer(d, 1.0 / (4.5 * uTexel), 0.12 + 0.45 * band, 0.6 * uTexel, 1.0);
 
-  gl_FragColor = vec4(milky + haze + stars, 1.0);
+  gl_FragColor = vec4(uLayer < 0.5 ? milky + haze : stars, 1.0);
 }
 `;
 
 export interface Sky {
+  /** Via Láctea e o véu de estrelas fracas. */
   readonly texture: THREE.Texture;
+  /**
+   * As estrelas, numa textura à parte: onde o monitor tem resolução, o
+   * traçador as troca por estrelas pontuais calculadas no próprio raio.
+   */
+  readonly stars: THREE.Texture;
   dispose(): void;
 }
 
 /** Desenha o céu num render target equirretangular (2:1), uma vez. */
 export function createSky(renderer: THREE.WebGLRenderer, width: number): Sky {
-  const target = new THREE.WebGLRenderTarget(width, width / 2, {
-    type: THREE.HalfFloatType,
-    generateMipmaps: true,
-    minFilter: THREE.LinearMipmapLinearFilter,
-    magFilter: THREE.LinearFilter,
-    wrapS: THREE.RepeatWrapping,
-    wrapT: THREE.ClampToEdgeWrapping,
-    depthBuffer: false,
-  });
+  const makeTarget = (): THREE.WebGLRenderTarget =>
+    new THREE.WebGLRenderTarget(width, width / 2, {
+      type: THREE.HalfFloatType,
+      generateMipmaps: true,
+      minFilter: THREE.LinearMipmapLinearFilter,
+      magFilter: THREE.LinearFilter,
+      wrapS: THREE.RepeatWrapping,
+      wrapT: THREE.ClampToEdgeWrapping,
+      depthBuffer: false,
+    });
+  const milky = makeTarget();
+  const stars = makeTarget();
   const material = new THREE.ShaderMaterial({
-    uniforms: { uTexel: { value: (2 * Math.PI) / width } },
+    uniforms: { uTexel: { value: (2 * Math.PI) / width }, uLayer: { value: 0 } },
     vertexShader: SKY_VERTEX,
     fragmentShader: SKY_FRAGMENT,
     depthTest: false,
@@ -145,16 +156,24 @@ export function createSky(renderer: THREE.WebGLRenderer, width: number): Sky {
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
   const previous = renderer.getRenderTarget();
-  renderer.setRenderTarget(target);
-  renderer.render(scene, camera);
+  for (const [layer, target] of [
+    [0, milky],
+    [1, stars],
+  ] as const) {
+    material.uniforms.uLayer!.value = layer;
+    renderer.setRenderTarget(target);
+    renderer.render(scene, camera);
+  }
   renderer.setRenderTarget(previous);
   geometry.dispose();
   material.dispose();
 
   return {
-    texture: target.texture,
+    texture: milky.texture,
+    stars: stars.texture,
     dispose(): void {
-      target.dispose();
+      milky.dispose();
+      stars.dispose();
     },
   };
 }
