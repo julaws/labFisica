@@ -48,7 +48,17 @@ declare global {
     /** Sinalizador lido pelos testes do Playwright (e2e/shots.spec.ts). */
     __labReady?: boolean;
     /** Diagnóstico exposto para as capturas e para o painel de estatísticas. */
-    __lab?: { fps: number; frameMs: number; quality: string; drawCalls: number; triangles: number };
+    __lab?: {
+      fps: number;
+      frameMs: number;
+      quality: string;
+      drawCalls: number;
+      triangles: number;
+      /** Proporção da câmera e do canvas (na tela e no buffer): têm de bater. */
+      cameraAspect: number;
+      canvasAspect: number;
+      bufferAspect: number;
+    };
     /** Centro de cada quadro da parede na tela (px CSS), para os testes clicarem. */
     __labPortraits?: () => ({ x: number; y: number } | null)[];
   }
@@ -251,6 +261,9 @@ async function boot(): Promise<void> {
         quality: quality.settings.level,
         drawCalls: renderer.info.render.calls,
         triangles: renderer.info.render.triangles,
+        cameraAspect: camera.aspect,
+        canvasAspect: canvas.clientWidth / Math.max(1, canvas.clientHeight),
+        bufferAspect: canvas.width / Math.max(1, canvas.height),
       };
     },
   });

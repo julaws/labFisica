@@ -764,3 +764,18 @@ test('tutorial da interface: cinco paradas, só no primeiro experimento', async 
   await page.locator('.station-switcher__arrow').last().click();
   await expect(button).toBeHidden({ timeout: 20_000 });
 });
+
+test('celular: a imagem não fica espremida quando a tela muda durante o carregamento', async ({ page }) => {
+  // A barra de endereço do celular muda a altura da tela logo no começo: a
+  // câmera tem de acompanhar o canvas (a imagem saía espremida na horizontal).
+  const size = page.viewportSize()!;
+  await page.goto('/#/black-hole');
+  await page.waitForTimeout(200);
+  await page.setViewportSize({ width: size.width, height: size.height + 90 });
+  await page.waitForFunction(() => window.__labReady === true, undefined, { timeout: 240_000 });
+  await page.waitForTimeout(1500);
+  const lab = await page.evaluate(() => window.__lab ?? null);
+  expect(lab).not.toBeNull();
+  expect(lab!.cameraAspect).toBeCloseTo(lab!.canvasAspect, 4);
+  expect(lab!.bufferAspect).toBeCloseTo(lab!.canvasAspect, 2);
+});

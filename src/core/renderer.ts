@@ -37,9 +37,25 @@ export function createRenderer({ canvas, maxPixelRatio = 2 }: RendererOptions): 
   return renderer;
 }
 
-/** Redimensiona renderer e câmera ao tamanho do canvas. Devolve true se algo mudou. */
+/** O pedaço do renderer que o redimensionamento usa (um WebGLRenderer serve). */
+export interface ResizableRenderer {
+  readonly domElement: { readonly clientWidth: number; readonly clientHeight: number; readonly width: number; readonly height: number };
+  setPixelRatio(value: number): void;
+  setSize(width: number, height: number, updateStyle?: boolean): void;
+}
+
+/**
+ * Redimensiona renderer e câmera ao tamanho do canvas. Devolve true se algo
+ * mudou.
+ *
+ * A proporção da câmera é conferida à parte do tamanho do buffer: o
+ * pós-processamento (`composer.setSize`) também redimensiona o canvas, e no
+ * celular isso acontecia logo depois de a barra de endereço mudar a altura da
+ * tela. O buffer ficava certo, a câmera não, e a imagem saía espremida na
+ * horizontal até a próxima rotação.
+ */
 export function resizeToDisplaySize(
-  renderer: THREE.WebGLRenderer,
+  renderer: ResizableRenderer,
   camera: THREE.PerspectiveCamera,
   maxPixelRatio = 2,
 ): boolean {
@@ -47,12 +63,17 @@ export function resizeToDisplaySize(
   const pixelRatio = Math.min(window.devicePixelRatio, maxPixelRatio);
   const width = Math.floor(canvas.clientWidth * pixelRatio);
   const height = Math.floor(canvas.clientHeight * pixelRatio);
+  const aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
 
-  if (canvas.width === width && canvas.height === height) return false;
+  const bufferMatches = canvas.width === width && canvas.height === height;
+  const aspectMatches = Math.abs(camera.aspect - aspect) < 1e-6;
+  if (bufferMatches && aspectMatches) return false;
 
-  renderer.setPixelRatio(pixelRatio);
-  renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
-  camera.aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+  if (!bufferMatches) {
+    renderer.setPixelRatio(pixelRatio);
+    renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+  }
+  camera.aspect = aspect;
   camera.updateProjectionMatrix();
   return true;
 }
