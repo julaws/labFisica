@@ -130,6 +130,38 @@ const STRINGS = {
     volume: 'Volume da música',
     musicPausedForVideo: 'Pausada durante o vídeo',
     closeVideo: 'Fechar o vídeo',
+    tour: 'Como usar',
+    tourHint: 'Tutorial rápido: onde fica cada controle',
+    tourStep: 'Passo',
+    tourNext: 'Próximo',
+    tourPrevious: 'Anterior',
+    tourSkip: 'Pular',
+    tourDone: 'Começar a explorar',
+    tourControlsTitle: 'Os controles do experimento',
+    tourControlsText:
+      'No canto superior direito ficam os controles desta bancada: o foco, a abertura, a troca de objetiva e a lente montada ou explodida. O "?" abre a explicação completa e o botão de idioma troca entre português e inglês.',
+    tourDockTitle: 'Música e câmera',
+    tourDockText:
+      'No canto inferior direito, o tocador da música de fundo (pausar, trocar de faixa e volume) e a cruz de navegação: as setas movem a vista, o + e o − aproximam e afastam, e o centro volta à vista padrão. Você também pode arrastar a cena com o mouse ou com o dedo.',
+    tourHudTitle: 'A explicação',
+    tourHudText:
+      'No canto superior esquerdo, o título e uma explicação curta do que está acontecendo. Os números e a frase de baixo mudam a cada ajuste que você faz.',
+    tourQualityTitle: 'Alta qualidade',
+    tourQualityText:
+      'No canto inferior esquerdo, ligue a alta qualidade para ver sombras, brilhos, reflexos e texturas finas. Ela começa desligada para o laboratório rodar bem em qualquer computador ou celular.',
+    tourControlsTextTouch:
+      'Aqui embaixo, o botão Controles abre a gaveta com os controles desta bancada: o foco, a abertura, a troca de objetiva e a lente montada ou explodida. O "?" abre a explicação completa.',
+    tourDockTextTouch:
+      'Aqui ficam o tocador da música de fundo (pausar, trocar de faixa e volume) e as visualizações da página. Para mover a câmera, arraste a cena com um dedo; com dois dedos, aproxime e afaste.',
+    tourHudTextTouch:
+      'No alto da tela, o título e uma explicação curta do que está acontecendo. Os números e a frase de baixo mudam a cada ajuste que você faz.',
+    tourQualityTextTouch:
+      'Este botão liga a alta qualidade: sombras, brilhos, reflexos e texturas finas. Ela começa desligada para o laboratório rodar bem em qualquer celular.',
+    tourSwitcherTextTouch:
+      'Aqui você troca de bancada: as setas levam aos outros experimentos (dupla fenda, força magnética, tunelamento, buraco negro, Chladni, batimentos e foguete). A câmera voa até eles.',
+    tourSwitcherTitle: 'Outros experimentos',
+    tourSwitcherText:
+      'No alto, ao centro, escolha outra bancada: dupla fenda, força magnética, tunelamento, buraco negro, figuras de Chladni, batimentos e foguete. A câmera voa até ela.',
   },
   en: {
     loading: 'Polishing the glass…',
@@ -170,6 +202,38 @@ const STRINGS = {
     volume: 'Music volume',
     musicPausedForVideo: 'Paused during the video',
     closeVideo: 'Close the video',
+    tour: 'How to use',
+    tourHint: 'Quick tour: where each control is',
+    tourStep: 'Step',
+    tourNext: 'Next',
+    tourPrevious: 'Back',
+    tourSkip: 'Skip',
+    tourDone: 'Start exploring',
+    tourControlsTitle: 'The experiment controls',
+    tourControlsText:
+      'The top right corner holds the controls of this bench: focus, aperture, lens choice and assembled or exploded lens. The "?" opens the full explanation and the language button switches between Portuguese and English.',
+    tourDockTitle: 'Music and camera',
+    tourDockText:
+      'In the bottom right corner, the background music player (pause, change track, volume) and the navigation pad: the arrows move the view, + and − zoom in and out, and the centre returns to the default view. You can also drag the scene with the mouse or a finger.',
+    tourHudTitle: 'The explanation',
+    tourHudText:
+      'In the top left corner, the title and a short explanation of what is going on. The numbers and the sentence below change with every adjustment you make.',
+    tourQualityTitle: 'High quality',
+    tourQualityText:
+      'In the bottom left corner, turn on high quality to see shadows, glow, reflections and fine textures. It starts off so the lab runs well on any computer or phone.',
+    tourControlsTextTouch:
+      'Down here, the Controls button opens the drawer with this bench’s controls: focus, aperture, lens choice and assembled or exploded lens. The "?" opens the full explanation.',
+    tourDockTextTouch:
+      'Here are the background music player (pause, change track, volume) and the page views. To move the camera, drag the scene with one finger; pinch with two to zoom.',
+    tourHudTextTouch:
+      'At the top of the screen, the title and a short explanation of what is going on. The numbers and the sentence below change with every adjustment you make.',
+    tourQualityTextTouch:
+      'This button turns on high quality: shadows, glow, reflections and fine textures. It starts off so the lab runs well on any phone.',
+    tourSwitcherTextTouch:
+      'Switch benches here: the arrows lead to the other experiments (double slit, magnetic force, tunnelling, black hole, Chladni, beats and rocket). The camera flies there.',
+    tourSwitcherTitle: 'Other experiments',
+    tourSwitcherText:
+      'At the top centre, pick another bench: double slit, magnetic force, tunnelling, black hole, Chladni figures, beats and rocket. The camera flies there.',
   },
 } as const;
 

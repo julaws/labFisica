@@ -34,6 +34,7 @@ import { createSiteBadge } from './ui/site-badge';
 import { createMusicPlayer } from './ui/music-player';
 import { createLabAudio } from './core/audio';
 import { createQualityToggle } from './ui/quality-toggle';
+import { createTour } from './ui/tour';
 import { type ScreenRect, createPortraitViewer } from './ui/portrait-viewer';
 import { createVideoViewer } from './ui/video-viewer';
 import { PORTRAITS, PORTRAIT_ATLAS, PORTRAIT_FRAME } from './scene/portrait-wall';
@@ -299,6 +300,9 @@ async function boot(): Promise<void> {
     load: async () => (await import('./experiments/rocket')).createRocketExperiment(),
   });
 
+  /** O primeiro experimento, onde fica o tutorial da interface. */
+  const FIRST_EXPERIMENT = 'lens-focus';
+
   const params = new URLSearchParams(window.location.search);
 
   // --- Interface (SPEC §3.3) -------------------------------------------------
@@ -341,6 +345,10 @@ async function boot(): Promise<void> {
     lightweight: quality.lightweight,
     onChange: (lightweight) => void switchQuality(lightweight),
   });
+  // Tutorial "Como usar": botão acima da chave de qualidade, só no primeiro
+  // experimento (a porta de entrada do laboratório).
+  const interfaceTour = createTour({ parent: ui, locale });
+  interfaceTour.setAvailable(false);
   /**
    * A troca muda as luzes, as sombras e os mapas de todos os materiais: o three
    * recompila os shaders. Feito no próximo quadro, isso travava a tela por
@@ -521,6 +529,7 @@ async function boot(): Promise<void> {
     siteBadge.setLocale(next);
     music.setLocale(next);
     qualityToggle.setLocale(next);
+    interfaceTour.setLocale(next);
     portraitViewer.setLocale(next);
     videoViewer.setLocale(next);
     switcher.setLocale(next);
@@ -710,6 +719,7 @@ async function boot(): Promise<void> {
 
       const unsubscribe = experiment.subscribe(refresh);
       current = { entry, experiment, panel, unsubscribe, glows, roots };
+      interfaceTour.setAvailable(entry.id === FIRST_EXPERIMENT);
       renderHud(firstHud);
       panel.element.style.visibility = '';
       if (previous) void fade([hud.element, panel.element], 1);

@@ -743,3 +743,24 @@ test('vídeo explicativo do foguete: tecla V', async ({ page }, testInfo) => {
   await page.waitForTimeout(800);
   await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-68-tv-foguete.png` });
 });
+
+test('tutorial da interface: cinco paradas, só no primeiro experimento', async ({ page }, testInfo) => {
+  await openLab(page, '#/lens-focus');
+  const button = page.locator('.tour-button');
+  await expect(button).toBeVisible();
+  await button.click();
+  const card = page.locator('.tour__card');
+  await expect(card).toBeVisible();
+  await expect(page.locator('.tour__step')).toHaveText(/1 \/ 5/);
+  await page.waitForTimeout(900);
+  await page.screenshot({ path: `${SHOTS_DIR}/${testInfo.project.name}-69-tutorial.png` });
+  for (let step = 2; step <= 5; step += 1) {
+    await page.locator('.tour__nav--primary').click();
+    await expect(page.locator('.tour__step')).toHaveText(new RegExp(`${step} / 5`));
+  }
+  await page.locator('.tour__nav--primary').click();
+  await expect(page.locator('.tour')).toBeHidden();
+  // Fora do primeiro experimento o botão some.
+  await page.locator('.station-switcher__arrow').last().click();
+  await expect(button).toBeHidden({ timeout: 20_000 });
+});
