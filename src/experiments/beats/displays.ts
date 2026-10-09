@@ -28,6 +28,13 @@ export interface SignalView {
 }
 
 const GRID = 'rgba(110, 255, 190, 0.12)';
+/** Grade da tela redonda dos fasores: verde-limão, forte o bastante para ler. */
+const PHASOR_GRID = 'rgba(170, 255, 60, 0.55)';
+/**
+ * Altura do título na tela redonda, px de 512: perto do topo o círculo corta
+ * o texto; aqui a corda tem uns 350 px de largura.
+ */
+const TITLE_Y = 66;
 const CYAN = '#7fe3ff';
 const ORANGE = '#ffb45c';
 const GREEN = '#8dffcf';
@@ -271,8 +278,10 @@ export function drawPhasors(ctx: CanvasRenderingContext2D, w: number, h: number,
   const cx = w / 2;
   const cy = h / 2 + 10;
   const unit = Math.min(w, h) * 0.26;
-  ctx.strokeStyle = GRID;
-  ctx.lineWidth = 1.5;
+  // Na tela redonda a grade é verde-limão bem visível: os círculos de 1 e 2
+  // amplitudes e os eixos são a régua para ler o tamanho da soma.
+  ctx.strokeStyle = PHASOR_GRID;
+  ctx.lineWidth = 2.5;
   for (const r of [1, 2]) {
     ctx.beginPath();
     ctx.arc(cx, cy, r * unit, 0, Math.PI * 2);
@@ -289,9 +298,16 @@ export function drawPhasors(ctx: CanvasRenderingContext2D, w: number, h: number,
   ctx.font = '600 24px "DM Mono", ui-monospace, monospace';
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'center';
+  // Título sobre uma tarja escura: a grade passa por trás sem riscar o texto.
+  const title = (text: string): void => {
+    const width = ctx.measureText(text).width + 24;
+    ctx.fillStyle = 'rgba(4, 16, 11, 0.92)';
+    ctx.fillRect(cx - width / 2, TITLE_Y - 18, width, 36);
+    ctx.fillStyle = 'rgba(214, 255, 233, 0.85)';
+    ctx.fillText(text, cx, TITLE_Y);
+  };
   if (beat >= 30) {
-    ctx.fillStyle = 'rgba(214, 255, 233, 0.75)';
-    ctx.fillText(en ? 'phasors: for close notes' : 'fasores: para notas próximas', cx, 28);
+    title(en ? 'phasors: for close notes' : 'fasores: para notas próximas');
     return;
   }
   const slow = phasorSlowdown(beat);
@@ -323,8 +339,7 @@ export function drawPhasors(ctx: CanvasRenderingContext2D, w: number, h: number,
   arrow(0, 0, v1.x, v1.y, CYAN, 5);
   arrow(v1.x, v1.y, v1.x + v2.x, v1.y + v2.y, ORANGE, 5);
   arrow(0, 0, v1.x + v2.x, v1.y + v2.y, GOLD, 7);
-  ctx.fillStyle = 'rgba(214, 255, 233, 0.8)';
-  ctx.fillText(
+  title(
     slow > 1
       ? en
         ? `slow motion ÷${formatNumber(slow, 1, locale)}`
@@ -332,8 +347,6 @@ export function drawPhasors(ctx: CanvasRenderingContext2D, w: number, h: number,
       : en
         ? 'real speed'
         : 'velocidade real',
-    cx,
-    28,
   );
   ctx.textAlign = 'left';
 }
