@@ -10,6 +10,8 @@ import { createLoadingScreen } from './core/loader';
 import { createMaterialLibrary } from './scene/materials';
 import { STATION_X, createLabRoom } from './scene/lab-room';
 import { createBench } from './scene/bench';
+import { PLAQUE_SIZE, createVisitPlaque } from './scene/visit-plaque';
+import { createBenchVisits } from './core/visits';
 import { disposeProceduralTextures } from './scene/textures/procedural';
 import { createInputSystem } from './core/input';
 import {
@@ -39,7 +41,7 @@ import { type ScreenRect, createPortraitViewer } from './ui/portrait-viewer';
 import { createVideoViewer } from './ui/video-viewer';
 import { PORTRAITS, PORTRAIT_ATLAS, PORTRAIT_FRAME } from './scene/portrait-wall';
 import { createModal } from './ui/modal';
-import { type Locale, preferredLocale, rememberLocale } from './ui/i18n';
+import { type Locale, preferredLocale, rememberLocale, t } from './ui/i18n';
 
 declare global {
   interface Window {
@@ -136,6 +138,20 @@ async function boot(): Promise<void> {
     bench.group.position.x = x;
     scene.add(bench.group);
     return bench;
+  });
+
+  // Placa de visitas na frente de cada bancada: canto inferior direito, abaixo
+  // da placa da equação (que vai até 0,59 abaixo do tampo).
+  const visits = createBenchVisits();
+  const visitPlaques = benches.map((bench) => {
+    const plaque = createVisitPlaque(materials, t('benchVisits', preferredLocale()));
+    plaque.group.position.set(
+      bench.width / 2 - 0.07 - PLAQUE_SIZE.width / 2,
+      0.07 + PLAQUE_SIZE.height / 2,
+      bench.frontZ + 0.008,
+    );
+    bench.group.add(plaque.group);
+    return plaque;
   });
 
   loading.complete('room');
@@ -533,6 +549,7 @@ async function boot(): Promise<void> {
     portraitViewer.setLocale(next);
     videoViewer.setLocale(next);
     switcher.setLocale(next);
+    for (const plaque of visitPlaques) plaque.setLabel(t('benchVisits', next));
     refresh();
   };
 
@@ -719,6 +736,7 @@ async function boot(): Promise<void> {
 
       const unsubscribe = experiment.subscribe(refresh);
       current = { entry, experiment, panel, unsubscribe, glows, roots };
+      void visits.read(entry.id).then((value) => visitPlaques[entry.station]?.setValue(value));
       interfaceTour.setAvailable(entry.id === FIRST_EXPERIMENT);
       renderHud(firstHud);
       panel.element.style.visibility = '';
@@ -772,7 +790,14 @@ async function boot(): Promise<void> {
     entries,
     current: firstEntry?.id ?? '',
     locale,
-    onSelect: (id) => void mount(id, true),
+    onSelect: (id) => {
+      // Cada clique no seletor que leva a uma bancada conta uma visita a ela.
+      const target = registry.resolve(id);
+      if (target && target.id !== (pendingId ?? headingId ?? current?.entry.id)) {
+        void visits.record(target.id).then((value) => visitPlaques[target.station]?.setValue(value));
+      }
+      void mount(id, true);
+    },
   });
 
   const stepExperiment = (direction: 1 | -1): void => {
