@@ -537,7 +537,7 @@ async function boot(): Promise<void> {
   const renderHud = (model: HudModel): void => {
     hud.render(model);
     // A aba do navegador acompanha a bancada.
-    const title = `${model.title} · ${locale === 'en' ? 'Optics Lab' : 'Laboratório de Óptica'}`;
+    const title = `${model.title} · ${locale === 'en' ? 'Physics Lab' : 'Laboratório de Física'}`;
     if (document.title !== title) document.title = title;
   };
 

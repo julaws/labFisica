@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Laboratório de óptica interativo em 3D no navegador",
+  "description": "Laboratório didático de física interativo em 3D no navegador",
   "license": "MIT",
   "engines": {
     "node": ">=20"
